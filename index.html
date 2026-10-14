@@ -178,6 +178,9 @@ label.f textarea{height:64px;resize:vertical}
 .evo-overlay p{font:22px Jua,sans-serif;margin-top:24px;text-align:center;padding:0 20px}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:99px;font:16px Jua,sans-serif;transition:transform .35s;z-index:40}
 .toast.show{transform:translateX(-50%) translateY(0)}
+.update-banner{background:#3a2a14;color:#ffd38a;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
+.update-banner[hidden]{display:none}
+.update-banner .b{flex:none;padding:7px 10px;font-size:13px}
 /* ---------- 탭 · 기록 ---------- */
 .maintabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);padding:4px;border-radius:14px;margin-bottom:12px}
 .maintabs button{border:0;background:none;color:var(--mute);border-radius:10px;padding:9px 6px;font:15px Jua,sans-serif;cursor:pointer}
@@ -257,6 +260,8 @@ label.f textarea{height:64px;resize:vertical}
     <button role="tab" id="tabbtn-report" aria-controls="tab-report" aria-selected="false" data-tab="report" tabindex="-1">📊 기록</button>
     <button role="tab" id="tabbtn-dex" aria-controls="tab-dex" aria-selected="false" data-tab="dex" tabindex="-1">📕 도감</button>
   </nav>
+
+  <div class="update-banner" id="updBanner" role="alert" hidden></div>
 
   <section id="tab-home" role="tabpanel" aria-labelledby="tabbtn-home">
   <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
@@ -381,6 +386,17 @@ label.f textarea{height:64px;resize:vertical}
 <!-- 설정 -->
 <div class="modal" id="setModal" role="dialog" aria-modal="true" aria-label="설정"><div class="sheet">
   <h2>설정</h2>
+  <div class="card" style="background:var(--card2);margin-top:10px">
+    <div class="card-head" style="margin-bottom:4px"><span class="jua">🔄 업데이트</span><span class="muted" id="setVersion"></span></div>
+    <div class="muted" id="updStatus">새 버전이 나오면 1시간 안에 알아서 받아서 다시 켜져요.</div>
+    <div class="btns" style="margin-top:8px">
+      <button type="button" class="b" id="checkUpdate">지금 업데이트 확인</button>
+      <button type="button" class="b" id="openReleases">다운로드 페이지</button>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
+      <input type="checkbox" name="auto_update" form="setForm" style="width:18px;height:18px"> 새 버전이 나오면 자동으로 업데이트
+    </label>
+  </div>
   <div class="muted">목록은 쉼표로 구분해요. 앱 이름은 앞부분만 맞아도 인식해요 (예: "IntelliJ IDEA").</div>
   <div class="btns" id="presets">
     <button type="button" class="b" data-p="design">🎨 디자이너</button>
@@ -404,9 +420,7 @@ label.f textarea{height:64px;resize:vertical}
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="auto_summon" style="width:18px;height:18px"> 작업 앱을 켜면 펫이 걸어 나오기 (10분 넘게 쉬었다가 켤 때)
       </label>
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
-        <input type="checkbox" name="auto_update" style="width:18px;height:18px"> 새 버전이 나오면 자동으로 업데이트
-      </label>
+
       <div class="muted" style="margin-top:6px" id="motionHint">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
     </div>
     <div class="card" style="background:var(--card2);margin-top:14px">
@@ -767,6 +781,7 @@ function render() {
     penalty:`-${cfg.penalty_xp_per_min} XP/분`, paused:'경험치·페널티 멈춤', ai:`무료 AI ${Math.max(0, Math.ceil(cfg.ai_daily_free_min - S.today.ai_sec / 60))}분 남음`, idle:`${live.idle}초 동안 입력 없음`, neutral:'경험치 변화 없음'}[live.mode];
 
   $('#verTag').textContent = S.version ? `Figmon v${S.version} · ` : '';
+  renderUpdate();
   $('#tWork').textContent = dur(S.today.work_sec);
   $('#tDis').textContent = dur(S.today.distract_sec);
   $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled || S.today.ai_sec > 30 ? '' : 'none';
@@ -1072,6 +1087,24 @@ $('#presets').onclick = e => {
   const f = $('#setForm'); f.elements.work_apps.value = pr.work_apps.join(', '); f.elements.work_domains.value = pr.work_domains.join(', ');
   toast('목록을 바꿨어요. 저장을 눌러주세요');
 };
+const releasesUrl = () => (S && S.releases_url) || 'https://github.com/jinjwon/figmon/releases/latest';
+function openReleases() { if (native) callNative({type: 'openURL', url: releasesUrl()}); else window.open(releasesUrl(), '_blank'); }
+$('#openReleases').onclick = openReleases;
+$('#checkUpdate').onclick = async () => {
+  if (native) { callNative({type: 'checkUpdate'}); toast('업데이트를 확인하고 있어요'); return; }   // 맥 앱: 앱이 직접 확인·설치
+  if (S.platform === 'windows') { await api('/api/update_check', {}); toast('업데이트를 확인하고 있어요'); return; }
+  openReleases();
+};
+function renderUpdate() {
+  const u = S.update, banner = $('#updBanner');
+  $('#setVersion').textContent = S.version ? `현재 v${S.version}` : '';
+  if (u && u.msg) $('#updStatus').textContent = u.msg;
+  if (u && u.state === 'failed') {
+    banner.hidden = false;
+    banner.innerHTML = `<span style="flex:1">⚠️ 자동 업데이트를 못 했어요. ${esc(u.msg)}</span><button class="b" id="bannerDl">다운로드 페이지</button>`;
+    $('#bannerDl').onclick = openReleases;
+  } else banner.hidden = true;
+}
 $('#setCancel').onclick = () => $('#setModal').classList.remove('open');
 $('#setForm').onsubmit = async e => {
   e.preventDefault(); const f = e.target, body = {};

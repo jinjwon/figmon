@@ -28,7 +28,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.9.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.10.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -288,7 +288,7 @@ TITLE_HINTS = {
 
 LOCK = threading.Lock()
 LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None, "front_hwnd": 0,
-        "summon": 0, "summon_label": "", "last_work_at": 0.0,
+        "summon": 0, "summon_label": "", "last_work_at": 0.0, "update": None,
         "distract_since": None, "penalty_since": None, "last_dialog": 0.0}
 
 
@@ -727,7 +727,8 @@ def view():
         live["grace_left"] = max(0, cfg["grace_sec"] - (time.time() - LIVE["penalty_since"]))
     out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"], "paused_until": s.get("paused_until", 0),
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
-           "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION}
+           "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
+           "update": LIVE["update"], "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -844,6 +845,8 @@ class Handler(BaseHTTPRequestHandler):
                 pet["branch"] = opt["id"]
                 log("evo", f"이브이 → {opt['name']} 진화! ({opt['daypart_ko']}에 많이 함께했어요)")
                 notify("✨ 진화!", f"이브이 → {opt['name']} 진화!")
+            elif self.path == "/api/update_check":   # 대시보드의 '지금 업데이트 확인' (Windows)
+                threading.Thread(target=win_update, args=(True,), daemon=True).start()
             elif self.path == "/api/summon":   # 펫 부르기 (Windows에서 Figmon을 한 번 더 실행했을 때 등)
                 LIVE["summon"] += 1
                 LIVE["summon_label"] = ""
@@ -872,21 +875,47 @@ def latest_tag():
         return r.geturl().rstrip("/").rsplit("/", 1)[-1]   # …/releases/tag/v1.7.0 → v1.7.0
 
 
+RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
+
+
+def set_update(state, msg="", latest=""):
+    """대시보드에 보여 줄 업데이트 상태 (checking·latest·downloading·failed·dev)"""
+    LIVE["update"] = {"state": state, "msg": msg, "latest": latest, "at": time.time()}
+
+
+def folder_writable(folder):
+    try:
+        probe = Path(folder) / f".figmon-write-test-{os.getpid()}"
+        probe.write_bytes(b"1")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
 def win_update(manual=False):
     """Windows exe 자동 업데이트: 새 exe를 받아 실행하면, 새 exe가 이 프로세스가 끝나길 기다렸다가
     원래 자리에 자기를 복사하고 다시 켠다 (--apply-update). 업데이트를 시작하면 이 프로세스는 끝난다."""
     if not (IS_WIN and getattr(sys, "frozen", False)):
-        if manual:
-            notify("업데이트", "소스로 실행 중이면 git pull로 업데이트해 주세요")
+        set_update("dev", "소스로 실행 중이면 git pull로 업데이트해 주세요")
         return False
+    set_update("checking", "새 버전을 확인하는 중…")
     try:
         test = "--updated" not in sys.argv and os.environ.get("FIGMON_UPDATE_TAG")   # CI 점검용
         tag = test or latest_tag()
         print(f"update check: latest {tag}, current {VERSION}", flush=True)
         if not newer(tag, VERSION):
+            set_update("latest", f"최신 버전이에요 (v{VERSION})", tag)
             if manual:
                 notify("최신 버전이에요", f"Figmon v{VERSION}")
             return False
+        exe = Path(sys.executable)
+        if not folder_writable(exe.parent):   # Program Files 같은 곳: 바꿔 끼울 수 없음
+            msg = f"'{exe.parent}' 폴더에 쓸 수 없어서 자동 업데이트를 못 해요. Figmon.exe를 바탕 화면이나 내 문서 폴더로 옮겨 주세요."
+            set_update("failed", msg, tag)
+            notify("업데이트를 못 했어요", msg)
+            return False
+        set_update("downloading", f"v{tag.lstrip('v')} 받는 중…", tag)
         url = (test and os.environ.get("FIGMON_UPDATE_URL")) or f"https://github.com/{REPO}/releases/download/{tag}/Figmon-Windows.zip"
         tmp = Path(tempfile.mkdtemp(prefix="figmon-update-"))
         zpath = tmp / "update.zip"
@@ -901,29 +930,34 @@ def win_update(manual=False):
         os._exit(0)
     except Exception as e:
         print("update check failed:", repr(e), flush=True)
+        set_update("failed", "업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.")
         if manual:
             notify("업데이트 확인 실패", "인터넷 연결을 확인해 주세요")
     return False
 
 
 def apply_update(target):
-    """(새 exe로 실행됨) 옛 exe 잠금이 풀리면 그 자리에 나를 복사하고 다시 켠다"""
+    """(새 exe로 실행됨) 옛 exe 잠금이 풀리면 그 자리에 나를 복사하고 다시 켠다.
+    끝내 못 바꾸면 옛 버전을 다시 켜고, 다운로드 페이지를 열어 준다"""
     import shutil
     for _ in range(90):
         try:
             shutil.copy2(sys.executable, target)
-            break
+            subprocess.Popen([target, "--startup", "--updated"], close_fds=True)
+            return
         except OSError:
             time.sleep(1)
-    subprocess.Popen([target, "--startup", "--updated"], close_fds=True)
+    notify("업데이트를 마치지 못했어요", "다운로드 페이지에서 새 Figmon.exe를 받아 주세요")
+    webbrowser.open(RELEASES_URL)
+    subprocess.Popen([target, "--startup"], close_fds=True)
 
 
 def update_loop():
-    time.sleep(float(os.environ.get("FIGMON_UPDATE_DELAY", 20)))
+    time.sleep(float(os.environ.get("FIGMON_UPDATE_DELAY", 10)))
     while True:
         if STATE["config"].get("auto_update", True):
             win_update()
-        time.sleep(6 * 3600)
+        time.sleep(3600)   # 1시간마다
 
 
 def launch_pet():

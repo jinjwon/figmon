@@ -159,6 +159,8 @@ final class Dashboard: NSObject, NSWindowDelegate, WKScriptMessageHandler, WKUID
         case "copy":
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(d["text"] as? String ?? "", forType: .string)
+        case "checkUpdate":
+            delegate.updater.check(manual: true)
         case "openURL":
             if let s = d["url"] as? String, let u = URL(string: s) { NSWorkspace.shared.open(u) }
         default: break
@@ -521,14 +523,66 @@ enum LoginItem {
     }
 }
 
+// MARK: - 응용 프로그램 폴더로 옮기기
+// 다운로드 폴더 등에서 바로 실행하면 macOS가 앱을 읽기 전용 임시 위치(App Translocation)에서 돌려서
+// 자동 업데이트로 앱을 바꿔 끼울 수 없다. 버튼 한 번으로 응용 프로그램 폴더에 복사하고 거기서 다시 켠다.
+
+enum Mover {
+    static let path = Bundle.main.bundlePath
+    static var inApplications: Bool {
+        path.hasPrefix("/Applications/") || path.hasPrefix(NSHomeDirectory() + "/Applications/")
+    }
+    static var translocated: Bool { path.contains("/AppTranslocation/") }
+    static var canSelfUpdate: Bool {
+        !translocated && FileManager.default.isWritableFile(atPath: (path as NSString).deletingLastPathComponent)
+    }
+
+    /// 처음 켤 때 (응용 프로그램 폴더 밖이면) 또는 업데이트가 막혔을 때 묻기
+    static func offer(reason: String) {
+        guard path.hasSuffix(".app"), !inApplications || !canSelfUpdate else { return }
+        if reason == "launch" && UserDefaults.standard.bool(forKey: "declinedMove-\(path)") { return }
+        let a = NSAlert()
+        a.messageText = "Figmon을 '응용 프로그램' 폴더로 옮길까요?"
+        a.informativeText = "지금 위치(다운로드 폴더 등)에서는 macOS 보안 때문에 자동 업데이트를 할 수 없어요.\n옮기면 다음부터 새 버전이 나올 때 알아서 업데이트돼요. 키우던 포켓몬은 그대로예요."
+        a.addButton(withTitle: "옮기고 다시 켜기")
+        a.addButton(withTitle: "나중에")
+        NSApp.activate(ignoringOtherApps: true)
+        guard a.runModal() == .alertFirstButtonReturn else {
+            UserDefaults.standard.set(true, forKey: "declinedMove-\(path)")
+            return
+        }
+        for dir in ["/Applications", NSHomeDirectory() + "/Applications"] {
+            let dest = dir + "/Figmon.app"
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            // 옛 버전이 있으면 지우고 복사, 다운로드 표시(quarantine)도 떼서 다시 막히지 않게
+            p.arguments = ["-c", "rm -rf \"$1\" && /usr/bin/ditto \"$0\" \"$1\" && /usr/bin/xattr -dr com.apple.quarantine \"$1\"", path, dest]
+            try? p.run(); p.waitUntilExit()
+            if p.terminationStatus == 0 {
+                let relaunch = Process()
+                relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
+                relaunch.arguments = ["-c", "sleep 1.5; /usr/bin/open -a \"$0\"", dest]
+                try? relaunch.run()
+                NSApp.terminate(nil)
+                return
+            }
+        }
+        let f = NSAlert()
+        f.messageText = "옮기지 못했어요"
+        f.informativeText = "Finder에서 Figmon.app을 '응용 프로그램' 폴더로 직접 끌어다 놓은 뒤 거기서 실행해 주세요."
+        f.runModal()
+    }
+}
+
 // MARK: - 자동 업데이트 (GitHub 최신 릴리스 → 앱 교체 → 다시 실행)
 
 final class Updater {
     var busy = false
 
     func start() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { self.check(manual: false) }
-        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in self.check(manual: false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self.check(manual: false) }
+        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in self.check(manual: false) }   // 1시간마다
     }
 
     static func newer(_ a: String, than b: String) -> Bool {
@@ -538,6 +592,11 @@ final class Updater {
 
     func check(manual: Bool) {
         guard !busy, Bundle.main.bundlePath.hasSuffix(".app") else { return }
+        // 다운로드 폴더 등에서 실행 중이면 바꿔 끼울 수 없음 → 응용 프로그램 폴더로 옮기기부터
+        if !Mover.canSelfUpdate {
+            if manual { Mover.offer(reason: "update") }
+            return
+        }
         // 설정에서 자동 업데이트를 끈 경우 (수동 확인은 항상 가능)
         URLSession.shared.dataTask(with: URL(string: base + "/api/state")!) { data, _, _ in
             let cfg = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["config"] as? [String: Any]
@@ -584,7 +643,7 @@ final class Updater {
             let fm = FileManager.default
             let work = fm.temporaryDirectory.appendingPathComponent("figmon-update-\(UUID().uuidString)")
             defer { DispatchQueue.main.async { self.busy = false } }
-            guard let file = file, err == nil else { return }
+            guard let file = file, err == nil else { return self.failed(version, "새 버전을 받지 못했어요. 인터넷 연결을 확인해 주세요.") }
             do {
                 try fm.createDirectory(at: work, withIntermediateDirectories: true)
                 let zip = work.appendingPathComponent("update.zip")
@@ -596,7 +655,9 @@ final class Updater {
                 let newApp = work.appendingPathComponent("Figmon.app")
                 let info = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist"))
                 guard info?["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
-                      info?["CFBundleShortVersionString"] as? String == version else { return }
+                      info?["CFBundleShortVersionString"] as? String == version else {
+                    return self.failed(version, "받은 파일이 올바르지 않아요.")
+                }
                 let dest = URL(fileURLWithPath: Bundle.main.bundlePath)
                 _ = try fm.replaceItemAt(dest, withItemAt: newApp)
                 DispatchQueue.main.async {
@@ -608,9 +669,27 @@ final class Updater {
                     NSApp.terminate(nil)
                 }
             } catch {
-                print("update failed:", error)
+                self.failed(version, "앱을 바꿔 끼우지 못했어요. (\(error.localizedDescription))")
             }
         }.resume()
+    }
+
+    /// 자동 업데이트 실패: 버전마다 한 번만 이유를 알려 주고 다운로드 페이지를 열 수 있게
+    private func failed(_ version: String, _ why: String) {
+        DispatchQueue.main.async {
+            let key = "updateFailed-\(version)"
+            if UserDefaults.standard.bool(forKey: key) { return }
+            UserDefaults.standard.set(true, forKey: key)
+            let a = NSAlert()
+            a.messageText = "v\(version) 자동 업데이트를 못 했어요"
+            a.informativeText = why + "\n\n다운로드 페이지에서 새 버전을 받아 응용 프로그램 폴더에 덮어써 주세요. 키우던 포켓몬은 그대로예요."
+            a.addButton(withTitle: "다운로드 페이지 열기")
+            a.addButton(withTitle: "나중에")
+            NSApp.activate(ignoringOtherApps: true)
+            if a.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(URL(string: "https://github.com/jinjwon/figmon/releases/latest")!)
+            }
+        }
     }
 
     private func tell(_ title: String, _ text: String) {
@@ -672,8 +751,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                 } else if !launchedInBackground {
                     self.dashboard.show(title: true)   // 직접 켜면 타이틀 화면부터
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.askLoginOnce() }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        Mover.offer(reason: "launch")   // 다운로드 폴더에서 켰으면 옮기기부터 (자동 업데이트를 위해)
+                        self.askLoginOnce()
+                    }
                 }
+                if LoginItem.enabled { LoginItem.set(true) }   // 앱 위치가 바뀌었어도 자동 실행이 지금 위치를 가리키게
                 self.updater.start()
             } else {
                 self.failAlert()
