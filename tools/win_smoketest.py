@@ -49,6 +49,24 @@ if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스�
                 print("--- state keys:", list(json.loads(r.read()).keys()))
         except Exception as e:
             print("--- state error:", repr(e))
+        # 교체된 exe를 직접 실행해 보기 (실행 환경 문제인지, 받은 파일 문제인지 구분)
+        subprocess.run(["taskkill", "/F", "/IM", "Figmon.exe"], capture_output=True)
+        time.sleep(2)
+        direct = subprocess.Popen([str(exe), "--startup"], env={**env, "FIGMON_UPDATE_DELAY": "9999"},
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        up = False
+        for _ in range(30):
+            time.sleep(1)
+            try:
+                urllib.request.urlopen("http://127.0.0.1:7777/api/meta", timeout=2)
+                up = True
+                break
+            except Exception:
+                pass
+        print("--- direct run of replaced exe, server up:", up)
+        if not up:
+            direct.kill()
+            print((direct.stdout.read() or b"").decode("utf-8", "replace")[-2000:])
         for d in Path(tempfile.gettempdir()).glob("figmon-update-*"):
             print("--- update dir:", d, [p.name for p in d.iterdir()])
     (OUT / "report-update.txt").write_text(result, encoding="utf-8")
