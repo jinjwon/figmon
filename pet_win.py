@@ -154,8 +154,11 @@ class Pet:
         self.frames, self.cur, self.cur_key, self.frame_i = {}, None, None, 0
         self.pending = None
         self.loading = None
-        self.facing, self.walking = -1, False
-        self.target, self.speed, self.rest_until = None, 60.0, 0.0
+        self.facing, self.walking, self.running = -1, False, False
+        self.target, self.speed, self.rest_until = None, 55.0, 0.0
+        self.vx, self.look_until, self.next_look = 0.0, 0.0, 0.0
+        self.last_click, self.clicks, self.last_hover, self.next_dust = 0.0, [], 0.0, 0.0
+        self.squash_until = 0.0
         self.drag, self.falling, self.vy = None, False, 0.0
         self.evolving_until = 0.0
         self.bubble_until = None
@@ -169,6 +172,7 @@ class Pet:
         self.cv.bind("<B1-Motion>", self.on_move)
         self.cv.bind("<ButtonRelease-1>", self.on_up)
         self.cv.bind("<Button-3>", self.on_menu)
+        self.cv.bind("<Enter>", self.on_hover)
         self.place()
 
         threading.Thread(target=self.poll_loop, daemon=True).start()
@@ -357,17 +361,56 @@ class Pet:
         self.cv.tag_lower(tail, t)
         self.bubble_until = time.time() + secs if secs else 0
 
-    def float_text(self, text, color):
-        item = self.cv.create_text(self.W // 2, self.sprite_top() + 10, text=text, fill=color,
+    def float_text(self, text, color, dx=0.0, speed=40.0):
+        item = self.cv.create_text(self.W // 2 + dx, self.sprite_top() + 10, text=text, fill=color,
                                    font=("Malgun Gothic", int(12 * self.dpi), "bold"))
-        self.floats.append([item, time.time(), 1.5])
+        self.floats.append([item, time.time(), 1.3, dx / 1.3 * 0.4, speed])
+
+    def hearts(self, n):
+        for i in range(n):
+            self.root.after(i * 90, lambda: self.float_text("♥", "#ff7aa2", random.uniform(-35, 35), 50))
+
+    def dust(self, n=1):
+        foot_y = self.H - 10
+        back = -1 if self.facing > 0 else 1   # 진행 반대쪽 발 뒤로
+        for _ in range(n):
+            x = self.W / 2 + back * 22 * self.dpi + random.uniform(-5, 5)
+            r = 3 * self.dpi
+            item = self.cv.create_oval(x - r, foot_y - r, x + r, foot_y + r, fill="#c9c1b3", outline="")
+            self.floats.append([item, time.time(), 0.6, back * 18, 10])
 
     def burst(self):
         for i in range(6):
-            self.root.after(i * 120, lambda: self.float_text("✦", "#f5c518"))
+            self.root.after(i * 120, lambda: self.float_text("✦", "#f5c518", random.uniform(-40, 40)))
 
-    def hop(self):
-        self.hop_until = time.time() + 0.5
+    def hop(self, secs=0.5):
+        self.hop_until = time.time() + secs
+        self.hop_len = secs
+
+    def on_hover(self, e):
+        now = time.time()
+        if self.drag or self.walking or now - self.last_hover < 6:
+            return
+        self.last_hover = now
+        self.hop(0.3)
+        self.float_text("!", "#f5b400", 18, 25)
+        if self.target is not None:
+            self.target, self.vx, self.rest_until = None, 0.0, now + 3
+
+    def react_line(self):
+        if not self.state or not self.state.get("pet"):
+            return "대시보드에서 파트너를 골라줘! (두 번 누르기)"
+        lines = {
+            "work": ["응? 나 불렀어? 😊", "쓰담쓰담 좋아!", "같이 힘내자!", self.status_line()],
+            "neutral": ["헤헤, 반가워!", "놀아줄 거야?", self.status_line()],
+            "break": ["같이 쉬자~", "간식 있어? 🍪"],
+            "warning": ["지금 그럴 때가 아니야!", "빨리 돌아가자!"],
+            "penalty": ["흥! 작업부터 해!", "쓰다듬어도 안 풀려 💢"],
+            "idle": ["으음… 깼어…", "돌아왔구나!"],
+            "paused": ["쉬는 중이지? 기다릴게", "다녀와~"],
+            "ai": ["AI 말고 나랑 놀자~", "스스로도 해보자!"],
+        }
+        return random.choice(lines.get(self.mode, lines["neutral"]))
 
     # ----- 마우스 -----
     def on_down(self, e):
@@ -387,12 +430,28 @@ class Pet:
 
     def on_up(self, e):
         d, self.drag = self.drag, None
-        if d and d["dist"] <= 6:   # 그냥 클릭 → 대시보드
-            self.hop()
-            self.float_text("♥", "#ff8fa8")
-            if self.state and self.state.get("pet"):
-                self.say(self.status_line(), 3.5)
-            self.open_dashboard(False)
+        if d and d["dist"] <= 6:
+            now = time.time()
+            if now - self.last_click < 0.4:      # 두 번 누르기 → 대시보드
+                self.last_click = 0
+                self.say("대시보드 열게!", 1.5)
+                self.open_dashboard(False)
+                return
+            self.last_click = now
+            self.clicks = [t for t in self.clicks if now - t < 1.5] + [now]
+            self.target, self.vx, self.rest_until = None, 0.0, now + 4   # 멈춰서 나를 봄
+            self.facing = 1 if e.x_root > self.x + self.W / 2 else -1
+            if len(self.clicks) >= 3:            # 연달아 누르면 간지러워함
+                self.hop(0.7)
+                self.hearts(5)
+                self.say(random.choice(["간지러워~ ㅋㅋㅋ", "그만그만~ 😆", "히히 간지럽다니까!"]), 2.2)
+            else:
+                self.hop(0.55)
+                if self.mode == "penalty":
+                    self.float_text("💢", "#e5484d")
+                else:
+                    self.hearts(3)
+                self.say(self.react_line(), 3)
         else:
             self.falling, self.vy = True, 0.0
             self.target, self.rest_until = None, time.time() + 2
@@ -424,7 +483,7 @@ class Pet:
 
     def call(self):
         self.target = self.root.winfo_pointerx() - self.W / 2
-        self.speed = 320
+        self.speed = 260
         self.say("불렀어? 갈게!", 2)
 
     # ----- 이동 (60fps) -----
@@ -446,8 +505,9 @@ class Pet:
             self.vy += 2600 * dt
             self.y += self.vy * dt
             if self.y >= ground:
-                self.y, self.vy, self.falling = ground, 0.0, False
-                self.hop()
+                self.y, self.vy, self.falling, self.vx = ground, 0.0, False, 0.0
+                self.squash_until = time.time() + 0.35
+                self.dust(4)
                 self.say("착지!", 1.2)
         else:
             self.y = ground
@@ -458,48 +518,70 @@ class Pet:
         self.root.after(16, self.tick)
 
     def think(self, now, mx, left, right, dt):
+        """작업 중엔 가끔 커서 근처로 와서 지켜보고, 딴짓하면 달려온다. 가속·감속해서 자연스럽게 걷는다."""
         cursor = mx - self.W / 2
         m = self.mode
         if m in ("idle", "paused"):
-            if self.speed < 300:
+            if self.speed < 200:
                 self.target = None
         elif m in ("warning", "penalty"):
-            if not self.calm and abs(cursor - self.x) > 110:
-                self.target, self.speed = cursor + (-70 if self.x < cursor else 70), 300.0
+            if not self.calm and abs(cursor - self.x) > 120 and self.target is None:
+                self.target, self.speed = cursor + (-80 if self.x < cursor else 80), 220.0
         elif not self.calm and self.target is None and now >= self.rest_until:
-            watch = random.random() < (0.55 if m == "work" else 0.2)
-            self.target = cursor + random.uniform(-180, 180) if watch else random.uniform(left, right - self.W)
-            self.speed = 35.0 if m == "break" else 80.0 if m == "work" else 60.0
-        if self.target is not None:
+            watch = random.random() < (0.6 if m == "work" else 0.25)
+            t = cursor + random.uniform(-160, 160) if watch else random.uniform(left, right - self.W)
+            if abs(t - self.x) < 40:
+                t = self.x + (60 if t > self.x else -60)
+            self.target, self.speed = t, (32.0 if m == "break" else 55.0)
+            self.look_until = now + 0.6             # 출발 전에 갈 쪽을 먼저 봄
+            self.facing = 1 if t > self.x else -1
+        if self.target is not None and now >= self.look_until:
             d = self.target - self.x
-            if abs(d) < 3:
-                self.target = None
-                lo, hi = (8, 20) if m == "break" else (5, 14) if m == "work" else (3, 9)
+            want = math.copysign(min(self.speed, abs(d) * 2.2), d)   # 도착할수록 천천히
+            accel = 520 if self.speed > 150 else 160
+            self.vx += max(-accel * dt, min(accel * dt, want - self.vx))
+            self.x += self.vx * dt
+            if abs(d) < 2 and abs(self.vx) < 12:
+                self.target, self.vx = None, 0.0
+                lo, hi = (14, 30) if m == "break" else (10, 24) if m == "work" else (6, 16)
                 self.rest_until = now + random.uniform(lo, hi)
-                self.speed, self.walking = 60.0, False
+                self.speed, self.walking, self.running = 55.0, False, False
             else:
-                self.x += math.copysign(min(abs(d), self.speed * dt), d)
-                self.facing, self.walking = (1 if d > 0 else -1), True
+                self.facing = 1 if self.vx > 0 else -1
+                self.walking, self.running = abs(self.vx) > 6, abs(self.vx) > 140
+                if self.walking and now > self.next_dust and not self.calm:
+                    self.next_dust = now + (0.26 if self.running else 0.42)
+                    self.dust(2 if self.running else 1)
                 return
-        self.walking = False
-        self.facing = 1 if mx > self.x + self.W / 2 else -1   # 멈춰 있을 땐 커서 쪽을 본다
+        elif self.target is not None:
+            self.walking = self.running = False
+            return
+        self.walking = self.running = False
+        if abs(mx - (self.x + self.W / 2)) < 500:   # 멈춰 있을 땐 가까운 커서를 바라봄
+            self.facing = 1 if mx > self.x + self.W / 2 else -1
+        elif now >= self.next_look:                 # 멀리 있으면 가끔 두리번
+            self.next_look = now + random.uniform(4, 9)
+            self.facing = -self.facing
 
     def render(self, now):
         t = now - self.t0
         dx = dy = 0.0
-        if not self.calm:
+        if not self.calm:   # 기본은 가만히, 걸을 때만 살짝 통통
             if getattr(self, "hop_until", 0) > now:
-                dy = -math.sin((self.hop_until - now) / 0.5 * math.pi) * 26
+                k = (self.hop_until - now) / self.hop_len
+                dy = -math.sin(k * math.pi) * (22 if self.hop_len > 0.4 else 8) * self.dpi
+                if self.hop_len >= 0.7:
+                    dx = math.sin(k * math.pi * 6) * 5   # 간지러워서 꿈틀
             elif self.drag and self.drag["grab"]:
-                dx = math.sin(t * 8) * 5
+                dx = math.sin(t * 7) * 4
+            elif self.squash_until > now:
+                dy = 2
             elif self.walking:
-                dy = -abs(math.sin(t * 10)) * 5
-            elif self.mode == "work":
-                dy = -abs(math.sin(t * 5)) * 7
+                dy = -abs(math.sin(t * (24 if self.running else 13.6))) * 3 * self.dpi
             elif self.mode == "penalty":
-                dx = math.sin(t * 60) * 4
+                dx = math.sin(t * 22) * 2
             elif self.mode == "warning":
-                dx = math.sin(t * 25) * 3
+                dx = math.sin(t * 12) * 1.5
         self.cv.coords(self.img_item, self.W / 2 + dx, self.H - 6 + dy)
         # 진화 중 깜빡임 (동작 줄이기면 생략)
         if now < self.evolving_until and not self.calm:
@@ -510,19 +592,18 @@ class Pet:
             self.cv.delete("bubble")
             self.bubble_until = None
         for f in self.floats[:]:
-            item, born, life = f
-            age = now - born
-            if age > life:
+            item, born, life, vx, vy = f
+            if now - born > life:
                 self.cv.delete(item)
                 self.floats.remove(f)
             else:
-                self.cv.move(item, 0, -40 * 0.016)
+                self.cv.move(item, vx * 0.016, -vy * 0.016)
         if not self.calm and now > self.next_particle and self.mode in PARTICLE and self.cur:
-            self.next_particle = now + random.uniform(0.7, 1.4)
+            self.next_particle = now + random.uniform(1.4, 2.6)   # 파티클도 덜 자주
             ch, col = PARTICLE[self.mode]
             item = self.cv.create_text(self.W / 2 + random.uniform(-40, 40), self.sprite_top() + 20, text=ch, fill=col,
                                        font=("Malgun Gothic", int(12 * self.dpi), "bold"))
-            self.floats.append([item, now, 1.6])
+            self.floats.append([item, now, 1.6, 0, 40])
 
 
 def run(port, open_dashboard):

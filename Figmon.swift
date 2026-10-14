@@ -181,14 +181,14 @@ final class GrabView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with e: NSEvent) { ctl?.dragBegan() }
     override func mouseDragged(with e: NSEvent) { ctl?.dragMoved() }
-    override func mouseUp(with e: NSEvent) { ctl?.dragEnded() }
+    override func mouseUp(with e: NSEvent) { ctl?.dragEnded(clicks: e.clickCount) }
     override func rightMouseDown(with e: NSEvent) {
         guard let menu = ctl?.app?.makeMenu() else { return }
         NSMenu.popUpContextMenu(menu, with: e, for: self)
     }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .button }
-    override func accessibilityPerformPress() -> Bool { ctl?.app?.dashboard.show(); return true }
+    override func accessibilityPerformPress() -> Bool { ctl?.app?.dashboard.show(); return true }   // VoiceOver는 한 번에 대시보드
 }
 
 final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
@@ -201,10 +201,13 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var mode = "neutral"
     var x: CGFloat = 0, y: CGFloat = 0, vy: CGFloat = 0
     var targetX: CGFloat? = nil
-    var speed: CGFloat = 60
+    var speed: CGFloat = 60          // 목표 최고 속도
+    var vx: CGFloat = 0              // 현재 속도 (가속·감속해서 자연스럽게)
+    var lookUntil = Date()           // 출발 전에 목표 쪽을 잠깐 바라보는 시간
+    var hovering = false, lastHover = Date.distantPast, nextLook = Date()
     var pauseUntil = Date()
     var dragging = false, falling = false, grabOffset = CGPoint.zero, dragDistance: CGFloat = 0, lastMouse = CGPoint.zero
-    var facing = 0, walking = false, lastTick = Date(), hidden = false, clickThrough = true
+    var facing = 0, gait = 0, lastTick = Date(), hidden = false, clickThrough = true   // gait: 0 멈춤, 1 걷기, 2 달리기
 
     init(app: AppDelegate) {
         self.app = app
@@ -255,7 +258,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     func callPet() {
         if hidden { toggleHidden() }
         targetX = NSEvent.mouseLocation.x - W / 2
-        speed = 320
+        speed = 260
         js("petEvent('come')")
     }
 
@@ -290,6 +293,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     // MARK: 드래그
+    var grabbed = false
     func dragBegan() {
         let m = NSEvent.mouseLocation
         dragging = true; falling = false
@@ -301,15 +305,23 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         let m = NSEvent.mouseLocation
         dragDistance += hypot(m.x - lastMouse.x, m.y - lastMouse.y)
         lastMouse = m
-        if dragDistance > 6 && !walking { js("petEvent('grabbed')"); setWalking(true) }
+        if dragDistance > 6 && !grabbed { grabbed = true; js("petEvent('grabbed')") }
     }
 
-    func dragEnded() {
+    func dragEnded(clicks: Int) {
         dragging = false
-        setWalking(false)
-        if dragDistance <= 6 {               // 그냥 클릭
-            js("petEvent('click')")
-            app?.dashboard.show()
+        grabbed = false
+        setGait(0)
+        if dragDistance <= 6 {
+            if clicks >= 2 {                 // 두 번 누르기 → 대시보드
+                js("petEvent('dashboard')")
+                app?.dashboard.show()
+            } else {                         // 한 번 → 반응하고 잠깐 멈춰서 나를 봄
+                js("petEvent('click')")
+                targetX = nil; vx = 0
+                pauseUntil = Date().addingTimeInterval(4)
+                setFacing(NSEvent.mouseLocation.x > x + W / 2 ? 1 : -1)
+            }
         } else {
             falling = true; vy = 0
             targetX = nil; pauseUntil = Date().addingTimeInterval(2)
@@ -318,7 +330,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
     // MARK: 매 프레임
     func setFacing(_ d: Int) { if d != facing { facing = d; js("petFace(\(d))") } }
-    func setWalking(_ b: Bool) { if b != walking { walking = b; js("petWalk(\(b))") } }
+    func setGait(_ g: Int) { if g != gait { gait = g; js("petWalk(\(g))") } }
 
     func tick() {
         let now = Date()
@@ -335,7 +347,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         } else if falling {
             vy -= 2600 * dt
             y += vy * dt
-            if y <= ground { y = ground; vy = 0; falling = false; js("petEvent('land')") }
+            if y <= ground { y = ground; vy = 0; vx = 0; falling = false; js("petEvent('land')") }
         } else {
             y = ground
             think(now: now, mouse: mouse, vf: vf, dt: dt)
@@ -345,46 +357,70 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
         // 펫 몸 위에서만 마우스를 받고, 나머지 투명한 부분은 클릭이 뒤로 통과
         let hit = NSRect(x: x + petRect.minX, y: y + petRect.minY, width: petRect.width, height: petRect.height)
-        let through = !(dragging || hit.contains(mouse))
+        let over = hit.contains(mouse)
+        let through = !(dragging || over)
         if through != clickThrough { clickThrough = through; panel.ignoresMouseEvents = through }
+        // 커서가 올라오면 알아챔 (자주 반복하지 않게 6초 간격)
+        if over && !hovering && !dragging && now.timeIntervalSince(lastHover) > 6 {
+            lastHover = now
+            js("petEvent('hover')")
+            if targetX != nil { targetX = nil; pauseUntil = now.addingTimeInterval(3) }
+        }
+        hovering = over
     }
 
-    /// 모드별 행동: 작업 중엔 커서 근처로 와서 지켜보고, 딴짓하면 커서로 달려와 항의한다.
+    /// 모드별 행동: 작업 중엔 가끔 커서 근처로 와서 지켜보고, 딴짓하면 커서로 달려와 항의한다.
     /// 시스템의 "동작 줄이기"가 켜져 있으면 스스로 돌아다니지 않는다(부르기만 가능).
     func think(now: Date, mouse: CGPoint, vf: NSRect, dt: CGFloat) {
         let cursorX = mouse.x - W / 2
         let calm = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         switch mode {
         case "idle", "paused":
-            if speed < 300 { targetX = nil }
+            if speed < 200 { targetX = nil }
         case "warning", "penalty":
-            if !calm && abs(cursorX - x) > 110 { targetX = cursorX + (x < cursorX ? -70 : 70); speed = 300 }
+            if !calm && abs(cursorX - x) > 120 && targetX == nil {
+                targetX = cursorX + (x < cursorX ? -80 : 80); speed = 220
+            }
         default:
             if !calm && targetX == nil && now >= pauseUntil {
-                let r = Double.random(in: 0..<1)
-                let watch = mode == "work" ? r < 0.55 : r < 0.2
-                targetX = watch ? cursorX + CGFloat.random(in: -180...180)
-                                : CGFloat.random(in: vf.minX...(vf.maxX - W))
-                speed = mode == "break" ? 35 : mode == "work" ? 80 : 60
+                let watch = Double.random(in: 0..<1) < (mode == "work" ? 0.6 : 0.25)
+                var t = watch ? cursorX + CGFloat.random(in: -160...160) : CGFloat.random(in: vf.minX...(vf.maxX - W))
+                if abs(t - x) < 40 { t = x + (t > x ? 60 : -60) }
+                targetX = t
+                speed = mode == "break" ? 32 : 55
+                lookUntil = now.addingTimeInterval(0.6)          // 출발 전에 갈 쪽을 먼저 봄
+                setFacing(t > x ? 1 : -1)
             }
         }
-        if let t = targetX {
+        if let t = targetX, now >= lookUntil {
             let d = t - x
-            if abs(d) < 3 {
-                targetX = nil
-                let rest: ClosedRange<Double> = mode == "break" ? 8...20 : mode == "work" ? 5...14 : 3...9
+            // 도착할수록 천천히 (arrive), 출발은 부드럽게 (가속도 제한)
+            let want = (d > 0 ? 1 : -1) * min(speed, abs(d) * 2.2)
+            let accel: CGFloat = speed > 150 ? 520 : 160
+            vx += max(-accel * dt, min(accel * dt, want - vx))
+            x += vx * dt
+            if abs(d) < 2 && abs(vx) < 12 {
+                targetX = nil; vx = 0
+                let rest: ClosedRange<Double> = mode == "break" ? 14...30 : mode == "work" ? 10...24 : 6...16
                 pauseUntil = now.addingTimeInterval(Double.random(in: rest))
-                setWalking(false)
-                speed = 60
+                speed = 55
+                setGait(0)
             } else {
-                x += (d > 0 ? 1 : -1) * min(abs(d), speed * dt)
-                setFacing(d > 0 ? 1 : -1)
-                setWalking(true)
+                setFacing(vx > 0 ? 1 : -1)
+                setGait(abs(vx) > 140 ? 2 : abs(vx) > 6 ? 1 : 0)
                 return
             }
+        } else if targetX != nil {
+            setGait(0)
+            return
         }
-        setWalking(false)
-        setFacing(mouse.x > x + W / 2 ? 1 : -1)   // 멈춰 있을 땐 커서 쪽을 바라본다 (지켜보는 중)
+        setGait(0)
+        // 멈춰 있을 땐 가까운 커서를 바라본다 (멀리 있으면 가끔 두리번)
+        if abs(mouse.x - (x + W / 2)) < 500 { setFacing(mouse.x > x + W / 2 ? 1 : -1) }
+        else if now >= nextLook {
+            nextLook = now.addingTimeInterval(Double.random(in: 4...9))
+            setFacing(facing > 0 ? -1 : 1)
+        }
     }
 }
 

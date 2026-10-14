@@ -17,32 +17,48 @@ body{font-family:Jua,-apple-system,sans-serif}
 .mon.art{image-rendering:auto}
 .shadow{width:60px;height:10px;border-radius:50%;background:rgba(0,0,0,.22);margin-top:-4px}
 
-.walk #body{animation:walk .32s ease-in-out infinite alternate}
-.m-work #body{animation:hop .6s ease-in-out infinite alternate}
-.m-work.walk #body{animation:walk .28s ease-in-out infinite alternate}
-.m-neutral #body,.m-ai #body{animation:breathe 2.4s ease-in-out infinite}
-.m-break #body{animation:sway 2.8s ease-in-out infinite}
-.m-warning #body{animation:shake .35s linear infinite}
-.m-penalty #body{animation:shake .14s linear infinite;filter:saturate(.45) drop-shadow(0 0 10px #ff3150)}
-.m-penalty.walk #body{animation:walk .16s linear infinite alternate;filter:drop-shadow(0 0 10px #ff3150)}
+/* 기본은 차분하게: 숨쉬기만, 움직일 때만 걸음 */
+.m-work #body,.m-neutral #body,.m-ai #body{animation:breathe 3.2s ease-in-out infinite}
+.m-break #body{animation:sway 4s ease-in-out infinite}
+.m-warning #body{animation:tremble .5s ease-in-out infinite}
+.m-penalty #body{animation:tremble .28s ease-in-out infinite;filter:saturate(.5) drop-shadow(0 0 8px #ff3150)}
 .m-paused #body{animation:breathe 5s ease-in-out infinite;filter:grayscale(.5)}
-.m-idle #body{animation:breathe 4s ease-in-out infinite;filter:brightness(.7)}
-.grabbed #body{animation:dangle .5s ease-in-out infinite alternate !important}
-.jump #body{animation:jump .5s ease-out !important}
+.m-idle #body{animation:sleep 4.5s ease-in-out infinite;filter:brightness(.75)}
+.walk #body{animation:step .46s ease-in-out infinite !important}
+.run #body{animation:step .26s ease-in-out infinite !important}
+.walk .shadow,.run .shadow{animation:shadowstep .46s ease-in-out infinite}
+.run .shadow{animation-duration:.26s}
+.grabbed #body{animation:dangle .6s ease-in-out infinite alternate !important}
+.react #body{animation:squash .6s cubic-bezier(.3,.7,.4,1) !important}
+.tickle #body{animation:wiggle .7s ease-in-out !important}
+.notice #body{animation:notice .45s ease-out !important}
+.turn #body{animation:turn .2s ease-out !important}
+.land #body{animation:landing .4s ease-out !important}
 .evolving #body{animation:evoflash 3s steps(1) forwards !important}
-@keyframes walk{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-6px) rotate(3deg)}}
-@keyframes hop{to{transform:translateY(-8px)}}
-@keyframes breathe{50%{transform:scale(1.04,.96)}}
-@keyframes sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px) rotate(-3deg)}75%{transform:translateX(4px) rotate(3deg)}}
-@keyframes dangle{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
-@keyframes jump{40%{transform:translateY(-34px) scale(1.06)}}
+@keyframes breathe{50%{transform:scale(1.025,.975)}}
+@keyframes sleep{50%{transform:scale(1.04,.95)}}
+@keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+@keyframes tremble{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+@keyframes step{0%,100%{transform:translateY(0) rotate(-2.5deg)}25%{transform:translateY(-3px) rotate(0)}50%{transform:translateY(0) rotate(2.5deg)}75%{transform:translateY(-3px) rotate(0)}}
+@keyframes shadowstep{25%,75%{transform:scale(.88)}}
+@keyframes dangle{from{transform:rotate(-10deg)}to{transform:rotate(10deg)}}
+@keyframes squash{0%{transform:scale(1,1)}15%{transform:scale(1.18,.82)}45%{transform:translateY(-26px) scale(.9,1.1)}70%{transform:translateY(0) scale(1.12,.88)}85%{transform:scale(.97,1.03)}100%{transform:scale(1,1)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}15%{transform:rotate(-12deg) scale(1.05)}35%{transform:rotate(10deg)}55%{transform:rotate(-8deg)}75%{transform:rotate(5deg)}}
+@keyframes notice{30%{transform:translateY(-8px) scale(.96,1.04)}60%{transform:translateY(0) scale(1.04,.96)}}
+@keyframes turn{50%{transform:scale(1.08,.92)}}
+@keyframes landing{0%{transform:scale(1.2,.78)}50%{transform:scale(.95,1.06)}100%{transform:scale(1,1)}}
+.dust{position:absolute;width:8px;height:8px;border-radius:50%;background:rgba(160,150,140,.55);pointer-events:none;animation:dust .7s ease-out forwards}
+@keyframes dust{to{opacity:0;transform:translate(var(--dx),-6px) scale(2)}}
+.heart{position:absolute;pointer-events:none;font-size:16px;animation:heart 1.1s ease-out forwards}
+@keyframes heart{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(var(--dx),-56px) scale(1.1)}}
+.mark{position:absolute;pointer-events:none;font:20px Jua,sans-serif;color:#ffcc33;text-shadow:0 1px 0 #0008;animation:mark .9s ease-out forwards}
+@keyframes mark{0%{opacity:0;transform:translateY(6px) scale(.5)}25%{opacity:1;transform:translateY(0) scale(1.15)}80%{opacity:1}100%{opacity:0}}
 @keyframes evoflash{0%,20%,40%,56%,68%,78%,86%,92%,97%{filter:brightness(0) invert(1) drop-shadow(0 0 14px #fff)}10%,30%,48%,62%,73%,82%,89%,95%{filter:none}100%{filter:none}}
 
 .egg{width:46px;height:58px;border-radius:50% 50% 46% 46%/60% 60% 40% 40%;background:#fdf8ec;position:relative;box-shadow:inset -6px -5px 0 rgba(0,0,0,.08),0 0 0 2px rgba(0,0,0,.08)}
 .egg i{position:absolute;border-radius:50%;background:var(--type)}
 .egg b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#bbb}
-.m-work .egg{animation:wobble 1s ease-in-out infinite}
+.m-work .egg{animation:wobble 2.4s ease-in-out infinite}
 @keyframes wobble{20%{transform:rotate(-10deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-4deg)}}
 
 #bubble{position:absolute;left:50%;transform:translateX(-50%) scale(.6);opacity:0;max-width:236px;width:max-content;
@@ -79,14 +95,51 @@ const post = m => { try { webkit.messageHandlers.pet.postMessage(m); } catch (e)
 let S = null, prev = null, shownKey = null, mode = 'neutral', walking = false, evolving = false, offline = false;
 
 /* ---------- Swift가 부르는 함수 ---------- */
-function petFace(d) { $('#pet').classList.toggle('flip', d > 0); }   // 기본 스프라이트는 왼쪽을 봄
-function petWalk(b) { walking = b; document.body.classList.toggle('walk', b); }
+// 방향 전환: 살짝 찌그러졌다 돌아옴 (기본 스프라이트는 왼쪽을 봄)
+function petFace(d) {
+  const p = $('#pet'), flip = d > 0;
+  if (p.classList.contains('flip') !== flip) { p.classList.toggle('flip', flip); play('turn', 200); }
+}
+// 0 = 멈춤, 1 = 걷기, 2 = 달리기
+function petWalk(v) {
+  v = v === true ? 1 : v === false ? 0 : v;
+  walking = v > 0;
+  document.body.classList.toggle('walk', v === 1);
+  document.body.classList.toggle('run', v === 2);
+}
+let clickTimes = [];
 function petEvent(k) {
   const b = document.body;
   if (k === 'grabbed') { b.classList.add('grabbed'); say(pick(['으아아 내려줘~', '높다…!', '어디 가는 거야?']), 2000); }
-  if (k === 'land') { b.classList.remove('grabbed'); jump(); say('착지!', 1200); }
-  if (k === 'click') { jump(); heart(); say(S && S.pet ? statusLine() : '대시보드에서 파트너를 골라줘!', 3500); }
+  if (k === 'land') { b.classList.remove('grabbed'); play('land', 400); dust(4); say('착지!', 1200); }
   if (k === 'come') say('불렀어? 갈게!', 2000);
+  if (k === 'hover' && !evolving && !walking) { play('notice', 450); mark('!'); }
+  if (k === 'click') {
+    const now = Date.now();
+    clickTimes = clickTimes.filter(t => now - t < 1500).concat(now);
+    if (clickTimes.length >= 3) {          // 여러 번 연달아 누르면 간지러워함
+      play('tickle', 700); hearts(5); say(pick(['간지러워~ ㅋㅋㅋ', '그만그만~ 😆', '히히 간지럽다니까!']), 2200);
+    } else {
+      play('react', 600); hearts(mode === 'penalty' ? 0 : 3);
+      if (mode === 'penalty') floatText('💢', '#ff6b7a');
+      say(reactLine(), 3000);
+    }
+  }
+  if (k === 'dashboard') say('대시보드 열게!', 1500);
+}
+function reactLine() {
+  if (!S || !S.pet) return '대시보드에서 파트너를 골라줘! (두 번 누르기)';
+  const lines = {
+    work: ['응? 나 불렀어? 😊', '쓰담쓰담 좋아!', '같이 힘내자!', statusLine()],
+    neutral: ['헤헤, 반가워!', '놀아줄 거야?', statusLine()],
+    break: ['같이 쉬자~', '간식 있어? 🍪'],
+    warning: ['지금 그럴 때가 아니야!', '빨리 돌아가자!'],
+    penalty: ['흥! 작업부터 해!', '쓰다듬어도 안 풀려 💢'],
+    idle: ['으음… 깼어…', '돌아왔구나!'],
+    paused: ['쉬는 중이지? 기다릴게', '다녀와~'],
+    ai: ['AI 말고 나랑 놀자~', '스스로도 해보자!'],
+  };
+  return pick(lines[mode] || lines.neutral);
 }
 
 /* ---------- 말풍선 ---------- */
@@ -110,7 +163,7 @@ function say(text, ms = 4000, alert = false) {
 }
 function statusLine() {
   const p = S.pet, min = p.min_to_evo;
-  const left = min == null ? '최종 진화 완료!' : `${p.stage === 0 ? '부화' : '진화'}까지 ${min >= 60 ? Math.floor(min / 60) + '시간 ' : ''}${Math.ceil(min % 60)}분`;
+  const t = Math.ceil(min || 0), left = min == null ? '최종 진화 완료!' : `진화까지 ${t >= 60 ? Math.floor(t / 60) + '시간 ' : ''}${t % 60}분`;
   return `${p.name} Lv.${p.level} · ${left}`;
 }
 const DAY_LINES = {morning: ['좋은 아침! ☀️ 오늘도 같이 크자'], noon: ['점심은 먹었어? 🍚'], evening: ['저녁 시간이야, 조금만 더!'], night: ['새벽이야… 무리하지 마 🌙']};
@@ -123,7 +176,44 @@ function modeLine(m) {
 }
 
 /* ---------- 연출 ---------- */
-function jump() { const b = document.body; b.classList.remove('jump'); void b.offsetWidth; b.classList.add('jump'); setTimeout(() => b.classList.remove('jump'), 520); }
+// 한 번만 재생되는 몸짓 (react, notice, turn, land …)
+function play(cls, ms) {
+  if (calm()) return;
+  const b = document.body;
+  ['react', 'tickle', 'notice', 'turn', 'land'].forEach(c => b.classList.remove(c));
+  void b.offsetWidth; b.classList.add(cls);
+  clearTimeout(play.t); play.t = setTimeout(() => b.classList.remove(cls), ms);
+}
+function jump() { play('react', 600); }
+function hearts(n) {
+  if (calm()) { if (n) floatText('♥', '#ff8fa8'); return; }
+  const r = petRect();
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const h = document.createElement('div'); h.className = 'heart'; h.textContent = pick(['♥', '💕', '♥']);
+    h.style.color = '#ff7aa2'; h.style.left = (r.left + r.width / 2 - 8 + (Math.random() * 30 - 15)) + 'px'; h.style.top = (r.top + 6) + 'px';
+    h.style.setProperty('--dx', (Math.random() * 70 - 35) + 'px');
+    document.body.appendChild(h); setTimeout(() => h.remove(), 1150);
+  }, i * 90);
+}
+function mark(t) {
+  if (calm()) return;
+  const r = petRect(), m = document.createElement('div'); m.className = 'mark'; m.textContent = t;
+  m.style.left = (r.left + r.width / 2 + 6) + 'px'; m.style.top = (r.top - 24) + 'px';
+  document.body.appendChild(m); setTimeout(() => m.remove(), 950);
+}
+function dust(n = 1) {
+  if (calm()) return;
+  const r = petRect();
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div'); d.className = 'dust';
+    const back = $('#pet').classList.contains('flip') ? -1 : 1;   // 진행 반대쪽 발 뒤로
+    d.style.left = (r.left + r.width / 2 + back * (r.width / 3) + (Math.random() * 10 - 5)) + 'px';
+    d.style.top = (r.bottom - 8) + 'px';
+    d.style.setProperty('--dx', (back * (8 + Math.random() * 10)) + 'px');
+    document.body.appendChild(d); setTimeout(() => d.remove(), 720);
+  }
+}
+setInterval(() => { if (walking && !evolving) dust(document.body.classList.contains('run') ? 2 : 1); }, 420);
 function floatText(t, color) {
   const f = document.createElement('div'); f.className = 'float'; f.textContent = t; f.style.color = color;
   f.style.top = (petRect().top - 6) + 'px'; document.body.appendChild(f); setTimeout(() => f.remove(), 1600);

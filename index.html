@@ -50,24 +50,29 @@ header h1 span{color:var(--type)}
 .region-tag{position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font:12px Jua,sans-serif;backdrop-filter:blur(4px)}
 .cloud{animation:drift 60s linear infinite}
 @keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
-.walker{position:absolute;left:50%;bottom:58px;transition:transform 2.6s ease-in-out;transform:translateX(-50%)}
+.walker{position:absolute;left:50%;bottom:58px;transition:transform 3.4s cubic-bezier(.45,.05,.4,1);transform:translateX(-50%)}
 .mon-box{display:flex;align-items:flex-end;justify-content:center;height:170px;transform-origin:50% 100%;cursor:pointer}
 .mon{image-rendering:pixelated;transform:scale(2);transform-origin:50% 100%;max-height:85px}
 .mon.art{transform:none;max-height:150px;image-rendering:auto}
 .flip .mon{transform:scale(-2,2)} .flip .mon.art{transform:scaleX(-1)}
 .shadow{width:90px;height:14px;margin:-6px auto 0;border-radius:50%;background:rgba(0,0,0,.18)}
-.scene.work .mon-box{animation:hop .55s ease-in-out infinite alternate}
-.scene.neutral .mon-box{animation:breathe 2.4s ease-in-out infinite}
-.scene.ai .mon-box{animation:breathe 1.6s ease-in-out infinite}
-.scene.break .mon-box{animation:sway 2.8s ease-in-out infinite}
-.scene.warning .mon-box{animation:shake .35s linear infinite}
-.scene.penalty .mon-box{animation:shake .14s linear infinite;filter:saturate(.4) drop-shadow(0 0 14px #ff3150)}
-.scene.idle .mon-box{animation:breathe 4s ease-in-out infinite;filter:brightness(.55)}
-.mon-box.pet-jump{animation:jump .5s ease-out !important}
+.scene.work .mon-box,.scene.neutral .mon-box,.scene.ai .mon-box{animation:breathe 3.2s ease-in-out infinite}
+.scene.break .mon-box{animation:sway 4s ease-in-out infinite}
+.scene.warning .mon-box{animation:shake .5s ease-in-out infinite}
+.scene.penalty .mon-box{animation:shake .28s ease-in-out infinite;filter:saturate(.5) drop-shadow(0 0 10px #ff3150)}
+.scene.idle .mon-box{animation:breathe 4.5s ease-in-out infinite;filter:brightness(.6)}
+.walking .mon-box{animation:step .46s ease-in-out infinite !important}
+.mon-box.pet-jump{animation:squash .6s cubic-bezier(.3,.7,.4,1) !important}
+.mon-box.pet-tickle{animation:wiggle .7s ease-in-out !important}
+@keyframes step{0%,100%{transform:translateY(0) rotate(-2.5deg)}25%{transform:translateY(-3px)}50%{transform:translateY(0) rotate(2.5deg)}75%{transform:translateY(-3px)}}
+@keyframes squash{0%{transform:scale(1,1)}15%{transform:scale(1.18,.82)}45%{transform:translateY(-30px) scale(.9,1.1)}70%{transform:translateY(0) scale(1.12,.88)}85%{transform:scale(.97,1.03)}100%{transform:scale(1,1)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}15%{transform:rotate(-12deg) scale(1.05)}35%{transform:rotate(10deg)}55%{transform:rotate(-8deg)}75%{transform:rotate(5deg)}}
+.heart{position:absolute;pointer-events:none;font-size:18px;color:#ff7aa2;animation:heart 1.1s ease-out forwards}
+@keyframes heart{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(var(--dx),-70px) scale(1.1)}}
 @keyframes hop{to{transform:translateY(-10px)}}
 @keyframes breathe{50%{transform:scale(1.03,.97)}}
 @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px) rotate(-2deg)}75%{transform:translateX(5px) rotate(2deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 @keyframes jump{0%{transform:translateY(0)}40%{transform:translateY(-40px) scale(1.05)}100%{transform:translateY(0)}}
 
 .egg{width:84px;height:104px;border-radius:50% 50% 46% 46%/60% 60% 40% 40%;background:#fdf8ec;position:relative;box-shadow:inset -10px -8px 0 rgba(0,0,0,.08)}
@@ -541,10 +546,15 @@ function wander() {
   if (!S || calm()) return;
   const m = S.live.mode, w = $('#walker');
   let nx = walkX;
-  if (m === 'work' || m === 'neutral' || m === 'break') nx = Math.round(Math.random()*180 - 90);
+  if (Date.now() < (wander.restUntil || 0)) return;      // 클릭 직후엔 잠깐 멈춰서 바라봄
+  if ((m === 'work' || m === 'neutral' || m === 'break') && Math.random() < .45) nx = Math.round(Math.random()*180 - 90);
   else if (m === 'penalty' || m === 'warning') nx = 0;
   if (S.pet && S.pet.stage === 0) nx = 0;
   if (nx !== walkX) w.classList.toggle('flip', nx > walkX);
+  if (nx !== walkX) {   // 움직이는 동안만 걸음 모션
+    w.classList.add('walking'); clearTimeout(wander.t);
+    wander.t = setTimeout(() => w.classList.remove('walking'), 3400);
+  }
   walkX = nx;
   w.style.transform = `translateX(calc(-50% + ${walkX}px))`;
 }
@@ -717,10 +727,25 @@ $('#starters').onclick = async e => {
 
 /* ---------- 상호작용 ---------- */
 $('#monBox').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#monBox').click(); } };
+let petClicks = [];
 $('#monBox').onclick = () => {
-  const b = $('#monBox'); b.classList.remove('pet-jump'); void b.offsetWidth; b.classList.add('pet-jump');
-  setTimeout(() => b.classList.remove('pet-jump'), 520);
-  floatText(S && S.live.mode === 'penalty' ? '💢' : '♥', '#ff8fa8'); speak(true);
+  const b = $('#monBox'), now = Date.now(), mode = S ? S.live.mode : 'neutral';
+  petClicks = petClicks.filter(t => now - t < 1500).concat(now);
+  const tickle = petClicks.length >= 3;
+  b.classList.remove('pet-jump', 'pet-tickle'); void b.offsetWidth; b.classList.add(tickle ? 'pet-tickle' : 'pet-jump');
+  setTimeout(() => b.classList.remove('pet-jump', 'pet-tickle'), 700);
+  wander.restUntil = now + 4000;
+  if (mode === 'penalty') floatText('💢', '#ff6b7a');
+  else if (!calm()) {
+    const r = $('#walker').getBoundingClientRect(), sc = $('#scene').getBoundingClientRect();
+    for (let i = 0; i < (tickle ? 5 : 3); i++) setTimeout(() => {
+      const h = document.createElement('div'); h.className = 'heart'; h.textContent = '♥';
+      h.style.left = (r.left - sc.left + r.width / 2 - 9 + (Math.random() * 30 - 15)) + 'px'; h.style.top = (r.top - sc.top + 30) + 'px';
+      h.style.setProperty('--dx', (Math.random() * 80 - 40) + 'px');
+      $('#scene').appendChild(h); setTimeout(() => h.remove(), 1150);
+    }, i * 90);
+  } else floatText('♥', '#ff8fa8');
+  $('#bubble').textContent = tickle ? '간지러워~ ㅋㅋㅋ' : (mode === 'penalty' ? '흥! 작업부터 해!' : ['응? 나 불렀어? 😊', '쓰담쓰담 좋아!', '헤헤, 반가워!', '같이 힘내자!'][Math.floor(Math.random() * 4)]);
 };
 $('#name').onclick = async () => {
   if (!S.pet) return;
@@ -807,7 +832,7 @@ $('#doShare').onclick = async () => {
   await poll();
   setInterval(poll, 1500);
   setInterval(particle, 700);
-  setInterval(wander, 3200);
+  setInterval(wander, 5000);
   setInterval(() => speak(false), 7000);
 })();
 </script>
