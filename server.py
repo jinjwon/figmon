@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.13.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.14.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -320,7 +320,7 @@ TITLE_HINTS = {
 
 LOCK = threading.Lock()
 LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None, "front_hwnd": 0,
-        "summon": 0, "summon_label": "", "last_work_at": 0.0, "update": None,
+        "summon": 0, "summon_label": "", "last_work_at": 0.0, "update": None, "recent": [],
         "distract_since": None, "penalty_since": None, "last_dialog": 0.0}
 
 
@@ -357,6 +357,26 @@ def new_today():
 
 
 HISTORY_DAYS = 60
+
+
+RECENT_SKIP = {"", "figmon", "127.0.0.1", "localhost", "loginwindow", "dock", "explorer", "searchhost",
+               "shellexperiencehost", "lockapp", "startmenuexperiencehost"}
+
+
+def remember_recent(app, url, label, kind):
+    """설정의 '최근 쓴 앱·사이트에서 바로 추가'용: 최근에 앞에 띄운 앱·사이트 12개"""
+    if url:
+        name, typ = re.sub(r"^www\.", "", re.sub(r"^[a-z]+://", "", url.lower()).split("/")[0].split(":")[0]), "site"
+    elif IS_WIN and app.lower() in WIN_BROWSERS:
+        if kind == "neutral":
+            return   # 창 제목만 보이는 브라우저 일반 탭은 사이트 이름을 알 수 없음
+        name, typ = label, "site"
+    else:
+        name, typ = app, "app"
+    if name.lower() in RECENT_SKIP:
+        return
+    rec = [r for r in LIVE["recent"] if r["name"] != name]
+    LIVE["recent"] = [{"name": name, "type": typ, "kind": kind}] + rec[:11]
 
 
 def roll_day():
@@ -659,6 +679,7 @@ def step(app, url, idle, dt, title=""):
     s, cfg, now = STATE, STATE["config"], time.time()
     roll_day()
     kind, label = classify(app, url, cfg, title, LIVE.get("front_game", False))
+    remember_recent(app, url, label, kind)
     if now < s.get("paused_until", 0):  # 일시정지 중엔 아무것도 쌓거나 깎지 않음
         LIVE.update(app=app, label=label, idle=int(idle), mode="paused", distract_since=None, penalty_since=None)
         save()
@@ -812,6 +833,7 @@ def view():
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
+           "recent": LIVE["recent"],
            "unlock": {"graduated": len(s["dex"]), **{k: v["need"] for k, v in RARITY.items()}}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:

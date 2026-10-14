@@ -165,6 +165,25 @@ button.b:disabled{opacity:.35;cursor:default}
 .starter.locked .lock{display:block;font-size:11px;color:var(--warn);margin-top:3px}
 .starter .rare{display:block;font-size:10px;color:var(--warn);margin-top:2px}
 .starter{position:relative}
+.taglist{margin-top:12px}
+.taglist .tl-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--mute);margin-bottom:5px}
+.taglist .tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{display:inline-flex;align-items:center;gap:2px;background:var(--card2);border:1px solid var(--line);border-radius:99px;padding:3px 4px 3px 10px;font-size:12px}
+.tag button{border:0;background:none;color:var(--mute);cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;border-radius:99px}
+.tag button:hover,.tag button:focus-visible{background:var(--bad);color:#fff}
+.tag.new{animation:pop .3s ease-out;border-color:var(--good)}
+.taglist .tl-add{display:flex;gap:6px;margin-bottom:6px}
+.taglist .tl-add input{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:7px 10px;font:13px -apple-system,sans-serif}
+.taglist .tl-add button{border:0;background:var(--type);color:#fff;border-radius:10px;padding:0 12px;font:13px Jua,sans-serif;cursor:pointer}
+.taglist .tl-more{background:none;border:0;color:var(--type);font:12px Jua,sans-serif;cursor:pointer;padding:4px 2px}
+.recent{list-style:none;margin:8px 0 0;padding:0}
+.recent li{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.recent li:last-child{border:0}
+.recent .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent .kind{font-size:11px;color:var(--mute);margin-left:4px}
+.recent .seg{display:flex;gap:3px;flex:none}
+.recent .seg button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:8px;padding:4px 7px;font:12px Jua,sans-serif;cursor:pointer}
+.recent .seg button[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
 .pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
 .starter:hover{border-color:var(--c)}
@@ -412,21 +431,26 @@ label.f textarea{height:64px;resize:vertical}
       <input type="checkbox" name="auto_update" form="setForm" style="width:18px;height:18px"> 새 버전이 나오면 자동으로 업데이트
     </label>
   </div>
-  <div class="muted">목록은 쉼표로 구분해요. 앱 이름은 앞부분만 맞아도 인식해요 (예: "IntelliJ IDEA").</div>
+  <div class="card" style="background:var(--card2);margin-top:12px">
+    <div class="card-head" style="margin-bottom:4px"><span class="jua">⚡ 최근 쓴 앱·사이트에서 바로 분류</span></div>
+    <div class="muted">방금 쓴 앱이나 사이트를 버튼 한 번으로 작업·딴짓·AI로 바꿔요. 바로 적용돼요.</div>
+    <ul class="recent" id="recentList"></ul>
+  </div>
+  <div class="muted" style="margin-top:12px">아래 목록에서 <b>×</b>로 지우고, 입력칸에 이름을 쓰고 <b>Enter</b>로 추가해요. 바로 적용돼요. 앱 이름은 앞부분만 맞아도 인식해요.</div>
   <div class="btns" id="presets">
     <button type="button" class="b" data-p="design">🎨 디자이너</button>
     <button type="button" class="b" data-p="dev">💻 개발자</button>
     <button type="button" class="b" data-p="all">둘 다</button>
   </div>
   <form id="setForm">
-    <label class="f">작업 앱<textarea name="work_apps"></textarea></label>
-    <label class="f">작업 사이트<textarea name="work_domains"></textarea></label>
-    <label class="f">딴짓 앱 (게임 등)<textarea name="distract_apps"></textarea></label>
+    <div class="taglist" data-key="work_apps" data-label="🎨 작업 앱" data-ph="예: Figma, Code"></div>
+    <div class="taglist" data-key="work_domains" data-label="🎨 작업 사이트" data-ph="예: figma.com"></div>
+    <div class="taglist" data-key="distract_apps" data-label="📺 딴짓 앱 (게임 등)" data-ph="예: Instagram, Steam"></div>
     <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:8px;font-size:13px">
       <input type="checkbox" name="detect_games" style="width:18px;height:18px"> 🎮 게임은 목록에 없어도 딴짓으로 (게임으로 분류된 앱, Steam·Epic 게임)
     </label>
     <div class="muted" style="margin-top:4px">크롬·엣지로 만든 웹앱(예: 설치한 Instagram 앱)은 원래 사이트 주소로 알아봐요.</div>
-    <label class="f">딴짓 사이트<textarea name="distract_domains"></textarea></label>
+    <div class="taglist" data-key="distract_domains" data-label="📺 딴짓 사이트" data-ph="예: youtube.com"></div>
     <div class="card" style="background:var(--card2);margin-top:14px">
       <div class="jua">♿ 편의 · 접근성</div>
       <label class="f">펫 크기
@@ -448,8 +472,8 @@ label.f textarea{height:64px;resize:vertical}
       </label>
       <div class="muted" style="margin-top:4px">켜면 ChatGPT·Claude 같은 AI는 하루 무료 시간만큼만 쓸 수 있어요. 넘기면 딴짓으로 쳐서 휴식 잔고를 쓰고, 잔고가 없으면 경험치가 깎여요.</div>
       <label class="f">하루 무료 AI 시간 (분)<input name="ai_daily_free_min" type="number"></label>
-      <label class="f">AI 앱<textarea name="ai_apps"></textarea></label>
-      <label class="f">AI 사이트<textarea name="ai_domains"></textarea></label>
+      <div class="taglist" data-key="ai_apps" data-label="🧠 AI 앱" data-ph="예: ChatGPT"></div>
+      <div class="taglist" data-key="ai_domains" data-label="🧠 AI 사이트" data-ph="예: claude.ai"></div>
     </div>
     <div class="grid2" style="margin-top:0">
       <label class="f">작업 1분당 경험치<input name="xp_per_work_min" type="number" step="0.1"></label>
@@ -1137,14 +1161,80 @@ $('#gradBtn').onclick = async () => {
 /* ---------- 설정 ---------- */
 const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domains', 'ai_apps', 'ai_domains'];
 $('#openSettings').onclick = () => {
+  renderTagLists(); renderRecent();
   const f = $('#setForm');
   for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else if (el.tagName === 'SELECT') el.value = String(+v); else el.value = Array.isArray(v) ? v.join(', ') : v; }
   $('#setModal').classList.add('open');
 };
-$('#presets').onclick = e => {
-  const pr = META.presets[e.target.dataset.p]; if (!pr) return;
-  const f = $('#setForm'); f.elements.work_apps.value = pr.work_apps.join(', '); f.elements.work_domains.value = pr.work_domains.join(', ');
-  toast('목록을 바꿨어요. 저장을 눌러주세요');
+$('#presets').onclick = async e => {
+  const key = e.target.dataset.p, pr = META.presets[key]; if (!pr) return;
+  const label = {design: '디자이너', dev: '개발자', all: '디자이너 + 개발자'}[key];
+  if (!await ask(`${label} 목록으로 바꿀까요?`, '작업 앱·작업 사이트 목록이 기본 목록으로 바뀌어요.', {yes: '바꾸기'})) return;
+  await saveLists({work_apps: pr.work_apps, work_domains: pr.work_domains});
+  toast(`작업 목록을 ${label}용으로 바꿨어요`);
+};
+
+/* ---------- 앱·사이트 목록: 태그로 지우고 Enter로 추가 (바로 저장) ---------- */
+const LIST_LABEL = {work: '작업', distract: '딴짓', ai: 'AI'};
+const tlOpen = {};
+async function saveLists(lists) {
+  S = await api('/api/config', lists);
+  renderTagLists(); renderRecent();
+}
+function renderTagLists() {
+  document.querySelectorAll('.taglist').forEach(box => {
+    const key = box.dataset.key, list = S.config[key] || [];
+    const q = box._q || '', shown = list.filter(x => !q || x.toLowerCase().includes(q.toLowerCase()));
+    const limit = tlOpen[key] || q ? shown.length : 14;
+    if (!box._built) {   // 한 번만 뼈대를 만들고 입력칸은 유지 (입력 중 포커스가 안 날아가게)
+      box.innerHTML = `<div class="tl-head"><span>${box.dataset.label}</span><span class="tl-count"></span></div>
+        <div class="tl-add"><input type="text" placeholder="찾기 또는 추가 — ${box.dataset.ph}" aria-label="${box.dataset.label} 찾기 또는 추가">
+        <button type="button">추가</button></div><div class="tags" role="list"></div>`;
+      const inp = box.querySelector('input'), add = async () => {
+        const v = inp.value.trim(); if (!v) return;
+        if ((S.config[key] || []).some(x => x.toLowerCase() === v.toLowerCase())) { toast(`이미 있어요: ${v}`); return; }
+        box._q = ''; inp.value = ''; box._added = v;
+        await saveLists({[key]: [...(S.config[key] || []), v]});
+        toast(`${box.dataset.label.replace(/^\S+\s/, '')}에 추가했어요: ${v}`);
+      };
+      inp.addEventListener('input', () => { box._q = inp.value.trim(); renderTagLists(); });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+      box.querySelector('.tl-add button').onclick = add;
+      box._built = true;
+    }
+    box.querySelector('.tl-count').textContent = q ? `${shown.length}/${list.length}개` : `${list.length}개`;
+    box.querySelector('.tags').innerHTML = shown.slice(0, limit).map(x => `<span class="tag ${x === box._added ? 'new' : ''}" role="listitem">${esc(x)}<button type="button" data-v="${esc(x)}" aria-label="${esc(x)} 지우기" title="지우기">×</button></span>`).join('')
+      + (shown.length > limit ? `<button type="button" class="tl-more">모두 보기 (${shown.length - limit}개 더)</button>`
+        : tlOpen[key] && list.length > 14 && !q ? '<button type="button" class="tl-more">접기</button>' : '')
+      + (!shown.length ? `<span class="muted" style="font-size:12px">${q ? 'Enter를 누르면 추가돼요' : '비어 있어요'}</span>` : '');
+    box.querySelector('.tags').onclick = async e => {
+      if (e.target.classList.contains('tl-more')) { tlOpen[key] = !tlOpen[key]; return renderTagLists(); }
+      const v = e.target.dataset.v; if (v === undefined) return;
+      await saveLists({[key]: (S.config[key] || []).filter(x => x !== v)});
+      toast(`지웠어요: ${v}`);
+    };
+  });
+}
+// 최근 쓴 앱·사이트를 버튼 한 번으로 작업/딴짓/AI/해제
+function renderRecent() {
+  const rec = (S.recent || []), ul = $('#recentList');
+  if (!rec.length) { ul.innerHTML = '<li class="muted">아직 기록이 없어요. 다른 앱을 잠깐 쓰고 오면 여기에 떠요.</li>'; return; }
+  const where = r => ['work', 'distract', 'ai'].find(k => (S.config[`${k}_${r.type === 'site' ? 'domains' : 'apps'}`] || []).some(x => x.toLowerCase() === r.name.toLowerCase())) || '';
+  ul.innerHTML = rec.map((r, i) => {
+    const w = where(r);
+    return `<li><span class="nm" title="${esc(r.name)}">${r.type === 'site' ? '🌐' : '🖥️'} ${esc(r.name)}<span class="kind">${w ? '' : r.kind !== 'neutral' ? `(${LIST_LABEL[r.kind] || ''}로 인식 중)` : ''}</span></span>
+      <span class="seg" role="group" aria-label="${esc(r.name)} 분류">${['work', 'distract', 'ai', ''].map(k => `<button type="button" data-i="${i}" data-k="${k}" aria-pressed="${w === k}">${k ? LIST_LABEL[k] : '해제'}</button>`).join('')}</span></li>`;
+  }).join('');
+}
+$('#recentList').onclick = async e => {
+  const b = e.target.closest('button[data-i]'); if (!b) return;
+  const r = S.recent[+b.dataset.i], to = b.dataset.k, suffix = r.type === 'site' ? 'domains' : 'apps', lists = {};
+  for (const k of ['work', 'distract', 'ai']) {   // 다른 분류에서는 빼고, 고른 분류에만 넣기
+    const key = `${k}_${suffix}`, cur = (S.config[key] || []).filter(x => x.toLowerCase() !== r.name.toLowerCase());
+    lists[key] = k === to ? [...cur, r.name] : cur;
+  }
+  await saveLists(lists);
+  toast(to ? `${r.name} → ${LIST_LABEL[to]}(으)로 분류했어요` : `${r.name}을(를) 목록에서 뺐어요`);
 };
 const releasesUrl = () => (S && S.releases_url) || 'https://github.com/jinjwon/figmon/releases/latest';
 function openReleases() { if (native) callNative({type: 'openURL', url: releasesUrl()}); else window.open(releasesUrl(), '_blank'); }
