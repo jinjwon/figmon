@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Figmon Pet</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+/* 데스크톱 펫 창(투명, 260x260) 안에 그려지는 화면. 창 이동은 FigmonPet.swift가 담당 */
+:root{--type:#ff6b6b}
+html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;-webkit-user-select:none;cursor:default}
+body{font-family:Jua,-apple-system,sans-serif}
+#stage{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
+#pet{transition:transform .15s}
+#pet.flip{transform:scaleX(-1)}
+#body{display:flex;align-items:flex-end;justify-content:center;transform-origin:50% 100%}
+.mon{image-rendering:pixelated;transform-origin:50% 100%;display:block}
+.mon.art{image-rendering:auto}
+.shadow{width:60px;height:10px;border-radius:50%;background:rgba(0,0,0,.22);margin-top:-4px}
+
+.walk #body{animation:walk .32s ease-in-out infinite alternate}
+.m-work #body{animation:hop .6s ease-in-out infinite alternate}
+.m-work.walk #body{animation:walk .28s ease-in-out infinite alternate}
+.m-neutral #body,.m-ai #body{animation:breathe 2.4s ease-in-out infinite}
+.m-break #body{animation:sway 2.8s ease-in-out infinite}
+.m-warning #body{animation:shake .35s linear infinite}
+.m-penalty #body{animation:shake .14s linear infinite;filter:saturate(.45) drop-shadow(0 0 10px #ff3150)}
+.m-penalty.walk #body{animation:walk .16s linear infinite alternate;filter:drop-shadow(0 0 10px #ff3150)}
+.m-idle #body{animation:breathe 4s ease-in-out infinite;filter:brightness(.7)}
+.grabbed #body{animation:dangle .5s ease-in-out infinite alternate !important}
+.jump #body{animation:jump .5s ease-out !important}
+.evolving #body{animation:evoflash 3s steps(1) forwards !important}
+@keyframes walk{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-6px) rotate(3deg)}}
+@keyframes hop{to{transform:translateY(-8px)}}
+@keyframes breathe{50%{transform:scale(1.04,.96)}}
+@keyframes sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px) rotate(-3deg)}75%{transform:translateX(4px) rotate(3deg)}}
+@keyframes dangle{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
+@keyframes jump{40%{transform:translateY(-34px) scale(1.06)}}
+@keyframes evoflash{0%,20%,40%,56%,68%,78%,86%,92%,97%{filter:brightness(0) invert(1) drop-shadow(0 0 14px #fff)}10%,30%,48%,62%,73%,82%,89%,95%{filter:none}100%{filter:none}}
+
+.egg{width:46px;height:58px;border-radius:50% 50% 46% 46%/60% 60% 40% 40%;background:#fdf8ec;position:relative;box-shadow:inset -6px -5px 0 rgba(0,0,0,.08),0 0 0 2px rgba(0,0,0,.08)}
+.egg i{position:absolute;border-radius:50%;background:var(--type)}
+.egg b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#bbb}
+.m-work .egg{animation:wobble 1s ease-in-out infinite}
+@keyframes wobble{20%{transform:rotate(-10deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-4deg)}}
+
+#bubble{position:absolute;left:50%;transform:translateX(-50%) scale(.6);opacity:0;max-width:236px;width:max-content;
+  background:#fff;color:#222;padding:7px 12px;border-radius:14px;font-size:13px;line-height:1.35;text-align:center;
+  box-shadow:0 2px 0 rgba(0,0,0,.15),0 4px 14px rgba(0,0,0,.18);transition:opacity .2s,transform .2s;transform-origin:50% 100%;pointer-events:none}
+#bubble.show{opacity:1;transform:translateX(-50%) scale(1)}
+#bubble.alert{background:#ff5d6c;color:#fff}
+#bubble:after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:inherit;border-bottom:0}
+#bubble:after{border-top-color:#fff}#bubble.alert:after{border-top-color:#ff5d6c}
+.particle{position:absolute;pointer-events:none;font-size:15px;animation:rise 1.8s ease-out forwards}
+@keyframes rise{from{opacity:1;transform:translateY(0) scale(.7)}to{opacity:0;transform:translateY(-60px) scale(1.15)}}
+.float{position:absolute;left:50%;font-size:17px;pointer-events:none;animation:floatup 1.5s ease-out forwards;text-shadow:0 1px 0 #0008,0 0 4px #0006;white-space:nowrap}
+@keyframes floatup{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-50px)}}
+</style>
+</head>
+<body>
+<div id="bubble"></div>
+<div id="stage"><div id="pet"><div id="body"></div></div><div class="shadow"></div></div>
+<script>
+const $ = s => document.querySelector(s);
+const RAW = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+const ANI = id => `${RAW}/other/showdown/${id}.gif`;
+const ART = id => `${RAW}/other/official-artwork/${id}.png`;
+const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0'};
+const post = m => { try { webkit.messageHandlers.pet.postMessage(m); } catch (e) {} };
+
+let S = null, prev = null, shownKey = null, mode = 'neutral', walking = false, evolving = false, offline = false;
+
+/* ---------- Swift가 부르는 함수 ---------- */
+function petFace(d) { $('#pet').classList.toggle('flip', d > 0); }   // 기본 스프라이트는 왼쪽을 봄
+function petWalk(b) { walking = b; document.body.classList.toggle('walk', b); }
+function petEvent(k) {
+  const b = document.body;
+  if (k === 'grabbed') { b.classList.add('grabbed'); say(pick(['으아아 내려줘~', '높다…!', '어디 가는 거야?']), 2000); }
+  if (k === 'land') { b.classList.remove('grabbed'); jump(); say('착지!', 1200); }
+  if (k === 'click') { jump(); heart(); say(S && S.pet ? statusLine() : '대시보드에서 파트너를 골라줘!', 3500); }
+  if (k === 'come') say('불렀어? 갈게!', 2000);
+}
+
+/* ---------- 말풍선 ---------- */
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const LINES = {
+  work: ['잘 되고 있어! ✨', '집중력 최고야', '옆에서 지켜보고 있을게 👀', '같이 크는 중!', '이 속도면 곧 진화해!', '휴식 잔고도 쌓이는 중 🍿', '물 한 잔 마셔가며 해!'],
+  neutral: ['뭐 하는 중이야?', '작업 시작하면 같이 크자!', '심심해~'],
+  ai: ['AI 찬스 쓰는 중!', '너무 의존하진 말자~', '네 머리도 믿어봐 🧠'],
+  break: ['잠깐 쉬는 것도 좋아 🍿', '휴식 잔고 쓰는 중~', '잔고 다 쓰면 돌아가자!'],
+  warning: ['휴식 잔고가 없어!!', '지금 돌아가면 봐줄게!'],
+  penalty: ['경험치가 줄고 있어!! 😭', '작업으로 돌아가줘…', '레벨 떨어진단 말이야!'],
+  idle: ['Zzz…', '쿨쿨… 돌아오면 깨워줘'],
+  egg: ['(알이 꿈틀거린다…)', '(안에서 톡톡 소리가 난다)', '(따뜻해지고 있다)'],
+};
+let sayTimer;
+function say(text, ms = 4000, alert = false) {
+  const b = $('#bubble'); b.textContent = text; b.classList.toggle('alert', alert); b.classList.add('show');
+  placeBubble(); clearTimeout(sayTimer);
+  if (ms) sayTimer = setTimeout(() => b.classList.remove('show'), ms);
+}
+function statusLine() {
+  const p = S.pet, min = p.min_to_evo;
+  const left = min == null ? '최종 진화 완료!' : `${p.stage === 0 ? '부화' : '진화'}까지 ${min >= 60 ? Math.floor(min / 60) + '시간 ' : ''}${Math.ceil(min % 60)}분`;
+  return `${p.name} Lv.${p.level} · ${left}`;
+}
+function modeLine(m) {
+  if (S && S.pet && S.pet.stage === 0 && (m === 'work' || m === 'neutral')) return pick(LINES.egg);
+  if (m === 'warning') return `${Math.ceil(S.live.grace_left || 0)}초 안에 돌아가! ⚠️`;
+  return pick(LINES[m] || LINES.neutral);
+}
+
+/* ---------- 연출 ---------- */
+function jump() { const b = document.body; b.classList.remove('jump'); void b.offsetWidth; b.classList.add('jump'); setTimeout(() => b.classList.remove('jump'), 520); }
+function floatText(t, color) {
+  const f = document.createElement('div'); f.className = 'float'; f.textContent = t; f.style.color = color;
+  f.style.top = (petRect().top - 6) + 'px'; document.body.appendChild(f); setTimeout(() => f.remove(), 1600);
+}
+function heart() { floatText(mode === 'penalty' ? '💢' : '♥', '#ff8fa8'); }
+function particle() {
+  const em = {work: ['✨', '⭐'], break: ['🍿', '🎵'], penalty: ['💢', '💧'], warning: ['❗'], idle: ['💤'], ai: ['🧠', '🤖']}[mode];
+  if (!em || evolving || Math.random() < .4) return;
+  const r = petRect(), p = document.createElement('div'); p.className = 'particle'; p.textContent = pick(em);
+  p.style.left = (r.left + r.width / 2 - 8 + (Math.random() * 60 - 30)) + 'px'; p.style.top = (r.top + 10) + 'px';
+  document.body.appendChild(p); setTimeout(() => p.remove(), 1900);
+}
+function petRect() { return $('#body').getBoundingClientRect(); }
+function placeBubble() { $('#bubble').style.bottom = (innerHeight - petRect().top + 8) + 'px'; }
+function reportRect() {
+  const r = petRect();
+  post({type: 'rect', x: r.left - 8, y: r.top - 8, w: r.width + 16, h: r.height + 20});
+  placeBubble();
+}
+
+/* ---------- 스프라이트 (진화 단계 + 레벨에 따라 크기가 자람) ---------- */
+function scaleFor(p) {
+  if (!p || !p.species) return 1;
+  const lv = [0, 3, 16, 36], nx = [3, 16, 36, 100];
+  const t = Math.min(1, (p.level - lv[p.stage]) / (nx[p.stage] - lv[p.stage]));
+  return [0, 1.25, 1.55, 1.85][p.stage] * (1 + 0.18 * t);
+}
+function draw() {
+  const p = S && S.pet, body = $('#body');
+  const key = p ? (p.species ? p.species[0] : 'egg') : 'none';
+  const sc = scaleFor(p);
+  if (key !== shownKey) {
+    shownKey = key; body.innerHTML = '';
+    if (p && p.species) {
+      const img = new Image(); img.className = 'mon'; img.alt = '';
+      img.onload = () => { sizeImg(img); reportRect(); };
+      img.onerror = () => { img.onerror = null; img.classList.add('art'); img.src = ART(p.species[0]); };
+      img.src = ANI(p.species[0]); body.appendChild(img);
+    } else {
+      const e = document.createElement('div'); e.className = 'egg';
+      if (p) [[10, 12, 9], [28, 22, 7], [14, 34, 11], [32, 40, 6]].forEach(([x, y, s]) => {
+        const i = document.createElement('i'); Object.assign(i.style, {left: x + 'px', top: y + 'px', width: s + 'px', height: s + 'px'}); e.appendChild(i);
+      }); else e.innerHTML = '<b>?</b>';
+      body.appendChild(e);
+    }
+  }
+  const img = body.querySelector('img'); if (img && img.complete) sizeImg(img, sc);
+  reportRect();
+}
+function sizeImg(img, sc = scaleFor(S && S.pet)) {
+  // 애니메이션 GIF는 픽셀 그대로 키우고, 일러스트(대체 이미지)는 높이를 맞춘다
+  if (img.classList.contains('art')) { img.style.height = Math.round(48 * sc) + 'px'; img.style.width = 'auto'; }
+  else { img.style.width = Math.round(img.naturalWidth * sc) + 'px'; img.style.height = Math.round(img.naturalHeight * sc) + 'px'; }
+}
+
+/* ---------- 상태 폴링 ---------- */
+async function poll() {
+  try {
+    S = await (await fetch('/api/state', {cache: 'no-store'})).json();
+    if (offline) { offline = false; say('다시 연결됐어!', 2000); }
+  } catch (e) {
+    if (!offline) { offline = true; say('Figmon 서버가 꺼져 있어… 💤', 0); }
+    return;
+  }
+  const p = S.pet, m = S.live.mode;
+  document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ccc');
+  if (m !== mode) {
+    document.body.classList.remove('m-' + mode); document.body.classList.add('m-' + m);
+    const alert = m === 'warning' || m === 'penalty';
+    if (!evolving) say(modeLine(m), alert ? 0 : 4500, alert);
+    mode = m; post({type: 'mode', mode: m});
+  } else if (m === 'warning' && !evolving) say(modeLine(m), 0, true);
+
+  if (p && prev && prev.line === p.line && !evolving) {
+    if (p.stage > prev.stage) {
+      evolving = true; document.body.classList.add('evolving'); say('…어라? 몸이 빛나고 있어!', 0);
+      setTimeout(() => {
+        document.body.classList.remove('evolving'); evolving = false; shownKey = null; draw(); jump();
+        say(prev && prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `✨ ${p.species[1]}(으)로 진화했다!`, 6000);
+        for (let i = 0; i < 8; i++) setTimeout(() => floatText(pick(['✨', '⭐', '🎉']), '#ffe066'), i * 120);
+      }, 3000);
+    } else if (p.level > prev.level) { floatText(`Lv.${p.level}!`, '#ffe066'); jump(); say(`레벨 업! Lv.${p.level} 🎉`, 3000); }
+    else if (p.level < prev.level) say(`Lv.${p.level}로 떨어졌어… 😢`, 4000, true);
+    if (prev.xp - p.xp > 0.05) floatText(`-${(prev.xp - p.xp).toFixed(1)} XP`, '#ff6b7a');
+  }
+  if (!evolving) draw();
+  const emoji = {work: '🎨', break: '🍿', warning: '⚠️', penalty: '💢', idle: '💤', ai: '🧠'}[m] || '⭐';
+  post({type: 'title', text: p ? `${emoji} Lv.${p.level}` : '🥚'});
+  if (!p && !$('#bubble').classList.contains('show')) say('대시보드에서 파트너를 골라줘! (나를 클릭)', 0);
+  prev = p ? {line: p.line, stage: p.stage, level: p.level, xp: p.xp} : null;
+}
+
+setInterval(poll, 1500);
+setInterval(particle, 900);
+setInterval(() => { if (S && S.pet && !evolving && !['warning', 'penalty'].includes(mode) && Math.random() < .5) say(Math.random() < .3 ? statusLine() : modeLine(mode), 4500); }, 22000);
+document.body.classList.add('m-neutral');
+poll();
+</script>
+</body>
+</html>
