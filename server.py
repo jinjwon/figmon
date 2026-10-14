@@ -767,10 +767,13 @@ def win_update(manual=False):
             z.extract("Figmon.exe", tmp)
         exe = Path(sys.executable)
         script = tmp / "update.cmd"
+        new = tmp / "Figmon.exe"
+        # onefile exe는 같은 파일로 프로세스가 둘이라, 파일 잠금이 풀릴 때까지 바꿔 끼우기를 다시 시도
         script.write_text(
-            "@echo off\r\n"
-            f":wait\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n"
-            f"move /Y \"{tmp / 'Figmon.exe'}\" \"{exe}\" >nul\r\n"
+            "@echo off\r\nset n=0\r\n:wait\r\nping -n 2 127.0.0.1 >nul\r\n"
+            f"move /Y \"{new}\" \"{exe}\" >nul 2>&1\r\n"
+            f"if not exist \"{new}\" goto done\r\n"
+            "set /a n+=1\r\nif %n% lss 40 goto wait\r\n:done\r\n"
             f"start \"\" \"{exe}\" --startup --updated\r\n", encoding="mbcs")  # cmd는 시스템 코드 페이지로 읽음 (한글 사용자 이름 대비)
         subprocess.Popen(["cmd", "/c", str(script)], creationflags=0x08000000 | 0x00000008)  # 창 없이, 분리 실행
         log("update", f"v{tag.lstrip('v')} 업데이트를 설치하고 다시 시작해요")
