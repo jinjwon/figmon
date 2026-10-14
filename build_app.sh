@@ -2,7 +2,7 @@
 # Figmon.app 빌드 → dist/Figmon.app, dist/Figmon-macOS.zip
 set -e
 cd "$(dirname "$0")"
-VERSION=1.6.0
+VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' server.py)   # 버전은 server.py 한 곳에서 관리
 APP=dist/Figmon.app
 
 echo "▸ 아이콘"

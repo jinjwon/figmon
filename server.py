@@ -13,6 +13,9 @@ Figmon — 작업 시간으로 포켓몬을 키우는 데스크톱 펫 (macOS ·
 """
 import base64
 import json
+import tempfile
+import urllib.request
+import zipfile
 import os
 import re
 import subprocess
@@ -24,6 +27,10 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+VERSION = "1.7.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
+    VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
+REPO = "jinjwon/figmon"
 PORT = int(os.environ.get("FIGMON_PORT", 7777))
 SPEED = float(os.environ.get("FIGMON_SPEED", 1))
 TICK = 3  # 초
@@ -84,6 +91,8 @@ DEFAULT_CONFIG = {
     # 사용성 / 접근성
     "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
     "pet_size": 1.0,             # 데스크톱 펫 크기 배율
+    "auto_summon": True,         # 한동안 안 하다가 작업 앱을 켜면 펫이 걸어 나옴
+    "auto_update": True,         # GitHub 새 버전 자동 설치
     # AI 절제 모드
     "ai_limit_enabled": False,
     "ai_daily_free_min": 30.0,   # 하루 무료 AI 시간, 넘기면 딴짓으로 취급
@@ -230,6 +239,7 @@ TITLE_HINTS = {
 
 LOCK = threading.Lock()
 LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None, "front_hwnd": 0,
+        "summon": 0, "summon_label": "", "last_work_at": 0.0,
         "distract_since": None, "penalty_since": None, "last_dialog": 0.0}
 
 
@@ -493,6 +503,11 @@ def step(app, url, idle, dt, title=""):
         kind = "idle"
     if kind == "work":
         LIVE["last_work"] = ("url", url) if url else ("hwnd", LIVE["front_hwnd"]) if IS_WIN else ("app", app)
+        # 10분 넘게 쉬다가 작업 앱을 켜면 펫을 불러냄 (실행 직후 첫 작업 포함)
+        if cfg["auto_summon"] and now - LIVE["last_work_at"] > 600:
+            LIVE["summon"] += 1
+            LIVE["summon_label"] = label
+        LIVE["last_work_at"] = now
     ai_over = False
     if kind == "ai":
         if not cfg["ai_limit_enabled"]:
@@ -603,12 +618,12 @@ def loop():
 # ---------- API ----------
 def view():
     s, cfg = STATE, STATE["config"]
-    live = {k: LIVE[k] for k in ("mode", "app", "label", "idle")}
+    live = {k: LIVE[k] for k in ("mode", "app", "label", "idle", "summon", "summon_label")}
     if LIVE["penalty_since"]:
         live["grace_left"] = max(0, cfg["grace_sec"] - (time.time() - LIVE["penalty_since"]))
     out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"], "paused_until": s.get("paused_until", 0),
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
-           "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None}
+           "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -703,6 +718,9 @@ class Handler(BaseHTTPRequestHandler):
                                  "finished": time.time()})
                 log("grad", f"{species_name(pet, st)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
                 s["pet"] = None
+            elif self.path == "/api/summon":   # 펫 부르기 (Windows에서 Figmon을 한 번 더 실행했을 때 등)
+                LIVE["summon"] += 1
+                LIVE["summon_label"] = ""
             elif self.path == "/api/pause":
                 minutes = float(body.get("minutes", 0))
                 s["paused_until"] = time.time() + minutes * 60 if minutes > 0 else 0.0
@@ -713,6 +731,65 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"error": "not found"})
             save()
             self._send(200, view())
+
+
+def newer(a, b):
+    """버전 a가 b보다 새 버전인지 ("1.10.0" > "1.9.2")"""
+    num = lambda v: [int(x) for x in re.findall(r"\d+", v)[:3]]
+    return num(a) > num(b)
+
+
+def latest_release():
+    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "Figmon"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.loads(r.read())
+
+
+def win_update(manual=False):
+    """Windows exe 자동 업데이트: 새 Figmon.exe를 받아 두고, 종료 뒤 바꿔 끼운 다음 다시 실행. 업데이트를 시작하면 True."""
+    if not (IS_WIN and getattr(sys, "frozen", False)):
+        if manual:
+            notify("업데이트", "소스로 실행 중이면 git pull로 업데이트해 주세요")
+        return False
+    try:
+        rel = latest_release()
+        tag = rel.get("tag_name", "")
+        if not newer(tag, VERSION):
+            if manual:
+                notify("최신 버전이에요", f"Figmon v{VERSION}")
+            return False
+        asset = next(a for a in rel.get("assets", []) if a["name"] == "Figmon-Windows.zip")
+        tmp = Path(tempfile.mkdtemp(prefix="figmon-update-"))
+        zpath = tmp / "update.zip"
+        zpath.write_bytes(urllib.request.urlopen(asset["browser_download_url"], timeout=120).read())
+        with zipfile.ZipFile(zpath) as z:
+            z.extract("Figmon.exe", tmp)
+        exe = Path(sys.executable)
+        script = tmp / "update.cmd"
+        script.write_text(
+            "@echo off\r\n"
+            f":wait\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n"
+            f"move /Y \"{tmp / 'Figmon.exe'}\" \"{exe}\" >nul\r\n"
+            f"start \"\" \"{exe}\" --startup --updated\r\n", encoding="mbcs")  # cmd는 시스템 코드 페이지로 읽음 (한글 사용자 이름 대비)
+        subprocess.Popen(["cmd", "/c", str(script)], creationflags=0x08000000 | 0x00000008)  # 창 없이, 분리 실행
+        log("update", f"v{tag.lstrip('v')} 업데이트를 설치하고 다시 시작해요")
+        with LOCK:
+            save()
+        os._exit(0)
+    except Exception as e:
+        print("update check failed:", e)
+        if manual:
+            notify("업데이트 확인 실패", "인터넷 연결을 확인해 주세요")
+    return False
+
+
+def update_loop():
+    time.sleep(float(os.environ.get("FIGMON_UPDATE_DELAY", 20)))
+    while True:
+        if STATE["config"].get("auto_update", True):
+            win_update()
+        time.sleep(6 * 3600)
 
 
 def launch_pet():
@@ -741,7 +818,7 @@ def open_window(title=True):
 
 
 if __name__ == "__main__":
-    quiet = "--no-open" in sys.argv or "--startup" in sys.argv   # --startup: 로그인 자동 실행 (창 안 띄움)
+    quiet = "--no-open" in sys.argv or "--startup" in sys.argv or "--updated" in sys.argv  # 로그인 자동 실행·업데이트 후엔 창 안 띄움
     if IS_WIN:
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 고해상도 화면에서 흐려지지 않게
@@ -749,7 +826,12 @@ if __name__ == "__main__":
             pass
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    except OSError:  # 이미 실행 중이면 대시보드만 열고 끝
+    except OSError:  # 이미 실행 중이면 펫을 불러내고(대시보드도 열고) 끝
+        try:
+            urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{PORT}/api/summon", data=b"{}",
+                                                          headers={"Content-Type": "application/json"}), timeout=3)
+        except Exception:
+            pass
         if not quiet:
             open_window(False)
         sys.exit(0)
@@ -759,9 +841,14 @@ if __name__ == "__main__":
         open_window()
     if IS_WIN and "--no-pet" not in sys.argv:  # Windows: 펫(tkinter)이 메인 스레드, 서버는 백그라운드
         threading.Thread(target=srv.serve_forever, daemon=True).start()
+        threading.Thread(target=update_loop, daemon=True).start()
+        if "--updated" in sys.argv:
+            notify("업데이트 완료", f"Figmon v{VERSION}로 업데이트했어요 ✨")
         import pet_win
         try:
-            pet_win.run(PORT, open_window)
+            pet_win.run(PORT, open_window, check_update=lambda: threading.Thread(target=win_update, args=(True,), daemon=True).start(),
+                        start_hidden="--startup" in sys.argv and "--updated" not in sys.argv, version=VERSION,
+                        updated="--updated" in sys.argv)
         finally:
             with LOCK:
                 save()

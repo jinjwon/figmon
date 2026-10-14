@@ -98,6 +98,7 @@ const ART = id => `${RAW}/other/official-artwork/${id}.png`;
 const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0'};
 const post = m => { try { webkit.messageHandlers.pet.postMessage(m); } catch (e) {} };
 
+let lastSummon = 0;
 let S = null, prev = null, shownKey = null, mode = 'neutral', walking = false, evolving = false, offline = false;
 
 /* ---------- Swift가 부르는 함수 ---------- */
@@ -299,6 +300,12 @@ async function poll() {
     return;
   }
   const p = S.pet, m = S.live.mode;
+  if ((S.live.summon || 0) > lastSummon) {   // 작업 앱을 켜서 불려 나옴 → Swift가 창을 보이고 걸어 나오게 함
+    lastSummon = S.live.summon;
+    post({type: 'summon'});
+    const label = S.live.summon_label || '', app = label.includes('.') ? label.split('.')[0].replace(/^./, c => c.toUpperCase()) : label;
+    setTimeout(() => say(app ? `${app} 켰구나! ${p ? p.name : '나'}도 같이 할게 🎨` : '불렀어? 왔어!', 4500), 400);
+  }
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ccc');
   if (m !== mode) {
     document.body.classList.remove('m-' + mode); document.body.classList.add('m-' + m);

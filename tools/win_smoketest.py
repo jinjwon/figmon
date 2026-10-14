@@ -16,6 +16,31 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "smoketest"
 OUT.mkdir(exist_ok=True)
 mode = sys.argv[1] if len(sys.argv) > 1 else "source"
+if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스스로 업데이트하고 다시 켜지는지
+    import shutil
+    work = Path(tempfile.mkdtemp())
+    exe = work / "Figmon.exe"
+    shutil.copy(ROOT / "dist" / "Figmon.exe", exe)
+    before = exe.stat().st_mtime
+    home = Path(tempfile.mkdtemp())
+    env = {**os.environ, "FIGMON_HOME": str(home), "FIGMON_PORT": "7777",
+           "FIGMON_VERSION_OVERRIDE": "1.0.0", "FIGMON_UPDATE_DELAY": "3"}
+    subprocess.Popen([str(exe), "--startup"], env=env)
+    result = "timeout"
+    for _ in range(90):
+        time.sleep(2)
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:7777/api/state", timeout=3) as r:
+                v = json.loads(r.read()).get("version", "(이전 릴리스)")
+            if v != "1.0.0" and exe.stat().st_mtime != before:
+                result = f"updated OK -> v{v}"
+                break
+        except Exception:
+            pass
+    print("[update]", result)
+    (OUT / "report-update.txt").write_text(result, encoding="utf-8")
+    subprocess.run(["taskkill", "/F", "/IM", "Figmon.exe"], capture_output=True)
+    sys.exit(0 if result.startswith("updated") else 1)
 port = 7801 if mode == "source" else 7802
 home = Path(tempfile.mkdtemp())
 (home / "state.json").write_text(json.dumps({

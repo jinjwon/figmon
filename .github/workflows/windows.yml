@@ -35,6 +35,10 @@ jobs:
       - name: Smoke test (exe)
         run: python tools/win_smoketest.py exe
 
+      - name: Auto-update test (old version updates itself from the latest release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python tools/win_smoketest.py update
+
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/Figmon.exe -DestinationPath Figmon-Windows.zip

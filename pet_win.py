@@ -120,9 +120,11 @@ def fetch_sprite(pid):
 
 # ---------- 펫 ----------
 class Pet:
-    def __init__(self, port, open_dashboard):
+    def __init__(self, port, open_dashboard, check_update=None, start_hidden=False, version="", updated=False):
         self.base = f"http://127.0.0.1:{port}"
         self.open_dashboard = open_dashboard
+        self.check_update, self.version = check_update, version
+        self.hidden, self.last_summon = False, 0
         self.root = root = tk.Tk()
         root.title("Figmon")
         root.overrideredirect(True)
@@ -179,6 +181,12 @@ class Pet:
         self.place()
 
         threading.Thread(target=self.poll_loop, daemon=True).start()
+        if start_hidden:   # 로그인 자동 실행: 작업을 시작하면 걸어 나옴
+            self.hide()
+        if updated:
+            root.after(3500, lambda: self.say(f"v{version}로 업데이트했어요 ✨", 6))
+        if IS_WIN:
+            root.after(6000, self.ask_startup_once)
         root.after(16, self.tick)
         root.after(90, self.animate)
         root.after(300, self.apply_state)
@@ -213,6 +221,9 @@ class Pet:
         elif s:
             self.state = s
             p, m = s["pet"], s["live"]["mode"]
+            if s["live"].get("summon", 0) > self.last_summon:   # 작업 앱을 켜서 불려 나옴
+                self.last_summon = s["live"]["summon"]
+                self.summon(s["live"].get("summon_label", ""))
             if m != self.mode:
                 alert = m in ("warning", "penalty")
                 self.say(self.mode_line(m), 0 if alert else 4.5, alert)
@@ -506,9 +517,14 @@ class Pet:
         pm.add_separator()
         pm.add_command(label="다시 시작", command=lambda: self.post("/api/pause", {"minutes": 0}))
         m.add_cascade(label="추적 일시정지 (회의·외출)", menu=pm)
+        m.add_command(label="펫 숨기기 (작업 앱을 켜면 다시 나와요)", command=self.hide)
         if IS_WIN:
             self.auto_var = tk.BooleanVar(value=startup_file().exists())
             m.add_checkbutton(label="Windows 시작 시 자동 실행", variable=self.auto_var, command=self.toggle_startup)
+        if self.check_update:
+            m.add_command(label="업데이트 확인", command=self.check_update)
+        if self.version:
+            m.add_command(label=f"Figmon v{self.version}", state="disabled")
         m.add_separator()
         m.add_command(label="Figmon 종료", command=self.root.destroy)
         m.tk_popup(e.x_root, e.y_root)
@@ -520,6 +536,41 @@ class Pet:
         else:
             cmd = launch_cmd().replace('"', '""')
             f.write_text(f'CreateObject("WScript.Shell").Run "{cmd}", 0, False\r\n', encoding="utf-16")
+
+    def ask_startup_once(self):
+        """처음 한 번: 작업 앱을 켜면 펫이 바로 나오도록 Windows 시작 시 자동 실행할지 묻기"""
+        flag = CACHE.parent / "asked_startup"
+        if flag.exists() or startup_file().exists():
+            return
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.write_text("1")
+        r = ctypes.windll.user32.MessageBoxW(
+            None, "작업 앱(Figma·VS Code 등)을 켜면 포켓몬이 바로 걸어 나오게 할까요?\n\n"
+                  "Windows를 켤 때 Figmon을 조용히 실행해 두고, 작업을 시작하면 펫이 나타나요.\n"
+                  "(나중에 펫 우클릭 › Windows 시작 시 자동 실행에서 바꿀 수 있어요)",
+            "Figmon", 0x4 | 0x40 | 0x40000)  # 예/아니요 | 정보 아이콘 | 맨 위
+        if r == 6:
+            self.toggle_startup()
+            self.say("좋아! 작업 앱을 켜면 바로 나올게 🎨", 4)
+
+    def hide(self):
+        self.hidden = True
+        self.root.withdraw()
+
+    def summon(self, label=""):
+        """화면 가장자리(커서와 가까운 쪽)에서 걸어 나와 인사"""
+        mx = self.root.winfo_pointerx()
+        l, _, r, _ = self.area
+        if self.hidden:
+            self.hidden = False
+            self.x = (r - self.W * 0.7) if mx > (l + r) / 2 else (l - self.W * 0.3)
+            self.root.deiconify()
+            self.root.attributes("-topmost", True)
+        self.target, self.speed, self.rest_until = mx - self.W / 2 + random.choice((-120, 120)), 170.0, 0
+        self.look_until = time.time() + 0.4
+        name = self.state["pet"]["name"] if self.state and self.state.get("pet") else "나"
+        app = label.split(".")[0].capitalize() if "." in label else label
+        self.say(f"{app} 켰구나! {name}도 같이 할게 🎨" if app else "불렀어? 왔어!", 4.5)
 
     def call(self):
         self.target = self.root.winfo_pointerx() - self.W / 2
@@ -671,8 +722,8 @@ class Pet:
             self.floats.append([item, now, 1.6, 0, 40])
 
 
-def run(port, open_dashboard):
-    Pet(port, open_dashboard).root.mainloop()
+def run(port, open_dashboard, **kw):
+    Pet(port, open_dashboard, **kw).root.mainloop()
 
 
 if __name__ == "__main__":  # 단독 테스트: 서버가 떠 있어야 함

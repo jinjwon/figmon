@@ -7,7 +7,6 @@
 //
 // 빌드: ./build_app.sh  (dist/Figmon.app)
 import Cocoa
-import ServiceManagement
 import UniformTypeIdentifiers
 import WebKit
 
@@ -16,6 +15,10 @@ let port = env["FIGMON_PORT"] ?? "7777"
 let base = "http://127.0.0.1:\(port)"
 let parentPID = env["FIGMON_PARENT"].flatMap { Int32($0) }
 let W: CGFloat = 300, H: CGFloat = 320
+let args = CommandLine.arguments
+let launchedInBackground = args.contains("--background")   // 로그인 자동 실행: 작업을 시작하면 펫이 걸어 나옴
+let justUpdated = args.contains("--updated")
+let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
 
 func post(_ path: String, _ body: [String: Any]) {
     var req = URLRequest(url: URL(string: base + path)!)
@@ -214,7 +217,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var dragging = false, falling = false, grabOffset = CGPoint.zero, dragDistance: CGFloat = 0, lastMouse = CGPoint.zero
     var facing = 0, gait = 0, lastTick = Date(), hidden = false, clickThrough = true   // gait: 0 멈춤, 1 걷기, 2 달리기
 
-    init(app: AppDelegate) {
+    init(app: AppDelegate, startHidden: Bool = false) {
         self.app = app
         panel = PetPanel(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -247,7 +250,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         x = vf.maxX - W - 60
         y = vf.minY
         panel.setFrameOrigin(NSPoint(x: x, y: y))
-        if UserDefaults.standard.bool(forKey: "petHidden") { hidden = true } else { panel.orderFrontRegardless() }
+        if startHidden || UserDefaults.standard.bool(forKey: "petHidden") { hidden = true } else { panel.orderFrontRegardless() }
         web.load(URLRequest(url: URL(string: base + "/pet")!))
 
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tick() }
@@ -258,6 +261,24 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         hidden.toggle()
         UserDefaults.standard.set(hidden, forKey: "petHidden")
         hidden ? panel.orderOut(nil) : panel.orderFrontRegardless()
+    }
+
+    /// 작업 앱을 켜서 불려 나옴: 숨어 있었으면 커서와 가까운 화면 가장자리에서 걸어 나온다
+    func summon() {
+        let mouse = NSEvent.mouseLocation
+        let vf = (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame
+        if hidden {
+            hidden = false
+            UserDefaults.standard.set(false, forKey: "petHidden")
+            x = mouse.x > vf.midX ? vf.maxX - petRect.maxX : vf.minX - petRect.minX
+            y = vf.minY; falling = false
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+            panel.orderFrontRegardless()
+        }
+        targetX = mouse.x - W / 2 + (Bool.random() ? 120 : -120)
+        speed = 170; vx = 0
+        lookUntil = Date().addingTimeInterval(0.4)
+        pauseUntil = Date()
     }
 
     func callPet() {
@@ -281,6 +302,8 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             let m = d["mode"] as? String ?? "neutral"
             if m != mode && (m == "warning" || m == "penalty") { targetX = nil; pauseUntil = Date() }
             mode = m
+        case "summon":
+            summon()
         case "title":
             app?.setStatus(title: d["text"] as? String ?? "🥚", label: d["label"] as? String)
             if let l = d["label"] as? String { grab.setAccessibilityLabel("\(l). 누르면 대시보드가 열려요") }
@@ -476,6 +499,128 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     }
 }
 
+// MARK: - 로그인 자동 실행 (LaunchAgent, --background로 조용히 시작)
+
+enum LoginItem {
+    static let url = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/LaunchAgents/io.github.jinjwon.figmon.plist")
+    static var enabled: Bool { FileManager.default.fileExists(atPath: url.path) }
+
+    static func set(_ on: Bool) {
+        if on {
+            let plist: [String: Any] = [
+                "Label": "io.github.jinjwon.figmon",
+                "ProgramArguments": ["/usr/bin/open", "-a", Bundle.main.bundlePath, "--args", "--background"],
+                "RunAtLoad": true,
+            ]
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            (plist as NSDictionary).write(to: url, atomically: true)
+        } else {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+}
+
+// MARK: - 자동 업데이트 (GitHub 최신 릴리스 → 앱 교체 → 다시 실행)
+
+final class Updater {
+    var busy = false
+
+    func start() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { self.check(manual: false) }
+        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in self.check(manual: false) }
+    }
+
+    static func newer(_ a: String, than b: String) -> Bool {
+        let num = { (v: String) in v.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) } }
+        return num(a).lexicographicallyPrecedes(num(b)) == false && num(a) != num(b)
+    }
+
+    func check(manual: Bool) {
+        guard !busy, Bundle.main.bundlePath.hasSuffix(".app") else { return }
+        // 설정에서 자동 업데이트를 끈 경우 (수동 확인은 항상 가능)
+        URLSession.shared.dataTask(with: URL(string: base + "/api/state")!) { data, _, _ in
+            let cfg = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["config"] as? [String: Any]
+            let auto = cfg?["auto_update"] as? Bool ?? true
+            DispatchQueue.main.async { if manual || auto { self.fetchLatest(manual: manual) } }
+        }.resume()
+    }
+
+    private func fetchLatest(manual: Bool) {
+        var req = URLRequest(url: URL(string: "https://api.github.com/repos/jinjwon/figmon/releases/latest")!)
+        req.setValue("Figmon", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            guard let d = data, let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                  let tag = j["tag_name"] as? String, let assets = j["assets"] as? [[String: Any]] else {
+                if manual { DispatchQueue.main.async { self.tell("업데이트를 확인하지 못했어요", "인터넷 연결을 확인해 주세요.") } }
+                return
+            }
+            let ver = tag.trimmingCharacters(in: CharacterSet(charactersIn: "v"))
+            guard Updater.newer(ver, than: appVersion),
+                  let zip = assets.first(where: { $0["name"] as? String == "Figmon-macOS.zip" })?["browser_download_url"] as? String,
+                  let zipURL = URL(string: zip) else {
+                if manual { DispatchQueue.main.async { self.tell("최신 버전이에요", "Figmon v\(appVersion)") } }
+                return
+            }
+            DispatchQueue.main.async {
+                if manual {
+                    let a = NSAlert()
+                    a.messageText = "새 버전 v\(ver)이 있어요"
+                    a.informativeText = "지금 업데이트하고 다시 시작할까요? 키우던 포켓몬은 그대로예요."
+                    a.addButton(withTitle: "업데이트")
+                    a.addButton(withTitle: "나중에")
+                    NSApp.activate(ignoringOtherApps: true)
+                    guard a.runModal() == .alertFirstButtonReturn else { return }
+                }
+                self.install(zipURL, version: ver)
+            }
+        }.resume()
+    }
+
+    private func install(_ zipURL: URL, version: String) {
+        busy = true
+        URLSession.shared.downloadTask(with: zipURL) { file, _, err in
+            let fm = FileManager.default
+            let work = fm.temporaryDirectory.appendingPathComponent("figmon-update-\(UUID().uuidString)")
+            defer { DispatchQueue.main.async { self.busy = false } }
+            guard let file = file, err == nil else { return }
+            do {
+                try fm.createDirectory(at: work, withIntermediateDirectories: true)
+                let zip = work.appendingPathComponent("update.zip")
+                try fm.moveItem(at: file, to: zip)
+                let unzip = Process()
+                unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+                unzip.arguments = ["-x", "-k", zip.path, work.path]
+                try unzip.run(); unzip.waitUntilExit()
+                let newApp = work.appendingPathComponent("Figmon.app")
+                let info = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist"))
+                guard info?["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
+                      info?["CFBundleShortVersionString"] as? String == version else { return }
+                let dest = URL(fileURLWithPath: Bundle.main.bundlePath)
+                _ = try fm.replaceItemAt(dest, withItemAt: newApp)
+                DispatchQueue.main.async {
+                    // 지금 앱이 끝난 뒤 새 앱을 다시 켬
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/bin/sh")
+                    p.arguments = ["-c", "sleep 1.5; /usr/bin/open -a \"$0\" --args --updated", dest.path]
+                    try? p.run()
+                    NSApp.terminate(nil)
+                }
+            } catch {
+                print("update failed:", error)
+            }
+        }.resume()
+    }
+
+    private func tell(_ title: String, _ text: String) {
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = text
+        NSApp.activate(ignoringOtherApps: true)
+        a.runModal()
+    }
+}
+
 // MARK: - 앱
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -503,17 +648,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         server.start { ok in
             if ok {
-                self.pet = PetController(app: self)
-                self.dashboard.show(title: true)   // 실행하면 타이틀 화면부터
+                self.pet = PetController(app: self, startHidden: launchedInBackground)
+                if justUpdated {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        self.pet?.js("say('v\(appVersion)로 업데이트했어요 ✨', 6000)")
+                    }
+                } else if !launchedInBackground {
+                    self.dashboard.show(title: true)   // 직접 켜면 타이틀 화면부터
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.askLoginOnce() }
+                }
+                self.updater.start()
             } else {
                 self.failAlert()
             }
         }
     }
 
+    let updater = Updater()
+
+    /// 처음 한 번: 작업 앱을 켜면 펫이 바로 나오도록 로그인 자동 실행을 켤지 묻기
+    func askLoginOnce() {
+        guard isBundle, !UserDefaults.standard.bool(forKey: "askedLogin"), !LoginItem.enabled else { return }
+        UserDefaults.standard.set(true, forKey: "askedLogin")
+        let a = NSAlert()
+        a.messageText = "작업 앱을 켜면 포켓몬이 바로 나오게 할까요?"
+        a.informativeText = "Mac에 로그인할 때 Figmon을 조용히 켜 두고, Figma·VS Code 같은 작업 앱을 켜면 펫이 화면 가장자리에서 걸어 나와요.\n\n나중에 메뉴 막대 › 로그인할 때 자동 실행에서 바꿀 수 있어요."
+        a.addButton(withTitle: "켜기")
+        a.addButton(withTitle: "나중에")
+        if a.runModal() == .alertFirstButtonReturn { LoginItem.set(true) }
+    }
+
     func applicationWillTerminate(_ n: Notification) { server.stop() }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { false }
-    func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool { dashboard.show(); return true }
+    func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        pet?.summon()       // 앱을 다시 켜면 펫도 불러냄
+        dashboard.show()
+        return true
+    }
 
     func failAlert() {
         NSApp.activate(ignoringOtherApps: true)
@@ -560,10 +731,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         m.addItem(pause)
 
         if isBundle {
-            let login = add(m, "로그인할 때 자동 실행", #selector(toggleLogin), "")
-            login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+            let login = add(m, "로그인할 때 자동 실행 (작업 앱을 켜면 펫 등장)", #selector(toggleLogin), "")
+            login.state = LoginItem.enabled ? .on : .off
+            add(m, "업데이트 확인…", #selector(checkUpdate), "")
         }
         m.addItem(.separator())
+        let ver = NSMenuItem(title: "Figmon v\(appVersion)", action: nil, keyEquivalent: "")
+        ver.isEnabled = false
+        m.addItem(ver)
         add(m, "Figmon 종료", #selector(quit), "q")
         return m
     }
@@ -582,17 +757,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func pauseFor(_ s: NSMenuItem) { post("/api/pause", ["minutes": s.tag]) }
     @objc func quit() { NSApp.terminate(nil) }
 
-    @objc func toggleLogin() {
-        do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
-        } catch {
-            let a = NSAlert()
-            a.messageText = "자동 실행을 바꾸지 못했어요"
-            a.informativeText = "Figmon.app을 '응용 프로그램' 폴더로 옮긴 뒤 다시 시도해 주세요.\n(\(error.localizedDescription))"
-            a.runModal()
-        }
-    }
+    @objc func toggleLogin() { LoginItem.set(!LoginItem.enabled) }
+    @objc func checkUpdate() { updater.check(manual: true) }
 
     // 대시보드 창이 앞에 있을 때 쓰는 기본 메뉴 (⌘Q, ⌘W, 복사·붙여넣기 등)
     func buildMainMenu() {
