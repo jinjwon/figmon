@@ -25,17 +25,22 @@ header h1 span{color:var(--type)}
 .icon-btn{background:var(--card2);border:0;color:var(--text);border-radius:10px;width:34px;height:34px;cursor:pointer;font-size:16px}
 
 /* ---------- scene ---------- */
-.scene{position:relative;height:280px;border-radius:20px;overflow:hidden;transition:background 1.2s;
-  background:linear-gradient(#7ec8ff,#c9ecff 70%)}
-.scene.work{background:linear-gradient(#6ec3ff,#d6f1ff 70%)}
-.scene.neutral{background:linear-gradient(#8fb6d9,#d9e6f0 70%)}
-.scene.ai{background:linear-gradient(#7d7cf0,#cfd2ff 70%)}
-.scene.break{background:linear-gradient(#ff9a6b,#ffd3a1 70%)}
-.scene.warning{background:linear-gradient(#e5a15c,#f3c999 70%)}
-.scene.penalty{background:linear-gradient(#3a1720,#7a2a35 70%)}
-.scene.idle{background:linear-gradient(#0e1530,#283764 70%)}
-.ground{position:absolute;left:-10%;right:-10%;bottom:-60px;height:130px;border-radius:50%;background:#6cbf5a;transition:background 1.2s}
-.scene.penalty .ground{background:#4a3a38}.scene.idle .ground{background:#25402f}.scene.break .ground{background:#8bbf5a}
+.scene{position:relative;height:280px;border-radius:20px;overflow:hidden;--sky1:#8fd3ff;--sky2:#e3f6ff;--ground:#6cbf5a;
+  background:linear-gradient(var(--sky1),var(--sky2) 72%)}
+.region{position:absolute;inset:0}
+.region svg{width:100%;height:100%;display:block}
+.ground{position:absolute;left:-10%;right:-10%;bottom:-60px;height:130px;border-radius:50%;background:var(--ground);transition:background 1.2s}
+/* 상태 틴트: 지방 배경 위에 덮어서 작업/휴식/페널티/자리비움을 표시 */
+.tint{position:absolute;inset:0;pointer-events:none;transition:background 1.2s}
+.scene.break .tint{background:rgba(255,140,60,.22)}
+.scene.warning .tint{background:rgba(255,150,40,.28)}
+.scene.penalty .tint{background:rgba(80,0,20,.55)}
+.scene.idle .tint{background:rgba(8,12,40,.62)}
+.scene.ai .tint{background:rgba(110,100,255,.22)}
+.scene.paused .tint{background:rgba(60,64,84,.45)}
+.region-tag{position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font:12px Jua,sans-serif;backdrop-filter:blur(4px)}
+.cloud{animation:drift 60s linear infinite}
+@keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
 .walker{position:absolute;left:50%;bottom:58px;transition:transform 2.6s ease-in-out;transform:translateX(-50%)}
 .mon-box{display:flex;align-items:flex-end;justify-content:center;height:170px;transform-origin:50% 100%;cursor:pointer}
 .mon{image-rendering:pixelated;transform:scale(2);transform-origin:50% 100%;max-height:85px}
@@ -164,7 +169,6 @@ label.f textarea{height:64px;resize:vertical}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .name-row .name{background:none;border:0;color:inherit;padding:0}
 .chip.paused{background:#2c2f3d;color:#c9cde0}
-.scene.paused{background:linear-gradient(#5d6478,#a9afc2 70%)}
 .scene.paused .mon-box{filter:grayscale(.5)}
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
@@ -184,7 +188,10 @@ label.f textarea{height:64px;resize:vertical}
   </header>
 
   <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
+    <div class="region" id="region" aria-hidden="true"></div>
     <div class="ground"></div>
+    <div class="tint"></div>
+    <div class="region-tag" id="regionTag"></div>
     <div class="bubble" id="bubble">…</div>
     <div class="walker" id="walker">
       <div class="mon-box" id="monBox" role="button" tabindex="0" aria-label="포켓몬 쓰다듬기"></div>
@@ -401,6 +408,68 @@ function ask(title, html, {input = null, yes = '확인', no = '취소'} = {}) {
   });
 }
 
+/* ---------- 세대별 지방 배경 (직접 그린 단순 일러스트) ---------- */
+const cloud = (x, y, s = 1, c = '#fff') => `<g class="cloud"><g transform="translate(${x} ${y}) scale(${s})" fill="${c}" opacity=".9"><ellipse rx="26" ry="11"/><ellipse cx="16" cy="-7" rx="17" ry="12"/><ellipse cx="-15" cy="-4" rx="13" ry="9"/></g></g>`;
+const tree = (x, y, s = 1, c = '#4f9d45') => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-3" y="-4" width="6" height="16" fill="#7a5233"/><circle cy="-14" r="14" fill="${c}"/></g>`;
+const palm = (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 0 Q6 -40 -4 -78" stroke="#8a5a34" stroke-width="7" fill="none"/><g fill="#3f9d55"><path d="M-4 -78 q-34 -6 -46 14 q24 -10 46 -14z"/><path d="M-4 -78 q30 -14 48 4 q-26 -6 -48 -4z"/><path d="M-4 -78 q-12 -26 -38 -24 q22 4 38 24z"/><path d="M-4 -78 q14 -24 38 -18 q-22 2 -38 18z"/></g></g>`;
+const dots = (n, c, r, ymax) => Array.from({length: n}, (_, i) => `<circle cx="${(i * 97) % 460}" cy="${(i * 53) % ymax + 8}" r="${r}" fill="${c}"/>`).join('');
+const REGIONS = {
+  1: {name: '관동', sky: ['#8fd3ff', '#e3f6ff'], ground: '#6cbf5a', svg:
+    cloud(80, 50) + cloud(330, 70, .8) +
+    `<ellipse cx="90" cy="232" rx="170" ry="62" fill="#a6dc8c"/><ellipse cx="390" cy="238" rx="190" ry="72" fill="#93cf7b"/>` +
+    tree(40, 196) + tree(70, 190, .8, '#5aa64e') + tree(400, 186, 1.1) + tree(430, 192, .8, '#5aa64e')},
+  2: {name: '성도', sky: ['#ffbe82', '#ffead0'], ground: '#b7a24a', svg:
+    cloud(110, 55, .9, '#fff3e3') +
+    `<ellipse cx="80" cy="236" rx="180" ry="66" fill="#e39a55"/><ellipse cx="420" cy="240" rx="170" ry="70" fill="#d27f3e"/>` +
+    `<g fill="#8f3f2b"><rect x="356" y="132" width="34" height="80"/><polygon points="338,140 408,140 392,124 354,124"/><polygon points="342,114 404,114 390,100 356,100"/><polygon points="346,90 400,90 388,78 358,78"/><rect x="371" y="56" width="4" height="24"/></g>` +
+    `<g fill="#e0662f" opacity=".8"><ellipse cx="60" cy="90" rx="5" ry="3" transform="rotate(30 60 90)"/><ellipse cx="200" cy="130" rx="5" ry="3" transform="rotate(-20 200 130)"/><ellipse cx="290" cy="70" rx="5" ry="3" transform="rotate(50 290 70)"/></g>`},
+  3: {name: '호연', sky: ['#5cc8f0', '#d2f5ff'], ground: '#e5cf92', svg:
+    `<circle cx="70" cy="60" r="24" fill="#fff3a8"/>` + cloud(200, 50, .8) +
+    `<polygon points="290,206 360,92 388,92 470,206" fill="#8d5b45"/><polygon points="360,92 388,92 382,104 366,104" fill="#e5643a"/>` +
+    `<g fill="#c9c9cf" opacity=".8"><circle cx="372" cy="78" r="9"/><circle cx="384" cy="62" r="12"/><circle cx="398" cy="44" r="15"/></g>` +
+    `<rect x="0" y="182" width="460" height="40" fill="#2f9fd8"/><path d="M0 192 q20 -6 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#bfeaff" stroke-width="2" fill="none"/>`},
+  4: {name: '신오', sky: ['#b5cff0', '#eef5ff'], ground: '#e8f0f7', svg:
+    `<polygon points="-20,215 90,80 200,215" fill="#8ea3c3"/><polygon points="90,80 66,110 80,106 92,118 104,104 114,110" fill="#fff"/>` +
+    `<polygon points="150,215 300,48 450,215" fill="#7a90b3"/><polygon points="300,48 268,86 286,82 300,96 316,80 334,88" fill="#fff"/>` +
+    `<polygon points="340,215 430,110 520,215" fill="#95aac8"/><polygon points="430,110 412,132 432,128 446,132" fill="#fff"/>` +
+    dots(18, '#fff', 2, 170)},
+  5: {name: '하나', sky: ['#7ea7e0', '#dbe6f7'], ground: '#7fae6a', svg:
+    cloud(380, 45, .8) +
+    `<g fill="#5b6b8a">${[[10,120,40],[54,90,34],[92,140,30],[126,70,40],[170,110,36],[300,100,30],[334,60,42],[380,130,34],[418,86,44]].map(([x,y,w]) => `<rect x="${x}" y="${y}" width="${w}" height="${215 - y}"/>`).join('')}</g>` +
+    `<g fill="#ffe7a1" opacity=".85">${dots(26, '#ffe7a1', 1.6, 200).replace(/cy="(\d+)"/g, (m, v) => `cy="${80 + (+v % 120)}"`)}</g>` +
+    `<path d="M200 150 L280 150" stroke="#3f4d66" stroke-width="4"/><path d="M210 110 L210 160 M270 110 L270 160" stroke="#3f4d66" stroke-width="5"/><path d="M200 150 Q210 108 240 140 Q270 108 280 150" stroke="#3f4d66" stroke-width="2" fill="none"/>`},
+  6: {name: '칼로스', sky: ['#ffb6cb', '#fff0f4'], ground: '#8ccf7a', svg:
+    cloud(90, 55, .9) +
+    `<g fill="none" stroke="#6a6f8a" stroke-width="5"><path d="M330 212 L362 60 L370 60 L402 212"/><path d="M338 175 Q366 150 394 175"/><path d="M346 130 L386 130"/></g><rect x="363" y="44" width="6" height="18" fill="#6a6f8a"/>` +
+    `<ellipse cx="120" cy="238" rx="200" ry="64" fill="#a7dc8f"/>` +
+    `${[[40,200,'#ff8fb1'],[80,206,'#ffd166'],[130,198,'#ff8fb1'],[180,204,'#c39bff'],[230,200,'#ffd166']].map(([x,y,c]) => `<circle cx="${x}" cy="${y}" r="5" fill="${c}"/>`).join('')}`},
+  7: {name: '알로라', sky: ['#ff9a6a', '#ffe3a6'], ground: '#f1d49a', svg:
+    `<circle cx="230" cy="168" r="46" fill="#ffd36b"/>` +
+    `<rect x="0" y="170" width="460" height="50" fill="#36b2c8"/><path d="M0 182 q20 -5 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#c6f2f7" stroke-width="2" fill="none"/>` +
+    palm(60, 214) + palm(400, 214, 1.1) + palm(440, 216, .8)},
+  8: {name: '가라르', sky: ['#a7b6c8', '#e6eaf0'], ground: '#6f9a55', svg:
+    cloud(70, 50, 1, '#f1f3f6') + cloud(250, 40, 1.2, '#e3e7ec') + cloud(400, 62, .9, '#f1f3f6') +
+    `<ellipse cx="100" cy="238" rx="200" ry="68" fill="#86ad6f"/><ellipse cx="400" cy="232" rx="170" ry="60" fill="#7aa364"/>` +
+    `<g><ellipse cx="330" cy="176" rx="70" ry="16" fill="#9b9bab"/><rect x="260" y="150" width="140" height="28" fill="#8a8a9a"/><ellipse cx="330" cy="150" rx="70" ry="16" fill="#b5b5c4"/><ellipse cx="330" cy="150" rx="52" ry="10" fill="#6f9a55"/></g>`},
+  9: {name: '팔데아', sky: ['#6fc3ff', '#dcf2ff'], ground: '#b9c96a', svg:
+    cloud(120, 48) +
+    `<ellipse cx="236" cy="172" rx="130" ry="20" fill="#c98a5a"/><ellipse cx="236" cy="168" rx="104" ry="12" fill="#7d5a44" opacity=".7"/>` +
+    `<polygon points="-10,214 20,140 120,140 150,214" fill="#d98a4f"/><polygon points="20,140 120,140 112,152 28,152" fill="#e9a46a"/>` +
+    `<polygon points="300,214 330,160 420,160 470,214" fill="#c97a45"/>` +
+    `<g transform="translate(400 168)"><polygon points="-9,0 9,0 5,-62 -5,-62" fill="#f2efe6"/><polygon points="-7,-62 7,-62 0,-72" fill="#c4553a"/><g stroke="#8a6a4a" stroke-width="4" stroke-linecap="round"><path d="M0 -62 L24 -86 M0 -62 L-24 -38 M0 -62 L24 -38 M0 -62 L-24 -86"/></g></g>`},
+};
+let regionGen = null;
+function setRegion(gen) {
+  gen = gen || 1;
+  if (gen === regionGen) return;
+  regionGen = gen;
+  const r = REGIONS[gen], sc = $('#scene');
+  sc.style.setProperty('--sky1', r.sky[0]); sc.style.setProperty('--sky2', r.sky[1]); sc.style.setProperty('--ground', r.ground);
+  $('#region').innerHTML = `<svg viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice">${r.svg}</svg>`;
+  $('#regionTag').textContent = `${gen}세대 · ${r.name} 지방`;
+  sc.setAttribute('aria-label', `${r.name} 지방 배경에서 포켓몬이 노는 화면`);
+}
+
 /* ---------- 말풍선 ---------- */
 const LINES = {
   ai: ['AI 찬스 쓰는 중!', '너무 의존하진 말자~', '네 머리도 믿어봐 🧠'],
@@ -494,6 +563,7 @@ function render() {
   const p = S.pet, live = S.live, cfg = S.config;
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b');
   $('#scene').className = 'scene ' + live.mode;
+  setRegion(p ? p.gen : pickGen);
 
   const chipTxt = {work:`🎨 작업 중 · ${live.label}`, break:`🍿 휴식 중 · ${live.label}`, warning:`⚠️ 경고 · ${live.label}`,
     penalty:`💢 페널티 · ${live.label}`, paused:`⏸ 일시정지 · ${clockTo(S.paused_until)}까지`, ai:`🧠 AI · ${live.label}`, idle:'💤 자리비움', neutral: live.label ? `· ${live.label}` : '대기 중'}[live.mode];
@@ -571,7 +641,7 @@ function openPicker() {
   $('#pickHint').textContent = S && S.pet
     ? `⚠️ 바꾸면 지금 ${S.pet.name}(Lv.${S.pet.level})와 헤어지고 새 포켓몬이 Lv.0부터 다시 시작해요.`
     : '진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.';
-  $('#genTabs').innerHTML = [1,2,3,4,5,6,7,8,9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}">${g}세대</button>`).join('');
+  $('#genTabs').innerHTML = [1,2,3,4,5,6,7,8,9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}">${g}세대 · ${REGIONS[g].name}</button>`).join('');
   const lines = Object.entries(META.lines).filter(([, l]) => l.gen === pickGen);
   $('#starters').innerHTML = lines.map(([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}">
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
@@ -671,7 +741,7 @@ async function makeCard() {
   g.font = '42px Jua'; g.fillStyle = 'rgba(255,255,255,.85)';
   g.fillText(`${dur(p.work_sec)} 작업 · Lv.${p.level}`, 540, 1230);
   g.font = '30px Jua'; g.fillStyle = 'rgba(255,255,255,.6)';
-  g.fillText('나랑 같이 자라는 포켓몬 #Figmon', 540, 1295);
+  g.fillText(`${REGIONS[p.gen].name} 지방에서 함께 자란 포켓몬 · #Figmon`, 540, 1295);
   return c;
 }
 async function openShare() {
