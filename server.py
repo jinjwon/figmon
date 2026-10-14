@@ -28,7 +28,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.8.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.9.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -319,7 +319,37 @@ def fresh_state():
 
 
 def new_today():
-    return {"date": date.today().isoformat(), "work_sec": 0.0, "distract_sec": 0.0, "xp_lost": 0.0, "ai_sec": 0.0}
+    # apps: 앱·사이트별 시간 {이름: {kind, sec, break_sec, penalty_sec, xp_lost}}, penalties: 페널티 받은 구간
+    return {"date": date.today().isoformat(), "work_sec": 0.0, "distract_sec": 0.0, "xp_lost": 0.0, "ai_sec": 0.0,
+            "break_sec": 0.0, "apps": {}, "penalties": []}
+
+
+HISTORY_DAYS = 60
+
+
+def roll_day():
+    """날짜가 바뀌면 어제 기록을 history에 넣고 오늘을 새로 시작"""
+    s = STATE
+    if s["today"]["date"] == date.today().isoformat():
+        return
+    old = s["today"]
+    if old.get("work_sec", 0) or old.get("distract_sec", 0) or old.get("ai_sec", 0):
+        apps = sorted(old.get("apps", {}).items(), key=lambda kv: -kv[1]["sec"])[:25]   # 많이 쓴 25개만 보관
+        s.setdefault("history", []).append({**old, "apps": dict(apps), "penalties": old.get("penalties", [])[-50:]})
+        del s["history"][:-HISTORY_DAYS]
+    s["today"] = new_today()
+
+
+def track(label, kind, dt, part="", xp=0.0):
+    """오늘 어떤 앱·사이트에서 얼마나 썼는지 기록 (part: break=휴식 잔고로 쉼, penalty=페널티)"""
+    name = re.sub(r"^www\.", "", label or "알 수 없음")[:40]
+    e = STATE["today"].setdefault("apps", {}).setdefault(
+        name, {"kind": kind, "sec": 0.0, "break_sec": 0.0, "penalty_sec": 0.0, "xp_lost": 0.0})
+    e["kind"] = kind
+    e["sec"] += dt
+    if part:
+        e[part + "_sec"] += dt
+    e["xp_lost"] += xp
 
 
 def load_state():
@@ -329,6 +359,7 @@ def load_state():
             s.update(json.loads(STATE_FILE.read_text(encoding="utf-8")))
             s["config"] = {**DEFAULT_CONFIG, **s.get("config", {})}
             s["today"] = {**new_today(), **s["today"]}
+            s.setdefault("history", [])
         except Exception as e:
             print("상태 파일을 읽지 못해 새로 시작합니다:", e)
     return s
@@ -543,8 +574,7 @@ def fmt(sec):
 # ---------- 게임 루프 ----------
 def step(app, url, idle, dt, title=""):
     s, cfg, now = STATE, STATE["config"], time.time()
-    if s["today"]["date"] != date.today().isoformat():
-        s["today"] = new_today()
+    roll_day()
     kind, label = classify(app, url, cfg, title)
     if now < s.get("paused_until", 0):  # 일시정지 중엔 아무것도 쌓거나 깎지 않음
         LIVE.update(app=app, label=label, idle=int(idle), mode="paused", distract_since=None, penalty_since=None)
@@ -561,13 +591,16 @@ def step(app, url, idle, dt, title=""):
         LIVE["last_work_at"] = now
     ai_over = False
     if kind == "ai":
+        s["today"]["ai_sec"] += dt          # AI 시간은 절제 모드가 꺼져 있어도 기록
         if not cfg["ai_limit_enabled"]:
+            track(label, "ai", dt)
             kind = "neutral"
         else:
-            s["today"]["ai_sec"] += dt
             ai_over = s["today"]["ai_sec"] > cfg["ai_daily_free_min"] * 60
             if ai_over:
                 kind = "distract"
+            else:
+                track(label, "ai", dt)
     LIVE.update(app=app, label=label, idle=int(idle))
     pet = s["pet"]
     before = level_of(pet["xp"]) if pet else None
@@ -580,6 +613,7 @@ def step(app, url, idle, dt, title=""):
         mode = "work"
         s["today"]["work_sec"] += dt
         s["total_work_sec"] += dt
+        track(label, "work", dt)
         s["bank_sec"] = min(cfg["bank_max_min"] * 60, s["bank_sec"] + dt / max(cfg["break_earn_ratio"], 0.1))
         if pet:
             pet["xp"] += dt / 60 * cfg["xp_per_work_min"]
@@ -599,6 +633,8 @@ def step(app, url, idle, dt, title=""):
                 notify("🍿 휴식 시작", f"{label} · 휴식 잔고 {fmt(s['bank_sec'])} 남음")
                 log("break", f"{label} — 휴식 잔고로 쉬는 중")
             s["bank_sec"] = max(0.0, s["bank_sec"] - dt)
+            s["today"]["break_sec"] = s["today"].get("break_sec", 0) + dt
+            track(label, "distract", dt, "break")
         else:
             if LIVE["penalty_since"] is None:
                 LIVE["penalty_since"] = now
@@ -616,14 +652,24 @@ def step(app, url, idle, dt, title=""):
                 notify("⚠️ 휴식 잔고 없음", msg)
             if now - LIVE["penalty_since"] >= cfg["grace_sec"]:
                 mode = "penalty"
+                loss = 0.0
                 if pet:
                     loss = dt / 60 * cfg["penalty_xp_per_min"]
                     floor = stage_floor_xp(stage_of(level_of(pet["xp"]), pet_line(pet)), pet_line(pet))
                     loss = min(loss, max(0.0, pet["xp"] - floor))
                     pet["xp"] -= loss
                     s["today"]["xp_lost"] += loss
+                track(label, "distract", dt, "penalty", loss)
+                pens = s["today"].setdefault("penalties", [])
+                if LIVE["mode"] != "penalty" or not pens:   # 페널티 구간 시작
+                    pens.append({"start": now, "label": re.sub(r"^www\.", "", label), "ai": ai_over, "sec": 0.0, "xp": 0.0})
+                    del pens[:-100]
+                pens[-1]["sec"] += dt
+                pens[-1]["xp"] += loss
+                pens[-1]["end"] = now
             else:
                 mode = "warning"
+                track(label, "distract", dt)
     elif kind == "ai":
         mode = "ai"
     elif kind == "idle":
@@ -743,6 +789,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/state":
             with LOCK:
                 self._send(200, view())
+        elif self.path == "/api/report":   # 기록 탭: 오늘 + 지난 날들
+            with LOCK:
+                self._send(200, {"today": STATE["today"], "history": STATE.get("history", [])[-HISTORY_DAYS:],
+                                 "now": time.time()})
         elif self.path == "/api/meta":
             self._send(200, {"lines": LINES, "master_lv": MASTER_LV,
                              "xp_per_level": XP_PER_LEVEL, "presets": PRESETS,

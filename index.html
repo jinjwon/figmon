@@ -178,6 +178,38 @@ label.f textarea{height:64px;resize:vertical}
 .evo-overlay p{font:22px Jua,sans-serif;margin-top:24px;text-align:center;padding:0 20px}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:99px;font:16px Jua,sans-serif;transition:transform .35s;z-index:40}
 .toast.show{transform:translateX(-50%) translateY(0)}
+/* ---------- 탭 · 기록 ---------- */
+.maintabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);padding:4px;border-radius:14px;margin-bottom:12px}
+.maintabs button{border:0;background:none;color:var(--mute);border-radius:10px;padding:9px 6px;font:15px Jua,sans-serif;cursor:pointer}
+.maintabs button[aria-selected="true"]{background:var(--card2);color:var(--text);box-shadow:inset 0 -2px 0 var(--type)}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.link-btn{background:none;border:0;color:var(--type);font:13px Jua,sans-serif;cursor:pointer;padding:2px 0}
+.btns.quick{margin-top:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chips button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:99px;padding:7px 14px;font:14px Jua,sans-serif;cursor:pointer}
+.chips button[aria-checked="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.sum4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sum4 .card{margin:0}
+.sum4 .big{font-size:24px}
+.sum4 .sub{font-size:11px;color:var(--mute);margin-top:2px}
+.ratio{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--card2);margin:10px 0 6px}
+.ratio i{display:block;height:100%}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--mute)}
+.legend span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;background:var(--c)}
+.days{display:flex;align-items:flex-end;gap:6px;height:110px;margin-top:6px}
+.days .d{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--mute);height:100%;justify-content:flex-end}
+.days .col{width:100%;max-width:28px;display:flex;flex-direction:column-reverse;border-radius:6px;overflow:hidden;background:var(--card2);min-height:2px}
+.rows{list-style:none;margin:0;padding:0}
+.rows li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.rows li:last-child{border:0}
+.rows .nm{font-weight:600;word-break:break-all}
+.rows .tm{text-align:right;font-family:Jua,sans-serif;font-size:15px}
+.rows .bar{grid-column:1/-1;margin:2px 0 0;height:6px}
+.rows .bar>div{background:var(--c)}
+.rows .detail{grid-column:1/-1;font-size:11px;color:var(--mute)}
+.xp-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:#41161d;color:var(--bad);font-size:11px;font-family:Jua,sans-serif}
+.empty{color:var(--mute);font-size:13px;padding:6px 0}
+
 /* ---------- 타이틀 화면 ---------- */
 .title{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 16px;
   background:radial-gradient(circle at 50% 35%,#2b3260 0%,#12141c 65%);overflow:hidden}
@@ -220,6 +252,13 @@ label.f textarea{height:64px;resize:vertical}
     </div>
   </header>
 
+  <nav class="maintabs" role="tablist" aria-label="화면 선택">
+    <button role="tab" id="tabbtn-home" aria-controls="tab-home" aria-selected="true" data-tab="home">🏠 홈</button>
+    <button role="tab" id="tabbtn-report" aria-controls="tab-report" aria-selected="false" data-tab="report" tabindex="-1">📊 기록</button>
+    <button role="tab" id="tabbtn-dex" aria-controls="tab-dex" aria-selected="false" data-tab="dex" tabindex="-1">📕 도감</button>
+  </nav>
+
+  <section id="tab-home" role="tabpanel" aria-labelledby="tabbtn-home">
   <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
     <div class="region" id="region" aria-hidden="true"></div>
     <div class="ground"></div>
@@ -266,31 +305,57 @@ label.f textarea{height:64px;resize:vertical}
   </div>
 
   <div class="card">
+    <div class="card-head"><span class="muted">오늘</span><button class="link-btn" id="toReport">기록 자세히 보기 →</button></div>
     <div class="stats">
-      <div><span class="muted">오늘 작업</span><b id="tWork">0분</b></div>
-      <div><span class="muted">오늘 딴짓</span><b id="tDis">0분</b></div>
-      <div id="aiStat"><span class="muted">오늘 AI</span><b id="tAi" style="color:#9fb0ff">0분</b></div>
+      <div><span class="muted">작업</span><b id="tWork">0분</b></div>
+      <div><span class="muted">딴짓</span><b id="tDis">0분</b></div>
+      <div id="aiStat"><span class="muted">AI</span><b id="tAi" style="color:#9fb0ff">0분</b></div>
       <div><span class="muted">잃은 경험치</span><b id="tLost" style="color:var(--bad)">0</b></div>
-      <div><span class="muted">누적 작업</span><b id="tTotal">0분</b></div>
     </div>
-    <div class="btns">
-      <button class="b primary" id="shareBtn" disabled>🏆 자랑 카드</button>
-      <button class="b" id="gradBtn" disabled>🎓 졸업시키기</button>
-    </div>
-    <div class="btns"><button class="b" id="pauseBtn">⏸ 1시간 일시정지</button><button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button><button class="b" id="titleBtn">🏠 타이틀</button></div>
+    <div class="muted" id="tPenaltyHint" style="margin-top:8px"></div>
   </div>
 
-  <div class="card">
-    <div class="muted" style="margin-bottom:6px">기록</div>
-    <ul class="events" id="events" aria-label="최근 기록"></ul>
+  <div class="card" id="masterCard" hidden>
+    <div class="muted">🏆 완전 성장했어요!</div>
+    <div class="btns">
+      <button class="b primary" id="shareBtn">🏆 자랑 카드</button>
+      <button class="b" id="gradBtn">🎓 졸업시키기</button>
+    </div>
   </div>
+
+  <div class="btns quick">
+    <button class="b" id="pauseBtn">⏸ 1시간 일시정지</button>
+    <button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button>
+    <button class="b" id="titleBtn">🏠 타이틀</button>
+  </div>
+  </section>
+
+  <section id="tab-report" role="tabpanel" aria-labelledby="tabbtn-report" hidden>
+    <div class="chips" role="radiogroup" aria-label="기간" id="periodChips">
+      <button role="radio" aria-checked="true" data-p="today">오늘</button>
+      <button role="radio" aria-checked="false" data-p="yesterday">어제</button>
+      <button role="radio" aria-checked="false" data-p="7">최근 7일</button>
+      <button role="radio" aria-checked="false" data-p="30">최근 30일</button>
+    </div>
+    <div id="report"></div>
+    <div class="card">
+      <div class="card-head"><span class="muted">🔔 알림 기록</span></div>
+      <ul class="events" id="events" aria-label="최근 알림"></ul>
+    </div>
+  </section>
+
+  <section id="tab-dex" role="tabpanel" aria-labelledby="tabbtn-dex" hidden>
+    <div class="card" id="dexCard">
+      <div class="card-head"><span class="muted">📕 졸업한 포켓몬</span><span class="muted" id="dexCount"></span></div>
+      <div class="dex" id="dex"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="muted">📈 누적</span></div>
+      <div class="stats"><div><span class="muted">누적 작업</span><b id="tTotal">0분</b></div><div><span class="muted">졸업</span><b id="tGrad">0마리</b></div></div>
+    </div>
+  </section>
 
   <div class="legal-foot"><span id="verTag"></span>비공식 · 비영리 팬 프로젝트 (수익 없음) · Pokémon © Nintendo / Creatures Inc. / GAME FREAK inc.</div>
-
-  <div class="card" id="dexCard" style="display:none">
-    <div class="muted" style="margin-bottom:8px">📕 졸업한 포켓몬 도감</div>
-    <div class="dex" id="dex"></div>
-  </div>
 </div>
 
 <!-- 타이틀 화면 -->
@@ -704,14 +769,19 @@ function render() {
   $('#verTag').textContent = S.version ? `Figmon v${S.version} · ` : '';
   $('#tWork').textContent = dur(S.today.work_sec);
   $('#tDis').textContent = dur(S.today.distract_sec);
-  $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled ? '' : 'none';
+  $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled || S.today.ai_sec > 30 ? '' : 'none';
   $('#tLost').textContent = S.today.xp_lost.toFixed(0);
+  const pens = S.today.penalties || [];
+  $('#tPenaltyHint').textContent = !pens.length ? (S.today.work_sec > 60 ? '오늘은 아직 페널티가 없어요 👏' : '')
+    : `💢 페널티: ${pens[pens.length - 1].label} ${dur(pens[pens.length - 1].sec)} (-${pens[pens.length - 1].xp.toFixed(0)} XP)${pens.length > 1 ? ` 외 ${pens.length - 1}건` : ''}`;
   $('#tTotal').textContent = dur(S.total_work_sec);
-  $('#shareBtn').disabled = $('#gradBtn').disabled = !(p && p.mastered);
+  $('#tGrad').textContent = `${S.dex.length}마리`;
+  $('#masterCard').hidden = !(p && p.mastered);
 
   $('#events').innerHTML = S.events.map(e => `<li><span>${ICON[e.kind] || '•'}</span><span>${e.msg}</span><time>${hhmm(e.t)}</time></li>`).join('') || '<li class="muted">아직 기록이 없어요</li>';
-  $('#dexCard').style.display = S.dex.length ? '' : 'none';
-  $('#dex').innerHTML = S.dex.map(d => `<span title="${d.nickname || d.species[1]} Lv.${d.level}">${pixTag(d.species[0])}</span>`).join('');
+  $('#dexCount').textContent = S.dex.length ? `${S.dex.length}마리` : '';
+  $('#dex').innerHTML = S.dex.map(d => `<span title="${d.nickname || d.species[1]} Lv.${d.level}">${pixTag(d.species[0])}</span>`).join('')
+    || `<div class="empty">아직 졸업한 포켓몬이 없어요. Lv.${(p && p.master_lv) || 36}에 완전 성장하면 홈에서 졸업시킬 수 있어요.</div>`;
 
   prev = p ? {line:p.line, stage:p.stage, level:p.level, xp:p.xp, species:p.species, branch_pending:p.branch_pending} : null;
 }
@@ -719,6 +789,117 @@ function render() {
 async function poll() {
   try { S = await api('/api/state'); render(); }
   catch (e) { $('#chip').textContent = '서버 연결 끊김 — server.py 실행 확인'; $('#chip').className = 'chip penalty'; }
+}
+
+/* ---------- 탭 ---------- */
+let curTab = 'home';
+function showTab(name, focus) {
+  curTab = name;
+  document.querySelectorAll('.maintabs [role=tab]').forEach(b => {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+    $('#tab-' + b.dataset.tab).hidden = !on;
+  });
+  try { localStorage.setItem('figmonTab', name); } catch {}
+  if (name === 'report') loadReport();
+  window.scrollTo(0, 0);
+}
+$('.maintabs').onclick = e => { const b = e.target.closest('[role=tab]'); if (b) showTab(b.dataset.tab); };
+$('.maintabs').onkeydown = e => {   // ← → 로 탭 이동
+  const order = ['home', 'report', 'dex'], i = order.indexOf(curTab);
+  if (e.key === 'ArrowRight') showTab(order[(i + 1) % 3], true);
+  if (e.key === 'ArrowLeft') showTab(order[(i + 2) % 3], true);
+};
+$('#toReport').onclick = () => showTab('report', true);
+
+/* ---------- 기록: 무엇을 얼마나 했고, 어디서 페널티를 받았는지 ---------- */
+let REPORT = null, period = 'today';
+async function loadReport() { try { REPORT = await api('/api/report'); renderReport(); } catch {} }
+setInterval(() => { if (curTab === 'report' && !document.hidden) loadReport(); }, 5000);
+$('#periodChips').onclick = e => {
+  const b = e.target.closest('[role=radio]'); if (!b) return;
+  period = b.dataset.p;
+  document.querySelectorAll('#periodChips [role=radio]').forEach(x => x.setAttribute('aria-checked', x === b));
+  renderReport();
+};
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function daysFor(p) {   // 기간에 들어가는 날들 (오늘 포함)
+  const all = [...(REPORT.history || []), REPORT.today], byDate = Object.fromEntries(all.map(d => [d.date, d]));
+  const n = p === 'today' ? 1 : p === 'yesterday' ? 1 : +p, start = p === 'yesterday' ? 1 : 0, out = [];
+  for (let i = start; i < start + n; i++) { const d = new Date(); d.setDate(d.getDate() - i); out.push(byDate[ymd(d)] || {date: ymd(d)}); }
+  return out;
+}
+function merge(days) {
+  const m = {work: 0, distract: 0, ai: 0, brk: 0, xp: 0, apps: {}, pens: []};
+  for (const d of days) {
+    m.work += d.work_sec || 0; m.distract += d.distract_sec || 0; m.ai += d.ai_sec || 0; m.brk += d.break_sec || 0; m.xp += d.xp_lost || 0;
+    for (const [k, v] of Object.entries(d.apps || {})) {
+      const e = m.apps[k] || (m.apps[k] = {kind: v.kind, sec: 0, break_sec: 0, penalty_sec: 0, xp_lost: 0});
+      e.sec += v.sec; e.break_sec += v.break_sec || 0; e.penalty_sec += v.penalty_sec || 0; e.xp_lost += v.xp_lost || 0;
+    }
+    m.pens.push(...(d.penalties || []));
+  }
+  m.pens.sort((a, b) => b.start - a.start);
+  return m;
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+function appList(m, kind, color, detail) {
+  const items = Object.entries(m.apps).filter(([, v]) => v.kind === kind).sort((a, b) => b[1].sec - a[1].sec).slice(0, 10);
+  if (!items.length) return '';
+  const max = items[0][1].sec || 1;
+  return `<ul class="rows">${items.map(([k, v]) => `<li style="--c:${color}">
+    <span class="nm">${esc(k)}${v.xp_lost >= 0.5 ? `<span class="xp-badge">-${v.xp_lost.toFixed(0)} XP</span>` : ''}</span><span class="tm">${dur(v.sec)}</span>
+    <div class="bar"><div style="width:${v.sec / max * 100}%"></div></div>${detail ? `<span class="detail">${detail(v)}</span>` : ''}</li>`).join('')}</ul>`;
+}
+function renderReport() {
+  if (!REPORT) return;
+  const days = daysFor(period), m = merge(days), pen = m.distract - m.brk;
+  const total = m.work + m.distract + m.ai || 1;
+  const label = {today: '오늘', yesterday: '어제', 7: '최근 7일', 30: '최근 30일'}[period];
+  const W = '#5ee08a', B = '#ffc04d', P = '#ff5d6c', A = '#9fb0ff';
+  // 최근 7일 막대 (오늘 기준)
+  const week = daysFor('7').reverse(), wmax = Math.max(60, ...week.map(d => (d.work_sec || 0) + (d.distract_sec || 0)));
+  const dn = ['일', '월', '화', '수', '목', '금', '토'];
+  const weekBars = week.map(d => {
+    const w = d.work_sec || 0, x = d.distract_sec || 0, dd = new Date(d.date + 'T00:00');
+    return `<div class="d" title="${d.date} 작업 ${dur(w)} · 딴짓 ${dur(x)}"><div class="col" style="height:${Math.max(2, (w + x) / wmax * 100)}%">
+      <i style="flex:${w};background:${W}"></i><i style="flex:${x};background:${P}"></i></div>${d.date === REPORT.today.date ? '오늘' : dn[dd.getDay()]}</div>`;
+  }).join('');
+  const nothing = !m.work && !m.distract && !m.ai;
+  $('#report').innerHTML = `
+    <div class="sum4">
+      <div class="card"><div class="muted">🎨 작업</div><div class="big" style="color:${W}">${dur(m.work)}</div></div>
+      <div class="card"><div class="muted">📺 딴짓</div><div class="big" style="color:${B}">${dur(m.distract)}</div>
+        <div class="sub">휴식 잔고로 ${dur(m.brk)} · 페널티·경고 ${dur(Math.max(0, pen))}</div></div>
+      <div class="card"><div class="muted">🧠 AI</div><div class="big" style="color:${A}">${dur(m.ai)}</div></div>
+      <div class="card"><div class="muted">💢 잃은 경험치</div><div class="big" style="color:${P}">${m.xp.toFixed(0)} XP</div>
+        <div class="sub">페널티 ${m.pens.length}번</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="muted">${label} 시간 비율</span><span class="muted">${nothing ? '' : `집중 ${Math.round(m.work / total * 100)}%`}</span></div>
+      ${nothing ? '<div class="empty">아직 기록이 없어요. 작업 앱을 켜면 여기에 쌓여요.</div>' : `
+      <div class="ratio" role="img" aria-label="작업 ${Math.round(m.work / total * 100)}%, 휴식 ${Math.round(m.brk / total * 100)}%, 페널티·경고 ${Math.round(pen / total * 100)}%, AI ${Math.round(m.ai / total * 100)}%">
+        <i style="flex:${m.work};background:${W}"></i><i style="flex:${m.brk};background:${B}"></i><i style="flex:${Math.max(0, pen)};background:${P}"></i><i style="flex:${m.ai};background:${A}"></i></div>
+      <div class="legend"><span style="--c:${W}">작업</span><span style="--c:${B}">휴식 잔고로 쉼</span><span style="--c:${P}">페널티·경고</span><span style="--c:${A}">AI</span></div>`}
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="muted">📅 최근 7일</span><span class="legend"><span style="--c:${W}">작업</span><span style="--c:${P}">딴짓</span></span></div>
+      <div class="days" role="img" aria-label="최근 7일 작업과 딴짓 시간">${weekBars}</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="muted">💢 페널티 받은 기록</span><span class="muted">${m.pens.length ? `${m.pens.length}번 · -${m.xp.toFixed(0)} XP` : ''}</span></div>
+      ${m.pens.length ? `<ul class="rows">${m.pens.slice(0, 30).map(p => `<li style="--c:${P}">
+        <span class="nm">${esc(p.label)}${p.ai ? ' <span class="muted">(AI 시간 초과)</span>' : ''}<span class="xp-badge">-${p.xp.toFixed(1)} XP</span></span>
+        <span class="tm">${dur(p.sec)}</span>
+        <span class="detail">${period === 'today' ? '' : new Date(p.start * 1000).toLocaleDateString('ko-KR', {month: 'numeric', day: 'numeric'}) + ' '}${hhmm(p.start)} ~ ${hhmm(p.end || p.start)}</span></li>`).join('')}</ul>`
+        : `<div class="empty">${nothing ? '기록이 없어요.' : '페널티 없이 잘 지냈어요 👏'}</div>`}
+    </div>
+    <div class="card"><div class="card-head"><span class="muted">🎨 작업한 곳</span></div>
+      ${appList(m, 'work', W) || '<div class="empty">작업 기록이 없어요.</div>'}</div>
+    <div class="card"><div class="card-head"><span class="muted">📺 딴짓한 곳</span></div>
+      ${appList(m, 'distract', B, v => `휴식 잔고로 ${dur(v.break_sec)} · 페널티 ${dur(v.penalty_sec)}`) || '<div class="empty">딴짓 기록이 없어요 👏</div>'}</div>
+    ${appList(m, 'ai', A) ? `<div class="card"><div class="card-head"><span class="muted">🧠 AI 쓴 곳</span></div>${appList(m, 'ai', A)}</div>` : ''}`;
 }
 
 /* ---------- 이브이: 시간대 게이지와 진화형 고르기 ---------- */
@@ -952,6 +1133,7 @@ $('#doShare').onclick = async () => {
   S = await api('/api/state');
   // 실행할 때(?title=1)나 아직 파트너가 없으면 타이틀 화면부터
   if (new URLSearchParams(location.search).has('title') || !S.pet) openTitle();
+  try { const t = localStorage.getItem('figmonTab'); if (t && t !== 'home') showTab(t); } catch {}
   await poll();
   setInterval(poll, 1500);
   setInterval(particle, 700);
