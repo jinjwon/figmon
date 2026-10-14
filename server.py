@@ -28,7 +28,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.7.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.7.2"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"

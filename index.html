@@ -19,10 +19,15 @@ h1,.jua{font-family:Jua,sans-serif;font-weight:400}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 header h1{margin:0;font-size:22px;letter-spacing:.5px}
 header h1 span{color:var(--type)}
-.chip{padding:5px 10px;border-radius:99px;background:var(--card2);font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.chip{padding:5px 10px;border-radius:99px;background:var(--card2);font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 .chip.work{background:#1d3a2a;color:var(--good)} .chip.break{background:#3a311b;color:var(--warn)}
 .chip.ai{background:#232a4a;color:#9fb0ff} .chip.warning{background:#3d2a14;color:#ffae42} .chip.penalty{background:#41161d;color:var(--bad)}
 .icon-btn{background:var(--card2);border:0;color:var(--text);border-radius:10px;width:34px;height:34px;cursor:pointer;font-size:16px}
+/* 아이콘만 있으면 무슨 버튼인지 몰라서 글자를 함께 */
+.text-btn{display:inline-flex;align-items:center;gap:5px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;
+  height:34px;padding:0 12px;cursor:pointer;font:14px Jua,sans-serif;white-space:nowrap;transition:background .15s}
+.text-btn:hover{background:var(--line)}
+.text-btn .ic{font-size:15px;line-height:1}
 
 /* ---------- scene ---------- */
 .scene{position:relative;height:280px;border-radius:20px;overflow:hidden;--sky1:#8fd3ff;--sky2:#e3f6ff;--ground:#6cbf5a;
@@ -199,7 +204,7 @@ label.f textarea{height:64px;resize:vertical}
     <h1>FIG<span>MON</span></h1>
     <div style="display:flex;gap:6px;align-items:center">
       <div class="chip" id="chip" role="status" aria-live="polite">연결 중…</div>
-      <button class="icon-btn" id="openSettings" title="설정" aria-label="설정 열기">⚙︎</button>
+      <button class="text-btn" id="openSettings" title="설정 열기"><span class="ic" aria-hidden="true">⚙︎</span>설정</button>
     </div>
   </header>
 
