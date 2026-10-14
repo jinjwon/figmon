@@ -62,6 +62,9 @@ DEFAULT_CONFIG = {
     "penalty_xp_per_min": 3.0,   # 잔고 없이 딴짓할 때 분당 감소 경험치
     "grace_sec": 20,             # 경고 후 페널티까지 유예
     "idle_limit_sec": 120,       # 이만큼 입력이 없으면 작업 시간에서 제외
+    # 사용성 / 접근성
+    "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
+    "pet_size": 1.0,             # 데스크톱 펫 크기 배율
     # AI 절제 모드
     "ai_limit_enabled": False,
     "ai_daily_free_min": 30.0,   # 하루 무료 AI 시간, 넘기면 딴짓으로 취급
@@ -134,7 +137,7 @@ def species_name(pet, stage):
 
 # ---------- 상태 저장 ----------
 def fresh_state():
-    return {"config": dict(DEFAULT_CONFIG), "pet": None, "bank_sec": 0.0,
+    return {"config": dict(DEFAULT_CONFIG), "pet": None, "bank_sec": 0.0, "paused_until": 0.0,
             "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today()}
 
 
@@ -228,6 +231,8 @@ def notify(title, msg):
 
 
 def ask_return(msg):
+    if not STATE["config"]["alert_dialog"]:
+        return
     now = time.time()
     if now - LIVE["last_dialog"] < 90:
         return
@@ -258,6 +263,10 @@ def step(app, url, idle, dt):
     if s["today"]["date"] != date.today().isoformat():
         s["today"] = new_today()
     kind, label = classify(app, url, cfg)
+    if now < s.get("paused_until", 0):  # 일시정지 중엔 아무것도 쌓거나 깎지 않음
+        LIVE.update(app=app, label=label, idle=int(idle), mode="paused", distract_since=None, penalty_since=None)
+        save()
+        return
     if kind == "work" and idle > cfg["idle_limit_sec"]:
         kind = "idle"
     if kind == "work":
@@ -374,7 +383,7 @@ def view():
     live = {k: LIVE[k] for k in ("mode", "app", "label", "idle")}
     if LIVE["penalty_since"]:
         live["grace_left"] = max(0, cfg["grace_sec"] - (time.time() - LIVE["penalty_since"]))
-    out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"],
+    out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"], "paused_until": s.get("paused_until", 0),
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None}
     pet = s["pet"]
@@ -464,6 +473,10 @@ class Handler(BaseHTTPRequestHandler):
                                  "finished": time.time()})
                 log("grad", f"{species_name(pet, 3)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
                 s["pet"] = None
+            elif self.path == "/api/pause":
+                minutes = float(body.get("minutes", 0))
+                s["paused_until"] = time.time() + minutes * 60 if minutes > 0 else 0.0
+                log("pause", f"추적 일시정지 ({int(minutes)}분)" if minutes > 0 else "추적 다시 시작")
             elif self.path == "/api/config":
                 apply_config(body)
             else:
@@ -473,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def launch_pet():
-    """build/FigmonPet(데스크톱 펫 창)이 있으면 함께 띄운다."""
+    """개발용: build/FigmonPet(Figmon.swift를 컴파일한 것)이 있으면 펫 창으로 함께 띄운다."""
     exe = HERE / "build" / "FigmonPet"
     if not exe.exists():
         return None

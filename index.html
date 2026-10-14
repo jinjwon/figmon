@@ -159,6 +159,17 @@ label.f textarea{height:64px;resize:vertical}
 @keyframes blink{50%{opacity:0}}
 .title .legal{position:absolute;bottom:14px;left:16px;right:16px;font-size:11px;color:#6f7590;line-height:1.5}
 .legal-foot{margin-top:18px;text-align:center;font-size:11px;color:#5f6580;line-height:1.5}
+/* ---------- 접근성 ---------- */
+:focus-visible{outline:3px solid #ffd84d;outline-offset:2px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.name-row .name{background:none;border:0;color:inherit;padding:0}
+.chip.paused{background:#2c2f3d;color:#c9cde0}
+.scene.paused{background:linear-gradient(#5d6478,#a9afc2 70%)}
+.scene.paused .mon-box{filter:grayscale(.5)}
+@media (prefers-reduced-motion: reduce){
+  *,*:before,*:after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .particle,.rain,.float{display:none}
+}
 @media (max-width:380px){.grid2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -167,16 +178,16 @@ label.f textarea{height:64px;resize:vertical}
   <header>
     <h1>FIG<span>MON</span></h1>
     <div style="display:flex;gap:6px;align-items:center">
-      <div class="chip" id="chip">연결 중…</div>
-      <button class="icon-btn" id="openSettings" title="설정">⚙︎</button>
+      <div class="chip" id="chip" role="status" aria-live="polite">연결 중…</div>
+      <button class="icon-btn" id="openSettings" title="설정" aria-label="설정 열기">⚙︎</button>
     </div>
   </header>
 
-  <div class="scene neutral" id="scene">
+  <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
     <div class="ground"></div>
     <div class="bubble" id="bubble">…</div>
     <div class="walker" id="walker">
-      <div class="mon-box" id="monBox"></div>
+      <div class="mon-box" id="monBox" role="button" tabindex="0" aria-label="포켓몬 쓰다듬기"></div>
       <div class="shadow"></div>
     </div>
     <div class="grace" id="grace"></div>
@@ -184,11 +195,11 @@ label.f textarea{height:64px;resize:vertical}
 
   <div class="card" id="petCard">
     <div class="name-row">
-      <span class="name" id="name" title="클릭해서 닉네임 변경">-</span>
+      <button class="name" id="name" title="눌러서 닉네임 변경" aria-label="닉네임 변경">-</button>
       <span class="lv" id="lv"></span>
       <span class="sub" id="species"></span>
     </div>
-    <div class="bar"><div id="xpBar" style="width:0"></div></div>
+    <div class="bar" role="progressbar" aria-label="다음 레벨까지 경험치" aria-valuemin="0" aria-valuemax="100" id="xpWrap"><div id="xpBar" style="width:0"></div></div>
     <div class="muted" id="evoInfo"></div>
     <div class="evo-track" id="track"></div>
   </div>
@@ -218,12 +229,12 @@ label.f textarea{height:64px;resize:vertical}
       <button class="b primary" id="shareBtn" disabled>🏆 자랑 카드</button>
       <button class="b" id="gradBtn" disabled>🎓 졸업시키기</button>
     </div>
-    <div class="btns"><button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button><button class="b" id="titleBtn">🏠 타이틀 화면</button></div>
+    <div class="btns"><button class="b" id="pauseBtn">⏸ 1시간 일시정지</button><button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button><button class="b" id="titleBtn">🏠 타이틀</button></div>
   </div>
 
   <div class="card">
     <div class="muted" style="margin-bottom:6px">기록</div>
-    <ul class="events" id="events"></ul>
+    <ul class="events" id="events" aria-label="최근 기록"></ul>
   </div>
 
   <div class="legal-foot">비공식 · 비영리 팬 프로젝트 (수익 없음) · Pokémon © Nintendo / Creatures Inc. / GAME FREAK inc.</div>
@@ -235,7 +246,7 @@ label.f textarea{height:64px;resize:vertical}
 </div>
 
 <!-- 타이틀 화면 -->
-<div class="title" id="title">
+<div class="title" id="title" role="dialog" aria-modal="true" aria-label="Figmon 타이틀 화면">
   <div class="logo">FIG<span>MON</span></div>
   <div class="tag">작업한 만큼 같이 자라는 포켓몬 데스크톱 펫</div>
   <div class="parade" id="parade"></div>
@@ -245,15 +256,15 @@ label.f textarea{height:64px;resize:vertical}
 </div>
 
 <!-- 스타팅 고르기 -->
-<div class="modal" id="pickModal"><div class="sheet">
-  <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기">✕</button></div>
+<div class="modal" id="pickModal" role="dialog" aria-modal="true" aria-label="포켓몬 고르기"><div class="sheet">
+  <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기" aria-label="닫기">✕</button></div>
   <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.</div>
   <div class="tabs" id="genTabs"></div>
   <div class="starters" id="starters"></div>
 </div></div>
 
 <!-- 설정 -->
-<div class="modal" id="setModal"><div class="sheet">
+<div class="modal" id="setModal" role="dialog" aria-modal="true" aria-label="설정"><div class="sheet">
   <h2>설정</h2>
   <div class="muted">목록은 쉼표로 구분해요. 앱 이름은 앞부분만 맞아도 인식해요 (예: "IntelliJ IDEA").</div>
   <div class="btns" id="presets">
@@ -266,6 +277,17 @@ label.f textarea{height:64px;resize:vertical}
     <label class="f">작업 사이트<textarea name="work_domains"></textarea></label>
     <label class="f">딴짓 앱 (게임 등)<textarea name="distract_apps"></textarea></label>
     <label class="f">딴짓 사이트<textarea name="distract_domains"></textarea></label>
+    <div class="card" style="background:var(--card2);margin-top:14px">
+      <div class="jua">♿ 편의 · 접근성</div>
+      <label class="f">펫 크기
+        <select name="pet_size" style="display:block;width:100%;margin-top:4px;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px;font:13px -apple-system,sans-serif">
+          <option value="0.75">작게</option><option value="1">보통</option><option value="1.3">크게</option><option value="1.6">아주 크게</option>
+        </select></label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
+        <input type="checkbox" name="alert_dialog" style="width:18px;height:18px"> 휴식 잔고가 없을 때 경고 팝업 띄우기 (끄면 알림만)
+      </label>
+      <div class="muted" style="margin-top:6px">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
+    </div>
     <div class="card" style="background:var(--card2);margin-top:14px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer" class="jua">
         <input type="checkbox" name="ai_limit_enabled" style="width:18px;height:18px"> 🧠 AI 절제 모드
@@ -288,7 +310,7 @@ label.f textarea{height:64px;resize:vertical}
 </div></div>
 
 <!-- 공유 -->
-<div class="modal" id="shareModal"><div class="sheet">
+<div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-label="자랑 카드"><div class="sheet">
   <h2>최종 진화 완료! 자랑해볼까?</h2>
   <img class="share-img" id="shareImg" alt="공유 카드">
   <div class="btns">
@@ -303,7 +325,7 @@ label.f textarea{height:64px;resize:vertical}
 </div></div>
 
 <!-- 확인 / 입력 다이얼로그 -->
-<div class="modal" id="askModal"><div class="sheet ask">
+<div class="modal" id="askModal" role="dialog" aria-modal="true" aria-labelledby="askTitle"><div class="sheet ask">
   <h2 id="askTitle"></h2>
   <div class="muted" id="askMsg"></div>
   <input id="askInput" maxlength="12">
@@ -314,7 +336,7 @@ label.f textarea{height:64px;resize:vertical}
   <div class="evo-stage flash" id="evoStage"></div>
   <p id="evoText"></p>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -337,12 +359,32 @@ async function api(path, body) {
 }
 const dur = s => { s = Math.round(s / 60); return s >= 60 ? `${Math.floor(s/60)}시간 ${s%60}분` : `${s}분`; };
 const clock = s => { s = Math.floor(s); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+const clockTo = t => new Date(t * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
 const hhmm = t => new Date(t*1000).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
 }
+
+/* ---------- 모달 공통: 열면 첫 버튼에 포커스, Esc로 닫기, 닫으면 원래 자리로 포커스 복귀 ---------- */
+let lastFocus = null;
+new MutationObserver(ms => ms.forEach(m => {
+  const el = m.target; if (!el.classList.contains('modal') && el.id !== 'title') return;
+  if (el.classList.contains('open')) {
+    lastFocus = document.activeElement;
+    setTimeout(() => { if (!el.contains(document.activeElement)) el.querySelector('button:not([style*="none"]), input, select, textarea')?.focus(); }, 30);
+  } else if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+})).observe(document.body, {subtree: true, attributes: true, attributeFilter: ['class']});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('#askModal').classList.contains('open')) return;   // ask()가 직접 처리
+  for (const id of ['shareModal', 'setModal']) if ($('#' + id).classList.contains('open')) return $('#' + id).classList.remove('open');
+  if ($('#pickModal').classList.contains('open') && S && S.pet) $('#pickModal').classList.remove('open');
+});
+document.addEventListener('keydown', e => {   // 확인 창이 열려 있으면 어디서든 Esc = 취소
+  if (e.key === 'Escape' && $('#askModal').classList.contains('open')) $('#askNo').click();
+});
 
 /* ---------- 확인/입력 다이얼로그 (브라우저 confirm/prompt 대신) ---------- */
 function ask(title, html, {input = null, yes = '확인', no = '취소'} = {}) {
@@ -381,8 +423,9 @@ function speak(force) {
 }
 
 /* ---------- 파티클 / 이동 ---------- */
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function particle() {
-  if (!S || document.hidden) return;
+  if (!S || document.hidden || calm()) return;
   const sc = $('#scene'), m = S.live.mode;
   if (m === 'penalty') {
     for (let i = 0; i < 6; i++) { const d = document.createElement('div'); d.className = 'rain'; d.style.left = Math.random()*100+'%'; d.style.animationDelay = Math.random()*.5+'s'; sc.appendChild(d); setTimeout(() => d.remove(), 1400); }
@@ -398,7 +441,7 @@ function particle() {
 }
 let walkX = 0;
 function wander() {
-  if (!S) return;
+  if (!S || calm()) return;
   const m = S.live.mode, w = $('#walker');
   let nx = walkX;
   if (m === 'work' || m === 'neutral' || m === 'break') nx = Math.round(Math.random()*180 - 90);
@@ -435,6 +478,7 @@ function drawMon() {
 
 /* ---------- 진화 연출 ---------- */
 function evolveFx(fromSrc, toId, text, after) {
+  if (calm()) { toast('✨ ' + text); after && after(); return; }
   busy = true;
   const st = $('#evoStage'); st.className = 'evo-stage flash';
   st.innerHTML = `<img class="a" src="${fromSrc}"><img class="b" src="${ART(toId)}">`;
@@ -452,7 +496,7 @@ function render() {
   $('#scene').className = 'scene ' + live.mode;
 
   const chipTxt = {work:`🎨 작업 중 · ${live.label}`, break:`🍿 휴식 중 · ${live.label}`, warning:`⚠️ 경고 · ${live.label}`,
-    penalty:`💢 페널티 · ${live.label}`, ai:`🧠 AI · ${live.label}`, idle:'💤 자리비움', neutral: live.label ? `· ${live.label}` : '대기 중'}[live.mode];
+    penalty:`💢 페널티 · ${live.label}`, paused:`⏸ 일시정지 · ${clockTo(S.paused_until)}까지`, ai:`🧠 AI · ${live.label}`, idle:'💤 자리비움', neutral: live.label ? `· ${live.label}` : '대기 중'}[live.mode];
   $('#chip').className = 'chip ' + live.mode; $('#chip').textContent = chipTxt;
   $('#grace').textContent = live.mode === 'warning' && live.grace_left != null ? `${Math.ceil(live.grace_left)}초 안에 돌아가!` : '';
 
@@ -476,6 +520,8 @@ function render() {
     $('#lv').textContent = `Lv.${p.level}`;
     $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type]} · ${p.species[1]}`;
     $('#xpBar').style.width = (p.lv_progress * 100) + '%';
+    $('#xpWrap').setAttribute('aria-valuenow', Math.round(p.lv_progress * 100));
+    $('#monBox').setAttribute('aria-label', `${p.name} 쓰다듬기`);
     $('#evoInfo').textContent = p.next_evo_lv
       ? `다음 진화까지 Lv.${p.next_evo_lv} · 작업 약 ${dur(p.min_to_evo * 60)} 남음`
       : `최종 진화 완료! 누적 작업 ${dur(p.work_sec)} 🎉`;
@@ -491,10 +537,13 @@ function render() {
   }
 
   $('#bank').textContent = clock(S.bank_sec);
+  $('#bank').setAttribute('aria-label', `휴식 잔고 ${Math.floor(S.bank_sec / 60)}분 ${Math.floor(S.bank_sec % 60)}초`);
+  const paused = live.mode === 'paused';
+  $('#pauseBtn').textContent = paused ? '▶ 다시 시작' : '⏸ 1시간 일시정지';
   $('#bankHint').textContent = `작업 ${cfg.break_earn_ratio}분 = 휴식 1분`;
   $('#activity').textContent = live.label || '-';
   $('#activityHint').textContent = {work:`+${cfg.xp_per_work_min} XP/분`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
-    penalty:`-${cfg.penalty_xp_per_min} XP/분`, ai:`무료 AI ${Math.max(0, Math.ceil(cfg.ai_daily_free_min - S.today.ai_sec / 60))}분 남음`, idle:`${live.idle}초 동안 입력 없음`, neutral:'경험치 변화 없음'}[live.mode];
+    penalty:`-${cfg.penalty_xp_per_min} XP/분`, paused:'경험치·페널티 멈춤', ai:`무료 AI ${Math.max(0, Math.ceil(cfg.ai_daily_free_min - S.today.ai_sec / 60))}분 남음`, idle:`${live.idle}초 동안 입력 없음`, neutral:'경험치 변화 없음'}[live.mode];
 
   $('#tWork').textContent = dur(S.today.work_sec);
   $('#tDis').textContent = dur(S.today.distract_sec);
@@ -530,6 +579,11 @@ function openPicker() {
 }
 $('#pickClose').onclick = () => $('#pickModal').classList.remove('open');
 $('#switchBtn').onclick = () => openPicker();
+$('#pauseBtn').onclick = async () => {
+  const resume = S.live.mode === 'paused';
+  S = await api('/api/pause', {minutes: resume ? 0 : 60}); render();
+  toast(resume ? '▶ 다시 추적해요' : '⏸ 1시간 동안 쉬어요 (메뉴 막대에서 시간 변경 가능)');
+};
 $('#titleBtn').onclick = () => openTitle();
 
 /* ---------- 타이틀 화면 ---------- */
@@ -562,6 +616,7 @@ $('#starters').onclick = async e => {
 };
 
 /* ---------- 상호작용 ---------- */
+$('#monBox').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#monBox').click(); } };
 $('#monBox').onclick = () => {
   const b = $('#monBox'); b.classList.remove('pet-jump'); void b.offsetWidth; b.classList.add('pet-jump');
   setTimeout(() => b.classList.remove('pet-jump'), 520);
@@ -581,7 +636,7 @@ $('#gradBtn').onclick = async () => {
 const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domains', 'ai_apps', 'ai_domains'];
 $('#openSettings').onclick = () => {
   const f = $('#setForm');
-  for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else el.value = Array.isArray(v) ? v.join(', ') : v; }
+  for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else if (el.tagName === 'SELECT') el.value = String(+v); else el.value = Array.isArray(v) ? v.join(', ') : v; }
   $('#setModal').classList.add('open');
 };
 $('#presets').onclick = e => {
@@ -592,7 +647,7 @@ $('#presets').onclick = e => {
 $('#setCancel').onclick = () => $('#setModal').classList.remove('open');
 $('#setForm').onsubmit = async e => {
   e.preventDefault(); const f = e.target, body = {};
-  for (const el of f.elements) if (el.name) body[el.name] = el.type === 'checkbox' ? el.checked : LIST_KEYS.includes(el.name) ? el.value.split(',').map(s => s.trim()).filter(Boolean) : +el.value;
+  for (const el of f.elements) if (el.name) body[el.name] = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? +el.value : LIST_KEYS.includes(el.name) ? el.value.split(',').map(s => s.trim()).filter(Boolean) : +el.value;
   S = await api('/api/config', body); $('#setModal').classList.remove('open'); render(); toast('설정 저장 완료');
 };
 
@@ -629,10 +684,13 @@ async function openShare() {
 }
 $('#shareBtn').onclick = openShare;
 $('#shareClose').onclick = () => $('#shareModal').classList.remove('open');
-$('#doSave').onclick = () => { const a = document.createElement('a'); a.href = $('#shareImg').src; a.download = `figmon-${S.pet.species[1]}.png`; a.click(); };
-$('#doCopy').onclick = async () => { await navigator.clipboard.writeText(shareText); toast('문구 복사됨!'); };
-$('#doX').onclick = () => window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank');
+const native = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.figmon;
+const callNative = m => native.postMessage(m);
+$('#doSave').onclick = () => { if (native) return callNative({type: 'saveImage', dataURL: $('#shareImg').src, name: `figmon-${S.pet.species[1]}.png`}); const a = document.createElement('a'); a.href = $('#shareImg').src; a.download = `figmon-${S.pet.species[1]}.png`; a.click(); };
+$('#doCopy').onclick = async () => { if (native) callNative({type: 'copy', text: shareText}); else await navigator.clipboard.writeText(shareText); toast('문구 복사됨!'); };
+$('#doX').onclick = () => native ? callNative({type: 'openURL', url: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText)}) : window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank');
 $('#doShare').onclick = async () => {
+  if (native) return callNative({type: 'shareImage', dataURL: $('#shareImg').src, text: shareText});
   const file = new File([cardBlob], 'figmon.png', {type: 'image/png'});
   if (navigator.canShare && navigator.canShare({files: [file]})) {
     try { await navigator.share({files: [file], text: shareText}); } catch {}
