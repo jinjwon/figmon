@@ -41,6 +41,14 @@ if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스�
     if not result.startswith("updated"):   # 실패하면 원인 파악용 기록
         log_file = home / "server.log"
         print("--- server.log ---\n" + (log_file.read_text(encoding="utf-8", errors="replace") if log_file.exists() else "(none)"))
+        print("--- exe:", exe.exists() and (exe.stat().st_size, exe.stat().st_mtime, before))
+        print("--- processes:", subprocess.run("tasklist /FI \"IMAGENAME eq Figmon.exe\"", shell=True, capture_output=True, text=True).stdout)
+        print("--- port 7777:", subprocess.run("netstat -ano | findstr :7777", shell=True, capture_output=True, text=True).stdout)
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:7777/api/state", timeout=3) as r:
+                print("--- state keys:", list(json.loads(r.read()).keys()))
+        except Exception as e:
+            print("--- state error:", repr(e))
         for d in Path(tempfile.gettempdir()).glob("figmon-update-*"):
             print("--- update dir:", d, [p.name for p in d.iterdir()])
     (OUT / "report-update.txt").write_text(result, encoding="utf-8")
