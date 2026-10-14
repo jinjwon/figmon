@@ -8,7 +8,8 @@
 </p>
 
 <p align="center">
-  <img alt="macOS" src="https://img.shields.io/badge/platform-macOS-lightgrey">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-13%2B-lightgrey?logo=apple">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows">
   <img alt="Non-commercial" src="https://img.shields.io/badge/비영리-수익%20없음-ff6b6b">
   <img alt="Fan project" src="https://img.shields.io/badge/unofficial-fan%20project-ffd84d">
 </p>
@@ -34,25 +35,31 @@
 
 ## 🚀 설치
 
-### 방법 1. 앱 내려받기 (가장 쉬움)
-1. [**Releases**](https://github.com/jinjwon/figmon/releases/latest)에서 `Figmon-macOS.zip`을 받아 압축을 풀어요.
-2. `Figmon.app`을 **응용 프로그램** 폴더로 옮겨요.
-3. 처음 한 번은 **우클릭 → 열기**로 실행해요. 앱스토어 앱이 아니라서 macOS가 한 번 확인해요.
-   "열 수 없음"이 뜨면 **시스템 설정 › 개인정보 보호 및 보안**에서 **그래도 열기**를 눌러 주세요.
+**macOS와 Windows 둘 다 돼요.** [**Releases**](https://github.com/jinjwon/figmon/releases/latest)에서 내 컴퓨터에 맞는 파일을 받으면 돼요.
 
-> 필요한 것: macOS 13 이상, Python 3. Python이 없으면 앱이 설치 방법을 알려 줘요(`xcode-select --install`).
+| | 🍎 macOS 13+ | 🪟 Windows 10 / 11 |
+|---|---|---|
+| 받을 파일 | `Figmon-macOS.zip` | `Figmon-Windows.zip` |
+| 설치 | 압축을 풀고 `Figmon.app`을 **응용 프로그램** 폴더로 옮기기 | 압축을 풀고 `Figmon.exe`를 원하는 폴더에 두기 |
+| 첫 실행 | **우클릭 → 열기**. 막히면 시스템 설정 › 개인정보 보호 및 보안 › **그래도 열기** | "PC 보호" 창이 뜨면 **추가 정보 → 실행** |
+| 필요한 것 | Python 3 (없으면 앱이 `xcode-select --install`을 안내해요) | 없음 (exe 안에 다 들어 있어요) |
+| 메뉴 | 메뉴 막대 아이콘 / 펫 우클릭 | 펫 우클릭 |
+| 자동 실행 | 메뉴 › 로그인할 때 자동 실행 | 펫 우클릭 › Windows 시작 시 자동 실행 |
 
-### 방법 2. 직접 빌드
+> 앱스토어나 MS 스토어 앱이 아니고, 코드 서명이 없는 개인 프로젝트라서 처음 한 번은 경고가 떠요.
+
+### 소스로 직접 실행
 
 ```bash
-xcode-select --install          # 처음 한 번만, 이미 있으면 생략
 git clone https://github.com/jinjwon/figmon.git
 cd figmon
-./build_app.sh                  # → dist/Figmon.app
-open dist/Figmon.app
-```
 
-Finder에서 `start.command`를 더블클릭해도 돼요. 필요하면 빌드한 뒤 앱을 열어 줘요.
+# macOS: 앱으로 빌드해서 실행 (Xcode Command Line Tools 필요)
+./build_app.sh && open dist/Figmon.app
+
+# Windows: Python 3.9+만 있으면 서버 + 펫이 함께 떠요 (python.org 설치판 권장, tkinter 포함)
+python server.py
+```
 
 ---
 
@@ -82,7 +89,7 @@ Figma나 VS Code 같은 작업 앱을 앞에 띄워 두고 일하면 돼요.
 3. 20초 안에 돌아가지 않으면 **분당 경험치 -3**
 
 ### 4. 데스크톱 펫 & 메뉴 막대
-Figmon은 **메뉴 막대 앱**이에요. Dock 대신 화면 위 메뉴 막대에 `🎨 Lv.12`처럼 떠 있어요. 대시보드 창이 열려 있는 동안에만 Dock에 보여요.
+**macOS**에서 Figmon은 **메뉴 막대 앱**이에요. Dock 대신 화면 위 메뉴 막대에 `🎨 Lv.12`처럼 떠 있어요. 대시보드 창이 열려 있는 동안에만 Dock에 보여요.
 
 | 동작 | 결과 |
 |---|---|
@@ -92,6 +99,8 @@ Figmon은 **메뉴 막대 앱**이에요. Dock 대신 화면 위 메뉴 막대�
 
 - **⏸ 추적 일시정지**: 회의나 외출 중에는 30분 / 1시간 / 2시간 / 오늘 하루 동안 경험치와 페널티를 멈출 수 있어요. 대시보드의 일시정지 버튼으로도 돼요.
 - **자동 실행**: 메뉴에서 켜면 Mac을 켤 때마다 펫이 같이 나와요. 앱이 응용 프로그램 폴더에 있어야 해요.
+
+**Windows**에서는 펫이 작업 표시줄 바로 위를 걸어 다녀요. 대시보드는 Edge 앱 창으로 열리고, 메뉴는 **펫 우클릭**으로 열어요(대시보드 · 부르기 · 일시정지 · 자동 실행 · 종료). 펫을 눌러도 작업 중인 창의 포커스를 뺏지 않아요.
 
 ### 5. 포켓몬 바꾸기
 대시보드의 **🔄 포켓몬 바꾸기**나 타이틀 화면에서 언제든 바꿀 수 있어요.
@@ -112,8 +121,14 @@ Figmon은 **메뉴 막대 앱**이에요. Dock 대신 화면 위 메뉴 막대�
 - **표준 단축키**: ⌘Q 종료, ⌘W 창 닫기, ⌘C/⌘V 복사·붙여넣기
 - **공유**: 자랑 카드는 macOS 공유 메뉴(AirDrop, 메시지 등)와 저장 창을 그대로 써요.
 
+### 🪟 Windows에서 다른 점
+- **브라우저 사이트 구분**: 탭 주소 대신 **창 제목**으로 판단해요. 예를 들어 "영상 제목 - YouTube - Chrome"이면 YouTube로 쳐요. 설정의 사이트 목록(`youtube.com` 등)에서 이름(`youtube`)을 뽑아 제목과 비교해요.
+- **앱 이름**: 실행 파일 이름(`Code`, `Figma`, `idea64`, `steam`, `LeagueClient`…)으로 판단해요. 설정에 기본 목록이 들어 있고, 직접 추가할 수도 있어요.
+- **알림**: Windows 알림 센터 토스트로 오고, 경고 팝업에서 **예**를 누르면 마지막에 쓰던 작업 창이 다시 앞으로 와요.
+- **접근성**: 대시보드는 화면 낭독기(내레이터)와 키보드로 다 쓸 수 있어요. 펫 창은 그림이라 낭독되지 않아요. Windows 설정 › 접근성 › 시각 효과 › **애니메이션 효과**를 끄면 펫이 돌아다니지 않아요.
+
 ### 처음 실행할 때 권한
-macOS가 *"Chrome(또는 Safari)을 제어하려고 합니다"*라고 물으면 **허용**을 눌러 주세요.
+(macOS) *"Chrome(또는 Safari)을 제어하려고 합니다"*라고 물으면 **허용**을 눌러 주세요.
 지금 보고 있는 탭이 유튜브인지 github인지 구분할 때만 써요. 데이터는 내 Mac(`~/.figmon/state.json`)에만 저장되고, 밖으로 보내지 않아요.
 
 ### 빨리 감기 (테스트용)
@@ -127,9 +142,11 @@ FIGMON_SPEED=60 python3 server.py   # 실제 1초 = 1분
 
 | 파일 | 역할 |
 |---|---|
-| `server.py` | 앞에 떠 있는 앱·탭 감지, 입력 없음 감지, 경험치 계산, 알림, HTTP API (Python 표준 라이브러리만 사용) |
+| `server.py` | 앞에 떠 있는 앱·탭 감지(macOS: lsappinfo·AppleScript / Windows: Win32 API), 입력 없음 감지, 경험치 계산, 알림, HTTP API (Python 표준 라이브러리만 사용) |
 | `index.html` | 대시보드: 타이틀 화면, 포켓몬 선택, 상태, 설정, 도감, 공유 카드 |
 | `pet.html` | 데스크톱 펫 화면: 스프라이트, 말풍선, 애니메이션 |
+| `pet_win.py` | Windows 펫: 투명·항상 위 창(tkinter), 걷기·드래그·우클릭 메뉴·자동 실행 |
+| `.github/workflows/windows.yml` | Windows에서 감지·펫 화면을 점검하고 `Figmon.exe`(PyInstaller)를 빌드 |
 | `Figmon.swift` | 앱 본체: 서버 실행·종료, 대시보드 창, 투명 펫 창(걷기·커서 지켜보기·드래그), 메뉴 막대, 저장/공유 |
 | `build_app.sh` | `dist/Figmon.app` 빌드 (아이콘, Info.plist, 서명, zip) |
 | `tools/make_icon.swift` | 앱 아이콘(원본 일러스트) 생성 |
