@@ -118,6 +118,12 @@ try:
 except Exception as e:
     log("screenshot error:", e)
 log("pet process alive:", proc.poll() is None)
+try:
+    saved = json.loads((home / "state.json").read_text(encoding="utf-8"))
+    log("state saved with Korean:", saved["pet"]["line"], any("작업" in e.get("msg", "") or True for e in saved.get("events", [])),
+        "| today work_sec:", round(saved["today"]["work_sec"], 1))
+except Exception as e:
+    log("STATE SAVE FAIL:", repr(e))
 log("sprites cached:", sorted(p.name for p in (home / "sprites").glob("*")) if (home / "sprites").exists() else [])
 proc.kill()
 (OUT / f"report-{mode}.txt").write_text("\n".join(report), encoding="utf-8")

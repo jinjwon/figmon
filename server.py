@@ -275,7 +275,7 @@ def load_state():
     s = fresh_state()
     if STATE_FILE.exists():
         try:
-            s.update(json.loads(STATE_FILE.read_text()))
+            s.update(json.loads(STATE_FILE.read_text(encoding="utf-8")))
             s["config"] = {**DEFAULT_CONFIG, **s.get("config", {})}
             s["today"] = {**new_today(), **s["today"]}
         except Exception as e:
@@ -286,7 +286,7 @@ def load_state():
 def save():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STATE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(STATE, ensure_ascii=False))
+    tmp.write_text(json.dumps(STATE, ensure_ascii=False), encoding="utf-8")  # Windows 기본 인코딩은 한글을 못 담음
     tmp.replace(STATE_FILE)
 
 
