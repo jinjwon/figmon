@@ -53,9 +53,13 @@ if mode == "source":
     os.environ.update(FIGMON_HOME=str(home))
     sys.path.insert(0, str(ROOT))
     import server
+    time.sleep(5)  # 펫 창이 뜬 뒤에
     note = subprocess.Popen(["notepad.exe"])
-    time.sleep(2.5)
-    log("front window:", server.win_front())
+    time.sleep(3)
+    front = server.win_front()
+    log("front window:", front, "(펫이 포커스를 안 뺏으면 notepad)")
+    if front[0].lower() != "notepad":
+        log("FAIL: 펫 창이 포커스를 가져감")
     log("idle seconds:", round(server.win_idle_seconds(), 1))
     log("sample():", server.sample())
     cfg = server.STATE["config"]

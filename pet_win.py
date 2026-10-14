@@ -132,6 +132,11 @@ class Pet:
         except tk.TclError:
             pass  # Windows 외에서는 투명 처리 없이(테스트용)
         root.configure(bg=KEY)
+        if IS_WIN:  # 눌러도 포커스를 뺏지 않는 창 + 작업 표시줄/Alt+Tab에 안 보이게 (작업 감지가 끊기지 않도록)
+            root.update_idletasks()
+            hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+            ex = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x08000000 | 0x80)  # WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
         self.dpi = max(1.0, root.winfo_fpixels("1i") / 96)
         self.W, self.H = int(300 * self.dpi), int(300 * self.dpi)
         self.cv = tk.Canvas(root, width=self.W, height=self.H, bg=KEY, highlightthickness=0, bd=0)
