@@ -2,8 +2,7 @@ name: Windows build
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
+    branches: [main]   # 태그는 release 이벤트에서 한 번만 (같은 파일을 두 번 올리다 충돌하지 않게)
   release:
     types: [published]
   workflow_dispatch:
@@ -54,10 +53,9 @@ jobs:
           path: Figmon-Windows.zip
 
       - name: Attach to release
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $tag = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "${{ github.ref_name }}" }
-          gh release upload $tag Figmon-Windows.zip --clobber
+          gh release upload "${{ github.event.release.tag_name }}" Figmon-Windows.zip --clobber

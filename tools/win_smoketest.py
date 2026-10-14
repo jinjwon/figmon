@@ -116,9 +116,13 @@ log(f"[{mode}] server up:", ok)
 if mode == "exe" and ok:   # 여러 번 눌러도 펫이 늘어나지 않는지 (하나만 실행)
     for _ in range(2):
         subprocess.Popen(cmd[:-1] + ["--startup"], env=env, cwd=str(ROOT))
-    time.sleep(15)
-    out = subprocess.run("tasklist /FI \"IMAGENAME eq Figmon.exe\" /NH", shell=True, capture_output=True, text=True).stdout
-    count = out.lower().count("figmon.exe")
+    # 나중에 켠 exe가 '이미 실행 중'을 알아채고 꺼질 때까지 최대 40초 기다리며 다시 셈
+    for _ in range(20):
+        time.sleep(2)
+        out = subprocess.run("tasklist /FI \"IMAGENAME eq Figmon.exe\" /NH", shell=True, capture_output=True, text=True).stdout
+        count = out.lower().count("figmon.exe")
+        if count <= 2:
+            break
     log("Figmon.exe processes after 3 launches:", count, "(1번 실행 = 2개: 실행기 + 본체)")
     if count > 2:
         log("FAIL: 여러 개가 실행됨")
