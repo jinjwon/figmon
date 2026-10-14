@@ -631,7 +631,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var status: NSStatusItem?
     let isBundle = Bundle.main.bundlePath.hasSuffix(".app")
 
+    /// 이미 다른 Figmon이 켜져 있으면 (다른 폴더에 있는 복사본 포함) 그쪽 펫만 불러내고 이 쪽은 끝낸다
+    func quitIfAlreadyRunning() -> Bool {
+        guard parentPID == nil, let id = Bundle.main.bundleIdentifier else { return false }
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = { NSRunningApplication.runningApplications(withBundleIdentifier: id).filter { $0.processIdentifier != me } }
+        if justUpdated {   // 업데이트 직후엔 옛 앱이 끝나길 잠깐 기다림
+            for _ in 0..<50 where !others().isEmpty { Thread.sleep(forTimeInterval: 0.1) }
+        }
+        guard let other = others().first else { return false }
+        post("/api/summon", [:])
+        other.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
+        return true
+    }
+
     func applicationDidFinishLaunching(_ n: Notification) {
+        if quitIfAlreadyRunning() { return }
         NSApp.setActivationPolicy(.accessory)
         buildMainMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

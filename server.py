@@ -13,6 +13,7 @@ Figmon — 작업 시간으로 포켓몬을 키우는 데스크톱 펫 (macOS ·
 """
 import base64
 import json
+import socket
 import tempfile
 import urllib.request
 import zipfile
@@ -27,7 +28,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.7.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.7.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -809,9 +810,58 @@ def launch_pet():
     return subprocess.Popen([str(exe)], env=env)
 
 
+class FigmonServer(ThreadingHTTPServer):
+    """Windows에선 SO_REUSEADDR이 '이미 쓰는 포트에 또 붙기'를 허용해서, 실행할 때마다 서버·펫이 늘어났다.
+    포트를 혼자 쓰도록(SO_EXCLUSIVEADDRUSE) 해서 두 번째 실행은 바인드에 실패하게 한다."""
+    allow_reuse_address = not IS_WIN
+
+    def server_bind(self):
+        if IS_WIN:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def win_single_instance():
+    """Windows: 이름 붙은 뮤텍스로 한 번에 하나만 실행 (거의 동시에 여러 번 눌러도). 이미 실행 중이면 False"""
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    win_single_instance.handle = kernel32.CreateMutexW(None, False, f"Local\\FigmonSingleInstance-{PORT}")
+    return kernel32.GetLastError() != 183   # ERROR_ALREADY_EXISTS
+
+
+def win_focus_dashboard():
+    """Windows: 이미 열린 대시보드(Edge/Chrome 앱 창, 제목 Figmon)가 있으면 앞으로 가져옴"""
+    found = []
+    proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def each(hwnd, _):
+        if user32.IsWindowVisible(hwnd):
+            n = user32.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(n + 1)
+            user32.GetWindowTextW(hwnd, buf, n + 1)
+            if buf.value.startswith("Figmon"):
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                h = kernel32.OpenProcess(0x1000, False, pid.value)
+                if h:
+                    size, path = wintypes.DWORD(1024), ctypes.create_unicode_buffer(1024)
+                    if kernel32.QueryFullProcessImageNameW(h, 0, path, ctypes.byref(size)) and \
+                            Path(path.value).stem.lower() in ("msedge", "chrome"):
+                        found.append(hwnd)
+                    kernel32.CloseHandle(h)
+        return True
+
+    user32.EnumWindows(proto(each), 0)
+    if found:
+        user32.ShowWindow(found[0], 9)   # SW_RESTORE
+        user32.SetForegroundWindow(found[0])
+    return bool(found)
+
+
 def open_window(title=True):
     url = f"http://localhost:{PORT}/" + ("?title=1" if title else "")  # 실행할 때는 타이틀 화면부터
-    if IS_WIN:  # Edge 앱 창 (Windows 10/11 기본 설치)
+    if IS_WIN:  # Edge 앱 창 (Windows 10/11 기본 설치). 이미 열려 있으면 새로 띄우지 않고 앞으로
+        if win_focus_dashboard():
+            return
         for base_dir in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
             edge = Path(base_dir or "") / "Microsoft/Edge/Application/msedge.exe"
             if base_dir and edge.exists():
@@ -836,7 +886,9 @@ if __name__ == "__main__":
         except Exception:
             pass
     try:
-        srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        if IS_WIN and not win_single_instance():
+            raise OSError("already running")
+        srv = FigmonServer(("127.0.0.1", PORT), Handler)
     except OSError:  # 이미 실행 중이면 펫을 불러내고(대시보드도 열고) 끝
         try:
             urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{PORT}/api/summon", data=b"{}",
