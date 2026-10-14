@@ -16,7 +16,7 @@ echo "▸ 앱 컴파일"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 swiftc -O -swift-version 5 Figmon.swift -o "$APP/Contents/MacOS/Figmon"
-cp server.py index.html pet.html build/AppIcon.icns "$APP/Contents/Resources/"
+cp server.py index.html pet.html pokedex.json build/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

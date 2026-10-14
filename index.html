@@ -156,6 +156,13 @@ button.b:disabled{opacity:.35;cursor:default}
 .dp-row.top .name{color:var(--text);font-weight:700}
 .starter.locked{opacity:.4;cursor:not-allowed}
 .starter.locked img{filter:grayscale(1)}
+#pickSearch{width:100%;margin-top:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px 12px;font:15px -apple-system,sans-serif}
+.filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.filters select{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:7px 8px;font:13px -apple-system,sans-serif}
+.filters .toggle{display:flex;gap:5px;align-items:center;font-size:13px;color:var(--text);cursor:pointer;padding:0 4px}
+.more-btn{grid-column:1/-1}
+.starter .legend-mark{position:absolute;top:6px;right:8px;font-size:12px}
+.starter{position:relative}
 .pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
 .starter:hover{border-color:var(--c)}
@@ -377,9 +384,15 @@ label.f textarea{height:64px;resize:vertical}
 <div class="modal" id="pickModal" role="dialog" aria-modal="true" aria-label="포켓몬 고르기"><div class="sheet">
   <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기" aria-label="닫기">✕</button></div>
   <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.</div>
-  <div class="tabs" id="genTabs"></div>
-  <input id="pickSearch" type="search" placeholder="이름으로 찾기 (예: 피카츄, 잠만보)" aria-label="포켓몬 이름으로 찾기"
-    style="width:100%;margin-bottom:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font:14px -apple-system,sans-serif">
+  <input id="pickSearch" type="search" placeholder="🔍 이름·초성·도감 번호 (예: 피카츄, ㅍㅋㅊ, 25)" aria-label="포켓몬 찾기">
+  <div class="tabs" id="genTabs" role="tablist" aria-label="세대"></div>
+  <div class="filters">
+    <select id="fType" aria-label="타입"><option value="">모든 타입</option></select>
+    <select id="fStage" aria-label="진화 단계"><option value="">모든 진화</option><option value="1">진화 없음</option><option value="2">2단 진화</option><option value="3">3단 진화</option></select>
+    <label class="toggle"><input type="checkbox" id="fLegend"> 전설·환상만</label>
+    <button type="button" class="link-btn" id="fReset">필터 초기화</button>
+  </div>
+  <div class="muted" id="pickCount" aria-live="polite" style="margin:0 2px 8px"></div>
   <div class="starters" id="starters"></div>
 </div></div>
 
@@ -490,11 +503,11 @@ const RAW = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/po
 const ANI = id => `${RAW}/other/showdown/${id}.gif`;
 const ART = id => `${RAW}/other/official-artwork/${id}.png`;
 const PIX = id => `${RAW}/${id}.png`;
-const pixTag = id => `<img src="${PIX(id)}" onerror="this.onerror=null;this.src='${ART(id)}'" alt="">`;
+const pixTag = id => `<img src="${PIX(id)}" loading="lazy" onerror="this.onerror=null;this.src='${ART(id)}'" alt="">`;
 const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0', normal:'#A8A878', bug:'#A8B820', poison:'#A040A0', electric:'#E8B820',
-  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8', dark:'#705848'};
+  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8', dark:'#705848', steel:'#9A9AB8', flying:'#A890F0'};
 const TYPE_KO = {grass:'풀', fire:'불꽃', water:'물', normal:'노말', bug:'벌레', poison:'독', electric:'전기', ground:'땅', fairy:'페어리',
-  fighting:'격투', psychic:'에스퍼', rock:'바위', ghost:'고스트', ice:'얼음', dragon:'드래곤', dark:'악'};
+  fighting:'격투', psychic:'에스퍼', rock:'바위', ghost:'고스트', ice:'얼음', dragon:'드래곤', dark:'악', steel:'강철', flying:'비행'};
 // "Lv.0 피카츄 → Lv.20 라이츄" 처럼 진화 경로 글자
 const evoPath = l => l.branches ? `Lv.0 이브이 → Lv.${l.branch_lv} 일한 시간대에 따라 8가지 중 직접 선택`
   : l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
@@ -972,24 +985,50 @@ function openPicker() {
   $('#pickHint').textContent = S && S.pet
     ? `⚠️ 바꾸면 지금 ${S.pet.name}(Lv.${S.pet.level})와 헤어지고 새 포켓몬이 Lv.0부터 다시 시작해요.`
     : '진화 전 모습으로 Lv.0부터 시작해요. 작업한 시간만큼 자라서 진화하고, Lv.36에 완전 성장해요.';
-  $('#genTabs').innerHTML = [1,2,3,4,5,6,7,8,9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}">${g}세대 · ${REGIONS[g].name}</button>`).join('');
+  $('#genTabs').innerHTML = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}" role="tab" aria-selected="${g === pickGen}">${g ? `${g}세대 · ${REGIONS[g].name}` : '전체'}</button>`).join('');
+  if ($('#fType').options.length === 1)   // 타입 목록은 한 번만
+    $('#fType').innerHTML += [...new Set(Object.values(META.lines).map(l => l.type))].sort((a, b) => TYPE_KO[a].localeCompare(TYPE_KO[b], 'ko'))
+      .map(t => `<option value="${t}">${TYPE_KO[t] || t}</option>`).join('');
+  pickLimit = 60;
   renderStarters();
 }
+// 초성 검색: "ㅍㅋㅊ" → 피카츄
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const chosung = t => [...t].map(c => { const k = c.charCodeAt(0) - 0xAC00; return k >= 0 && k < 11172 ? CHO[Math.floor(k / 588)] : c; }).join('');
+const isCho = q => /^[ㄱ-ㅎ]+$/.test(q);
+function matches(l, q) {
+  if (!q) return true;
+  const names = l.stages.map(s => s[1]).concat((l.branches || []).map(b => b.name));
+  if (/^\d+$/.test(q)) return l.stages.some(s => String(s[0]) === q) || (l.branches || []).some(b => String(b.id) === q);
+  if (isCho(q)) return names.some(n => chosung(n).includes(q));
+  return names.some(n => n.includes(q));
+}
+let pickLimit = 60;
 function renderStarters() {
-  const q = ($('#pickSearch').value || '').trim();
-  // 검색어가 있으면 모든 세대에서, 없으면 고른 세대만 (스타팅 먼저)
-  const all = Object.entries(META.lines).filter(([, l]) => !l.hidden && (q ? l.stages.some(s => s[1].includes(q)) || (l.branches || []).some(b => b.name.includes(q)) : l.gen === pickGen))
-    .sort((a, b) => (b[1].starter - a[1].starter) || (a[1].stages[0][0] - b[1].stages[0][0]));
-  const card = ([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}" aria-label="${l.stages.map(s => s[1]).join(', ')}">
+  const q = ($('#pickSearch').value || '').trim().replace(/^0+(?=\d)/, ''), ft = $('#fType').value, fs = $('#fStage').value, fl = $('#fLegend').checked;
+  const filtered = q || ft || fs || fl;
+  // 검색어가 있으면 모든 세대에서 찾기
+  const all = Object.entries(META.lines).filter(([, l]) => !l.hidden && (q || !pickGen || l.gen === pickGen) && matches(l, q)
+      && (!ft || l.type === ft || (l.branches || []).some(b => b.type === ft))
+      && (!fs || (l.branches ? fs === '2' : String(l.stages.length) === fs)) && (!fl || l.legendary))
+    .sort((a, b) => (b[1].starter - a[1].starter) || (a[1].gen - b[1].gen) || (a[1].stages[0][0] - b[1].stages[0][0]) || (a[0] > b[0] ? 1 : -1));
+  const card = ([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}" aria-label="${l.stages.map(s => s[1]).join(', ')}${l.legendary ? ', 전설·환상' : ''}">
+    ${l.legendary ? '<span class="legend-mark" aria-hidden="true">✨</span>' : ''}
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
     <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
-    <span class="badge">${TYPE_KO[l.type]}</span></button>`;
-  const starters = all.filter(([, l]) => l.starter), others = all.filter(([, l]) => !l.starter);
-  $('#starters').innerHTML = !all.length ? '<div class="pick-group">찾는 포켓몬이 없어요</div>'
-    : (q || !others.length ? all.map(card).join('')
-      : `<div class="pick-group">⭐ 스타팅</div>${starters.map(card).join('')}<div class="pick-group">${pickGen}세대 포켓몬 ${others.length}종</div>${others.map(card).join('')}`);
+    <span class="badge">${TYPE_KO[l.type] || l.type}</span></button>`;
+  const shown = all.slice(0, pickLimit);
+  const more = all.length > pickLimit ? `<button type="button" class="b more-btn" id="pickMore">더 보기 (${all.length - pickLimit}마리 더)</button>` : '';
+  const starters = shown.filter(([, l]) => l.starter), others = shown.filter(([, l]) => !l.starter);
+  $('#pickCount').textContent = `${q ? `"${q}" ` : ''}${pickGen && !q ? `${pickGen}세대 ` : ''}${all.length}마리${filtered ? ' (필터 적용)' : ''}`;
+  $('#starters').innerHTML = !all.length ? '<div class="pick-group">찾는 포켓몬이 없어요. 필터를 바꿔 보세요.</div>'
+    : (filtered || !starters.length ? shown.map(card).join('')
+      : `<div class="pick-group">⭐ 스타팅</div>${starters.map(card).join('')}<div class="pick-group">그 밖의 포켓몬</div>${others.map(card).join('')}`) + more;
+  const m = $('#pickMore'); if (m) m.onclick = () => { pickLimit += 90; renderStarters(); };
 }
-$('#pickSearch').addEventListener('input', renderStarters);
+['#fType', '#fStage', '#fLegend'].forEach(id => $(id).addEventListener('change', () => { pickLimit = 60; renderStarters(); }));
+$('#fReset').onclick = () => { $('#fType').value = ''; $('#fStage').value = ''; $('#fLegend').checked = false; $('#pickSearch').value = ''; pickLimit = 60; renderStarters(); };
+$('#pickSearch').addEventListener('input', () => { pickLimit = 60; renderStarters(); });
 $('#pickClose').onclick = () => $('#pickModal').classList.remove('open');
 $('#switchBtn').onclick = () => openPicker();
 $('#pauseBtn').onclick = async () => {

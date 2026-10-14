@@ -28,7 +28,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --onefile --windowed --name Figmon
           --icon assets/figmon.ico
-          --add-data "index.html;." --add-data "pet.html;."
+          --add-data "index.html;." --add-data "pet.html;." --add-data "pokedex.json;."
           --hidden-import pet_win server.py
 
       - name: Smoke test (exe)

@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.11.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.12.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -225,6 +225,17 @@ _GEN1 = [
 ]
 LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "starter": True} for g, t, st in _RAW}
 LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
+# 2~9세대: tools/build_pokedex.py가 PokeAPI 데이터로 만든 pokedex.json (스타팅처럼 이미 있는 계열은 그대로 둠)
+try:
+    _DEX = json.loads((HERE / "pokedex.json").read_text(encoding="utf-8"))
+    for _k, _l in _DEX["lines"].items():
+        if _k not in LINES:
+            LINES[_k] = {**_l, "starter": False}
+    _LEGEND = set(_DEX.get("legendary", []))
+    for _l in LINES.values():
+        _l["legendary"] = _l.get("legendary") or any(i in _LEGEND for i, _ in _l["stages"])
+except Exception as _e:
+    print("pokedex.json을 읽지 못했어요:", _e)
 for _l in LINES.values():
     _l["evo_levels"] = [0] + EVO_LEVELS[len(_l["stages"])]   # 각 단계가 시작되는 레벨
 for _k in ("133-water", "133-electric", "133-fire"):

@@ -106,7 +106,8 @@ def gif_disposals(path):
 def fetch_sprite(pid):
     """애니메이션 GIF(없으면 정지 PNG)를 받아 캐시 경로를 돌려준다."""
     CACHE.mkdir(parents=True, exist_ok=True)
-    for name, url in ((f"{pid}.gif", f"{RAW}/other/showdown/{pid}.gif"), (f"{pid}.png", f"{RAW}/{pid}.png")):
+    for name, url in ((f"{pid}.gif", f"{RAW}/other/showdown/{pid}.gif"), (f"{pid}.png", f"{RAW}/{pid}.png"),
+                      (f"{pid}-art.png", f"{RAW}/other/official-artwork/{pid}.png")):   # 움직이는 이미지가 없으면 일러스트
         p = CACHE / name
         if p.exists() and p.stat().st_size > 0:
             return p
@@ -321,7 +322,10 @@ class Pet:
                         canvas.tk.call(str(canvas), "copy", str(blank), "-from", l, t, l + fw, t + fh,
                                        "-to", l, t, "-compositingrule", "set")
             else:
-                frames = [tk.PhotoImage(file=str(path))]
+                img = tk.PhotoImage(file=str(path))
+                if path.name.endswith("-art.png") and img.width() > 120:   # 큰 일러스트는 도트 크기로 줄임
+                    img = img.subsample(max(1, img.width() // 64))
+                frames = [img]
         except tk.TclError:
             frames = frames or []
         if not frames:
