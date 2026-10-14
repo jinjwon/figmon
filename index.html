@@ -144,6 +144,18 @@ button.b:disabled{opacity:.35;cursor:default}
 .tabs button.on{background:var(--text);color:var(--bg)}
 .starters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow:auto;padding:2px}
 .starter .badge{display:inline-block;margin-top:3px;font-size:10px;padding:1px 6px;border-radius:99px;background:var(--c);color:#fff}
+.qslot{width:64px;height:64px;margin:0 auto;display:flex;align-items:center;justify-content:center;font:28px Jua,sans-serif;color:var(--mute);border:2px dashed var(--line);border-radius:14px}
+.eevee{margin-top:12px;padding:12px;border-radius:14px;background:var(--card2)}
+.eevee h3{margin:0 0 2px;font:15px Jua,sans-serif;font-weight:400}
+.dp-row{display:grid;grid-template-columns:72px 1fr 44px 70px;align-items:center;gap:8px;margin-top:8px;font-size:12px}
+.dp-row .bar{margin:0;height:8px}
+.dp-row .bar>div{background:var(--c)}
+.dp-row .mons{display:flex;gap:2px;justify-content:flex-end}
+.dp-row .mons img{width:32px;height:32px;image-rendering:pixelated}
+.dp-row.off .mons img{filter:grayscale(1);opacity:.45}
+.dp-row.top .name{color:var(--text);font-weight:700}
+.starter.locked{opacity:.4;cursor:not-allowed}
+.starter.locked img{filter:grayscale(1)}
 .pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
 .starter:hover{border-color:var(--c)}
@@ -237,6 +249,7 @@ label.f textarea{height:64px;resize:vertical}
     <div class="bar" role="progressbar" aria-label="다음 레벨까지 경험치" aria-valuemin="0" aria-valuemax="100" id="xpWrap"><div id="xpBar" style="width:0"></div></div>
     <div class="muted" id="evoInfo"></div>
     <div class="evo-track" id="track"></div>
+    <div id="eeveeBox"></div>
   </div>
 
   <div class="grid2">
@@ -367,6 +380,13 @@ label.f textarea{height:64px;resize:vertical}
   </div>
 </div></div>
 
+<!-- 이브이 진화형 고르기 -->
+<div class="modal" id="evoModal" role="dialog" aria-modal="true" aria-labelledby="evoTitle"><div class="sheet">
+  <div style="display:flex;align-items:center"><h2 id="evoTitle" style="flex:1">✨ 이브이가 진화하려고 해요!</h2><button class="icon-btn" id="evoClose" title="닫기" aria-label="닫기">✕</button></div>
+  <div class="muted">많이 함께 일한 시간대의 진화형 중에서 골라 주세요. 한 번 고르면 바꿀 수 없어요.</div>
+  <div class="starters" id="evoChoices" style="margin-top:12px"></div>
+</div></div>
+
 <!-- 확인 / 입력 다이얼로그 -->
 <div class="modal" id="askModal" role="dialog" aria-modal="true" aria-labelledby="askTitle"><div class="sheet ask">
   <h2 id="askTitle"></h2>
@@ -389,11 +409,13 @@ const ART = id => `${RAW}/other/official-artwork/${id}.png`;
 const PIX = id => `${RAW}/${id}.png`;
 const pixTag = id => `<img src="${PIX(id)}" onerror="this.onerror=null;this.src='${ART(id)}'" alt="">`;
 const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0', normal:'#A8A878', bug:'#A8B820', poison:'#A040A0', electric:'#E8B820',
-  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8'};
+  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8', dark:'#705848'};
 const TYPE_KO = {grass:'풀', fire:'불꽃', water:'물', normal:'노말', bug:'벌레', poison:'독', electric:'전기', ground:'땅', fairy:'페어리',
-  fighting:'격투', psychic:'에스퍼', rock:'바위', ghost:'고스트', ice:'얼음', dragon:'드래곤'};
+  fighting:'격투', psychic:'에스퍼', rock:'바위', ghost:'고스트', ice:'얼음', dragon:'드래곤', dark:'악'};
 // "Lv.0 피카츄 → Lv.20 라이츄" 처럼 진화 경로 글자
-const evoPath = l => l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
+const evoPath = l => l.branches ? `Lv.0 이브이 → Lv.${l.branch_lv} 일한 시간대에 따라 8가지 중 직접 선택`
+  : l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
+const DP = {morning: ['🌅', '아침', '6~11시'], noon: ['☀️', '점심', '11~17시'], evening: ['🌇', '저녁', '17~21시'], night: ['🌙', '새벽', '21~6시']};
 const ICON = {evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
 
 let META, S, prev = null, shownId = null, lastMode = null, busy = false, pickGen = 1;
@@ -634,6 +656,7 @@ function render() {
 
   // 진화 / 레벨 변화 감지
   if (p && prev && prev.line === p.line && !busy) {
+    if (p.branch_pending && !prev.branch_pending) setTimeout(openEvo, 800);   // 이브이 Lv.20
     if (p.stage > prev.stage) {
       const from = prev.stage === 0 ? EGG_SVG : ART(prev.species[0]);
       const text = prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `${prev.species[1]} → ${p.species[1]} 진화!`;
@@ -652,7 +675,8 @@ function render() {
     $('#xpBar').style.width = (p.lv_progress * 100) + '%';
     $('#xpWrap').setAttribute('aria-valuenow', Math.round(p.lv_progress * 100));
     $('#monBox').setAttribute('aria-label', `${p.name} 쓰다듬기`);
-    $('#evoInfo').textContent = p.next_evo_lv
+    $('#evoInfo').textContent = p.branch_pending ? '✨ 진화할 수 있어요! 아래에서 진화형을 골라 주세요'
+      : p.next_evo_lv
       ? `다음 진화까지 Lv.${p.next_evo_lv} · 작업 약 ${dur(p.min_to_evo * 60)} 남음`
       : !p.mastered ? `완전 성장(Lv.${p.master_lv})까지 작업 약 ${dur(p.min_to_master * 60)} 남음`
       : `완전 성장! 누적 작업 ${dur(p.work_sec)} 🎉`;
@@ -660,10 +684,11 @@ function render() {
       const reached = p.stage >= i + 1, now = p.stage === i + 1;
       return (i ? '<span class="arrow">›</span>' : '') +
         `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${p.evo_levels[i]}</div>`;
-    }).join('');
+    }).join('') + (p.eevee && !p.branch ? `<span class="arrow">›</span><div class="slot locked"><div class="qslot">?</div>8가지 중<br>Lv.${p.branch_lv}</div>` : '');
+    renderEevee(p);
   } else {
     $('#name').textContent = '파트너 없음'; $('#lv').textContent = ''; $('#species').textContent = '';
-    $('#xpBar').style.width = '0'; $('#evoInfo').textContent = ''; $('#track').innerHTML = '';
+    $('#xpBar').style.width = '0'; $('#evoInfo').textContent = ''; $('#track').innerHTML = ''; $('#eeveeBox').innerHTML = '';
     if (!$('#pickModal').classList.contains('open') && !$('#title').classList.contains('open')) openPicker();
   }
 
@@ -688,13 +713,57 @@ function render() {
   $('#dexCard').style.display = S.dex.length ? '' : 'none';
   $('#dex').innerHTML = S.dex.map(d => `<span title="${d.nickname || d.species[1]} Lv.${d.level}">${pixTag(d.species[0])}</span>`).join('');
 
-  prev = p ? {line:p.line, stage:p.stage, level:p.level, xp:p.xp, species:p.species} : null;
+  prev = p ? {line:p.line, stage:p.stage, level:p.level, xp:p.xp, species:p.species, branch_pending:p.branch_pending} : null;
 }
 
 async function poll() {
   try { S = await api('/api/state'); render(); }
   catch (e) { $('#chip').textContent = '서버 연결 끊김 — server.py 실행 확인'; $('#chip').className = 'chip penalty'; }
 }
+
+/* ---------- 이브이: 시간대 게이지와 진화형 고르기 ---------- */
+function renderEevee(p) {
+  const box = $('#eeveeBox');
+  if (!p.eevee || p.branch) { box.innerHTML = ''; return; }
+  const sh = p.eevee.share, mins = p.eevee.minutes, top = Object.keys(sh).reduce((a, b) => sh[a] >= sh[b] ? a : b);
+  const total = Object.values(mins).reduce((a, b) => a + b, 0);
+  const rows = Object.keys(DP).map(k => {
+    const opts = p.eevee.options.filter(o => o.daypart === k), open = opts[0] && opts[0].open, col = TYPE[opts[0].type];
+    return `<div class="dp-row ${open ? '' : 'off'} ${k === top && total ? 'top' : ''}" style="--c:${col}">
+      <span class="name">${DP[k][0]} ${DP[k][1]}</span>
+      <div class="bar" role="progressbar" aria-label="${DP[k][1]} 작업 비율" aria-valuenow="${Math.round(sh[k] * 100)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${sh[k] * 100}%"></div></div>
+      <span>${Math.round(sh[k] * 100)}%</span>
+      <span class="mons" title="${opts.map(o => o.name).join(' · ')}">${opts.map(o => pixTag(o.id).replace('<img', `<img title="${o.name}"`)).join('')}</span></div>`;
+  }).join('');
+  const lean = total ? p.eevee.options.filter(o => o.daypart === top).map(o => o.name).join('·') : '';
+  box.innerHTML = `<div class="eevee"><h3>🌗 이브이의 마음 — 일한 시간대</h3>
+    <div class="muted">${p.branch_pending ? '진화할 수 있어요! 아래 버튼을 눌러 진화형을 골라 주세요.'
+      : total ? `지금은 <b>${DP[top][1]}</b> 쪽(${lean})으로 기울고 있어요. 25% 넘게 일한 시간대의 진화형이 열려요.`
+      : '일한 시간대에 따라 Lv.20에 고를 수 있는 진화형이 달라져요.'}</div>${rows}
+    ${p.branch_pending ? '<div class="btns"><button class="b primary" id="evoOpen">✨ 진화형 고르기</button></div>' : ''}</div>`;
+  const b = $('#evoOpen'); if (b) b.onclick = openEvo;
+}
+function openEvo() {
+  const p = S.pet; if (!p || !p.branch_pending) return;
+  $('#evoChoices').innerHTML = p.eevee.options.map(o => `<button class="starter ${o.open ? '' : 'locked'}" data-id="${o.id}" style="--c:${TYPE[o.type]}"
+      ${o.open ? '' : 'aria-disabled="true"'} aria-label="${o.name}, ${DP[o.daypart][1]} ${Math.round(o.share * 100)}%${o.open ? '' : ', 잠김'}">
+    ${pixTag(o.id)}<div class="jua" style="font-size:16px">${o.name}</div>
+    <div class="evos">${DP[o.daypart][0]} ${DP[o.daypart][1]} ${Math.round(o.share * 100)}%</div>
+    <span class="badge">${o.open ? TYPE_KO[o.type] : '🔒 잠김'}</span></button>`).join('');
+  $('#evoModal').classList.add('open');
+}
+$('#evoClose').onclick = () => $('#evoModal').classList.remove('open');
+$('#evoChoices').onclick = async e => {
+  const b = e.target.closest('.starter'); if (!b) return;
+  const o = S.pet.eevee.options.find(x => x.id === +b.dataset.id);
+  if (!o.open) return toast(`${DP[o.daypart][1]}(${DP[o.daypart][2]})에 25% 넘게 일하면 열려요`);
+  if (!await ask(`${o.name}(으)로 진화할까요?`, `${pixTag(o.id).replace('<img', '<img class="ask-img"')}한 번 고르면 바꿀 수 없어요.`, {yes: '진화!', no: '다시 고를래'})) return;
+  S = await api('/api/evolve', {id: o.id});
+  $('#evoModal').classList.remove('open');
+  busy = false; prev = null;
+  evolveFx(ART(133), o.id, `이브이 → ${o.name} 진화!`, null);
+  render();
+};
 
 /* ---------- 스타팅 선택 ---------- */
 function openPicker() {
@@ -709,11 +778,11 @@ function openPicker() {
 function renderStarters() {
   const q = ($('#pickSearch').value || '').trim();
   // 검색어가 있으면 모든 세대에서, 없으면 고른 세대만 (스타팅 먼저)
-  const all = Object.entries(META.lines).filter(([, l]) => q ? l.stages.some(s => s[1].includes(q)) : l.gen === pickGen)
+  const all = Object.entries(META.lines).filter(([, l]) => !l.hidden && (q ? l.stages.some(s => s[1].includes(q)) || (l.branches || []).some(b => b.name.includes(q)) : l.gen === pickGen))
     .sort((a, b) => (b[1].starter - a[1].starter) || (a[1].stages[0][0] - b[1].stages[0][0]));
   const card = ([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}" aria-label="${l.stages.map(s => s[1]).join(', ')}">
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
-    <div class="evos">${l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
+    <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
     <span class="badge">${TYPE_KO[l.type]}</span></button>`;
   const starters = all.filter(([, l]) => l.starter), others = all.filter(([, l]) => !l.starter);
   $('#starters').innerHTML = !all.length ? '<div class="pick-group">찾는 포켓몬이 없어요</div>'

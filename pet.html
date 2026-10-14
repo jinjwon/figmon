@@ -189,6 +189,7 @@ function statusLine() {
 const DAY_LINES = {morning: ['좋은 아침! ☀️ 오늘도 같이 크자'], noon: ['점심은 먹었어? 🍚'], evening: ['저녁 시간이야, 조금만 더!'], night: ['새벽이야… 무리하지 마 🌙']};
 const daypart = (h = new Date().getHours()) => h >= 6 && h < 11 ? 'morning' : h >= 11 && h < 17 ? 'noon' : h >= 17 && h < 21 ? 'evening' : 'night';
 function modeLine(m) {
+  if (S && S.pet && S.pet.branch_pending && Math.random() < .5) return '진화할 수 있을 것 같아! 대시보드에서 골라줘 ✨';
   if ((m === 'work' || m === 'neutral') && Math.random() < .25) return pick(DAY_LINES[daypart()]);
   if (S && S.pet && S.pet.stage === 0 && (m === 'work' || m === 'neutral')) return pick(LINES.egg);
   if (m === 'warning') return `${Math.ceil(S.live.grace_left || 0)}초 안에 돌아가! ⚠️`;

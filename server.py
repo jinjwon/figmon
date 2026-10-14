@@ -28,7 +28,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.7.2"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.8.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -199,6 +199,8 @@ _GEN1 = [
     ("129", "water", [(129, "잉어킹"), (130, "갸라도스")]),
     ("131", "water", [(131, "라프라스")]),
     ("132", "normal", [(132, "메타몽")]),
+    ("133", "normal", [(133, "이브이")]),   # 진화형은 아래 EEVEE_BRANCHES에서 시간대에 따라 고름
+    # 1.6~1.7에서 쓰던 '진화 방향 미리 고르기' 이브이 (기존 저장 데이터용, 선택 창에는 안 보임)
     ("133-water", "water", [(133, "이브이"), (134, "샤미드")]),
     ("133-electric", "electric", [(133, "이브이"), (135, "쥬피썬더")]),
     ("133-fire", "fire", [(133, "이브이"), (136, "부스터")]),
@@ -218,6 +220,52 @@ LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "
 LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
 for _l in LINES.values():
     _l["evo_levels"] = [0] + EVO_LEVELS[len(_l["stages"])]   # 각 단계가 시작되는 레벨
+for _k in ("133-water", "133-electric", "133-fire"):
+    LINES[_k]["hidden"] = True
+
+# 이브이: 이브이로 일한 시간을 시간대별로 모아서, Lv.20에 많이 일한 시간대의 진화형 중에서 직접 고른다
+EEVEE_LV = 20
+EEVEE_SHARE = 0.25   # 이 비율 이상 일한 시간대의 진화형이 열림 (가장 많이 일한 시간대는 항상)
+DAYPARTS = {"morning": "아침", "noon": "점심", "evening": "저녁", "night": "새벽"}
+EEVEE_BRANCHES = [
+    {"id": 470, "name": "리피아", "type": "grass", "daypart": "morning"},
+    {"id": 700, "name": "님피아", "type": "fairy", "daypart": "morning"},
+    {"id": 196, "name": "에브이", "type": "psychic", "daypart": "noon"},
+    {"id": 135, "name": "쥬피썬더", "type": "electric", "daypart": "noon"},
+    {"id": 136, "name": "부스터", "type": "fire", "daypart": "evening"},
+    {"id": 134, "name": "샤미드", "type": "water", "daypart": "evening"},
+    {"id": 197, "name": "블래키", "type": "dark", "daypart": "night"},
+    {"id": 471, "name": "글레이시아", "type": "ice", "daypart": "night"},
+]
+EEVEE_BY_ID = {b["id"]: b for b in EEVEE_BRANCHES}
+LINES["133"].update(branches=EEVEE_BRANCHES, branch_lv=EEVEE_LV, evo_levels=[0, EEVEE_LV])
+
+
+def daypart_now(t=None):
+    h = time.localtime(t).tm_hour
+    return "morning" if 6 <= h < 11 else "noon" if 11 <= h < 17 else "evening" if 17 <= h < 21 else "night"
+
+
+def pet_line(pet):
+    """키우는 포켓몬의 실제 진화 계열. 이브이는 고른 진화형이 뒤에 붙는다"""
+    base = LINES[pet["line"]]
+    if not base.get("branches"):
+        return base
+    b = EEVEE_BY_ID.get(pet.get("branch"))
+    if b:
+        return {**base, "type": b["type"], "stages": base["stages"] + [[b["id"], b["name"]]], "evo_levels": [0, EEVEE_LV]}
+    return {**base, "evo_levels": [0]}
+
+
+def eevee_options(pet):
+    """시간대별 작업 비율과, 지금 고를 수 있는 진화형"""
+    mins = pet.get("eevee") or {}
+    total = sum(mins.values()) or 0
+    share = {k: (mins.get(k, 0) / total if total else 0) for k in DAYPARTS}
+    top = max(share, key=share.get) if total else None
+    opts = [{**b, "share": round(share[b["daypart"]], 3), "daypart_ko": DAYPARTS[b["daypart"]],
+             "open": bool(total) and (share[b["daypart"]] >= EEVEE_SHARE or b["daypart"] == top)} for b in EEVEE_BRANCHES]
+    return {"minutes": {k: round(mins.get(k, 0), 1) for k in DAYPARTS}, "share": share, "options": opts}
 
 BROWSERS = {
     "Google Chrome": "chromium", "Arc": "chromium", "Brave Browser": "chromium",
@@ -250,16 +298,18 @@ def level_of(xp):
 
 
 def stage_of(lv, line="1"):
-    """지금 몇 번째 모습인지 (1부터)"""
-    return sum(1 for need in LINES[line]["evo_levels"] if lv >= need)
+    """지금 몇 번째 모습인지 (1부터). line은 계열 키나 pet_line() 결과"""
+    l = line if isinstance(line, dict) else LINES[line]
+    return sum(1 for need in l["evo_levels"] if lv >= need)
 
 
 def stage_floor_xp(stage, line="1"):
-    return LINES[line]["evo_levels"][stage - 1] * XP_PER_LEVEL
+    l = line if isinstance(line, dict) else LINES[line]
+    return l["evo_levels"][stage - 1] * XP_PER_LEVEL
 
 
 def species_name(pet, stage):
-    return LINES[pet["line"]]["stages"][stage - 1][1]
+    return pet_line(pet)["stages"][stage - 1][1]
 
 
 # ---------- 상태 저장 ----------
@@ -521,7 +571,7 @@ def step(app, url, idle, dt, title=""):
     LIVE.update(app=app, label=label, idle=int(idle))
     pet = s["pet"]
     before = level_of(pet["xp"]) if pet else None
-    name = species_name(pet, stage_of(before, pet["line"])) if pet else "포켓몬"
+    name = species_name(pet, stage_of(before, pet_line(pet))) if pet else "포켓몬"
 
     if kind != "distract":
         LIVE["distract_since"] = LIVE["penalty_since"] = None
@@ -534,6 +584,10 @@ def step(app, url, idle, dt, title=""):
         if pet:
             pet["xp"] += dt / 60 * cfg["xp_per_work_min"]
             pet["work_sec"] += dt
+            if LINES[pet["line"]].get("branches") and not pet.get("branch"):
+                ev = pet.setdefault("eevee", {})
+                part = daypart_now(now)
+                ev[part] = ev.get(part, 0) + dt / 60
     elif kind == "distract":
         s["today"]["distract_sec"] += dt
         first = LIVE["distract_since"] is None
@@ -564,7 +618,7 @@ def step(app, url, idle, dt, title=""):
                 mode = "penalty"
                 if pet:
                     loss = dt / 60 * cfg["penalty_xp_per_min"]
-                    floor = stage_floor_xp(stage_of(level_of(pet["xp"]), pet["line"]), pet["line"])
+                    floor = stage_floor_xp(stage_of(level_of(pet["xp"]), pet_line(pet)), pet_line(pet))
                     loss = min(loss, max(0.0, pet["xp"] - floor))
                     pet["xp"] -= loss
                     s["today"]["xp_lost"] += loss
@@ -584,11 +638,14 @@ def step(app, url, idle, dt, title=""):
     if pet:
         after = level_of(pet["xp"])
         if after != before:
-            sb, sa = stage_of(before, pet["line"]), stage_of(after, pet["line"])
+            sb, sa = stage_of(before, pet_line(pet)), stage_of(after, pet_line(pet))
             if sa > sb:
                 msg = f"{species_name(pet, sb)} → {species_name(pet, sa)} 진화!"
                 log("evo", msg)
                 notify("✨ 진화!", msg)
+            if LINES[pet["line"]].get("branches") and not pet.get("branch") and before < EEVEE_LV <= after:
+                log("evo", "이브이가 진화하려고 해요! 대시보드에서 진화형을 골라 주세요")
+                notify("✨ 진화할 수 있어요", "이브이가 진화하려고 해요! Figmon 대시보드에서 골라 주세요")
             if before < MASTER_LV <= after:
                 log("grad", f"Lv.{MASTER_LV} 완전 성장! 자랑 카드를 만들 수 있어요")
                 notify("🏆 완전 성장", "Figmon 창에서 자랑 카드를 만들어 자랑해보세요!")
@@ -629,8 +686,8 @@ def view():
     if pet:
         xp = pet["xp"]
         lv = level_of(xp)
-        line = LINES[pet["line"]]
-        st = stage_of(lv, pet["line"])
+        line = pet_line(pet)
+        st = stage_of(lv, line)
         lv_list = line["evo_levels"]
         nxt = lv_list[st] if st < len(lv_list) else None
         rate = max(cfg["xp_per_work_min"], 0.01)
@@ -643,6 +700,14 @@ def view():
                       "next_evo_lv": nxt,
                       "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
                       "min_to_master": max(0.0, (MASTER_LV * XP_PER_LEVEL - xp) / rate)}
+        if LINES[pet["line"]].get("branches"):   # 이브이
+            out["pet"]["eevee"] = eevee_options(pet)
+            out["pet"]["branch_lv"] = EEVEE_LV
+            out["pet"]["branch_pending"] = not pet.get("branch") and lv >= EEVEE_LV
+            if not pet.get("branch"):
+                out["pet"]["next_evo_lv"] = EEVEE_LV if lv < EEVEE_LV else None
+                out["pet"]["min_to_evo"] = (EEVEE_LV * XP_PER_LEVEL - xp) / rate if lv < EEVEE_LV else None
+                out["pet"]["mastered"] = False   # 진화형을 골라야 완전 성장
     return out
 
 
@@ -704,7 +769,7 @@ class Handler(BaseHTTPRequestHandler):
                             "nickname": "", "born": time.time()}
                 new = LINES[s["pet"]["line"]]["stages"][0][1]
                 if old:
-                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp']), old['line']))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
+                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp']), pet_line(old)))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
                 else:
                     log("hatch", f"{new}와(과) 함께 시작! 작업할수록 같이 자라요")
             elif self.path == "/api/nickname" and s["pet"]:
@@ -714,11 +779,21 @@ class Handler(BaseHTTPRequestHandler):
                 if not pet or level_of(pet["xp"]) < MASTER_LV:
                     return self._send(400, {"error": f"Lv.{MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
                 lv = level_of(pet["xp"])
-                st = stage_of(lv, pet["line"])
-                s["dex"].append({**pet, "level": lv, "species": LINES[pet["line"]]["stages"][st - 1],
+                st = stage_of(lv, pet_line(pet))
+                s["dex"].append({**pet, "level": lv, "species": pet_line(pet)["stages"][st - 1],
                                  "finished": time.time()})
                 log("grad", f"{species_name(pet, st)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
                 s["pet"] = None
+            elif self.path == "/api/evolve":   # 이브이 진화형 고르기
+                pet = s["pet"]
+                if not pet or not LINES[pet["line"]].get("branches") or pet.get("branch") or level_of(pet["xp"]) < EEVEE_LV:
+                    return self._send(400, {"error": "지금은 진화할 수 없어요"})
+                opt = next((o for o in eevee_options(pet)["options"] if o["id"] == body.get("id")), None)
+                if not opt or not opt["open"]:
+                    return self._send(400, {"error": "그 진화형은 아직 열리지 않았어요"})
+                pet["branch"] = opt["id"]
+                log("evo", f"이브이 → {opt['name']} 진화! ({opt['daypart_ko']}에 많이 함께했어요)")
+                notify("✨ 진화!", f"이브이 → {opt['name']} 진화!")
             elif self.path == "/api/summon":   # 펫 부르기 (Windows에서 Figmon을 한 번 더 실행했을 때 등)
                 LIVE["summon"] += 1
                 LIVE["summon_label"] = ""

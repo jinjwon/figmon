@@ -269,6 +269,8 @@ class Pet:
         return max(1, round(scale * 1.4))
 
     def mode_line(self, m):
+        if self.state and (self.state.get("pet") or {}).get("branch_pending") and random.random() < .5:
+            return "진화할 수 있을 것 같아! 대시보드에서 골라줘 ✨"
         h = time.localtime().tm_hour
         part = "morning" if 6 <= h < 11 else "noon" if 11 <= h < 17 else "evening" if 17 <= h < 21 else "night"
         if m in ("work", "neutral") and random.random() < .25:
