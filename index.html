@@ -137,7 +137,9 @@ button.b:disabled{opacity:.35;cursor:default}
 .tabs{display:flex;gap:4px;overflow-x:auto;margin:12px 0}
 .tabs button{border:0;background:var(--card2);color:var(--mute);border-radius:10px;padding:7px 11px;font:14px Jua,sans-serif;cursor:pointer;flex:none}
 .tabs button.on{background:var(--text);color:var(--bg)}
-.starters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.starters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow:auto;padding:2px}
+.starter .badge{display:inline-block;margin-top:3px;font-size:10px;padding:1px 6px;border-radius:99px;background:var(--c);color:#fff}
+.pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
 .starter:hover{border-color:var(--c)}
 .starter img{width:84px;height:84px;image-rendering:pixelated}
@@ -288,6 +290,8 @@ label.f textarea{height:64px;resize:vertical}
   <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기" aria-label="닫기">✕</button></div>
   <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.</div>
   <div class="tabs" id="genTabs"></div>
+  <input id="pickSearch" type="search" placeholder="이름으로 찾기 (예: 피카츄, 잠만보)" aria-label="포켓몬 이름으로 찾기"
+    style="width:100%;margin-bottom:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px;font:14px -apple-system,sans-serif">
   <div class="starters" id="starters"></div>
 </div></div>
 
@@ -339,7 +343,7 @@ label.f textarea{height:64px;resize:vertical}
 
 <!-- 공유 -->
 <div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-label="자랑 카드"><div class="sheet">
-  <h2>최종 진화 완료! 자랑해볼까?</h2>
+  <h2>완전 성장! 자랑해볼까?</h2>
   <img class="share-img" id="shareImg" alt="공유 카드">
   <div class="btns">
     <button class="b primary" id="doShare">공유하기</button>
@@ -373,8 +377,12 @@ const ANI = id => `${RAW}/other/showdown/${id}.gif`;
 const ART = id => `${RAW}/other/official-artwork/${id}.png`;
 const PIX = id => `${RAW}/${id}.png`;
 const pixTag = id => `<img src="${PIX(id)}" onerror="this.onerror=null;this.src='${ART(id)}'" alt="">`;
-const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0'};
-const TYPE_KO = {grass:'풀', fire:'불꽃', water:'물'};
+const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0', normal:'#A8A878', bug:'#A8B820', poison:'#A040A0', electric:'#E8B820',
+  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8'};
+const TYPE_KO = {grass:'풀', fire:'불꽃', water:'물', normal:'노말', bug:'벌레', poison:'독', electric:'전기', ground:'땅', fairy:'페어리',
+  fighting:'격투', psychic:'에스퍼', rock:'바위', ghost:'고스트', ice:'얼음', dragon:'드래곤'};
+// "Lv.0 피카츄 → Lv.20 라이츄" 처럼 진화 경로 글자
+const evoPath = l => l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
 const ICON = {evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
 
 let META, S, prev = null, shownId = null, lastMode = null, busy = false, pickGen = 1;
@@ -618,8 +626,9 @@ function render() {
     if (p.stage > prev.stage) {
       const from = prev.stage === 0 ? EGG_SVG : ART(prev.species[0]);
       const text = prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `${prev.species[1]} → ${p.species[1]} 진화!`;
-      evolveFx(from, p.species[0], text, p.stage === 3 ? openShare : null);
+      evolveFx(from, p.species[0], text, null);
     } else if (p.level > prev.level) { toast(`⬆️ Lv.${p.level} 달성!`); floatText(`Lv.${p.level}!`, '#ffe066'); }
+    if (prev.level < p.master_lv && p.mastered) setTimeout(openShare, 6500);   // 완전 성장 → 자랑 카드
     else if (p.level < prev.level) toast(`⬇️ Lv.${p.level}로 떨어졌어…`);
     if (prev.xp - p.xp > 0.05) floatText(`-${(prev.xp - p.xp).toFixed(1)} XP`, '#ff6b7a');
   }
@@ -634,11 +643,12 @@ function render() {
     $('#monBox').setAttribute('aria-label', `${p.name} 쓰다듬기`);
     $('#evoInfo').textContent = p.next_evo_lv
       ? `다음 진화까지 Lv.${p.next_evo_lv} · 작업 약 ${dur(p.min_to_evo * 60)} 남음`
-      : `최종 진화 완료! 누적 작업 ${dur(p.work_sec)} 🎉`;
+      : !p.mastered ? `완전 성장(Lv.${p.master_lv})까지 작업 약 ${dur(p.min_to_master * 60)} 남음`
+      : `완전 성장! 누적 작업 ${dur(p.work_sec)} 🎉`;
     $('#track').innerHTML = p.stages.map((s, i) => {
       const reached = p.stage >= i + 1, now = p.stage === i + 1;
       return (i ? '<span class="arrow">›</span>' : '') +
-        `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${META.levels[i]}</div>`;
+        `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${p.evo_levels[i]}</div>`;
     }).join('');
   } else {
     $('#name').textContent = '파트너 없음'; $('#lv').textContent = ''; $('#species').textContent = '';
@@ -660,7 +670,7 @@ function render() {
   $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled ? '' : 'none';
   $('#tLost').textContent = S.today.xp_lost.toFixed(0);
   $('#tTotal').textContent = dur(S.total_work_sec);
-  $('#shareBtn').disabled = $('#gradBtn').disabled = !(p && p.stage === 3);
+  $('#shareBtn').disabled = $('#gradBtn').disabled = !(p && p.mastered);
 
   $('#events').innerHTML = S.events.map(e => `<li><span>${ICON[e.kind] || '•'}</span><span>${e.msg}</span><time>${hhmm(e.t)}</time></li>`).join('') || '<li class="muted">아직 기록이 없어요</li>';
   $('#dexCard').style.display = S.dex.length ? '' : 'none';
@@ -680,13 +690,25 @@ function openPicker() {
   $('#pickClose').style.display = S && S.pet ? '' : 'none';
   $('#pickHint').textContent = S && S.pet
     ? `⚠️ 바꾸면 지금 ${S.pet.name}(Lv.${S.pet.level})와 헤어지고 새 포켓몬이 Lv.0부터 다시 시작해요.`
-    : '진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.';
+    : '진화 전 모습으로 Lv.0부터 시작해요. 작업한 시간만큼 자라서 진화하고, Lv.36에 완전 성장해요.';
   $('#genTabs').innerHTML = [1,2,3,4,5,6,7,8,9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}">${g}세대 · ${REGIONS[g].name}</button>`).join('');
-  const lines = Object.entries(META.lines).filter(([, l]) => l.gen === pickGen);
-  $('#starters').innerHTML = lines.map(([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}">
-    ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
-    <div class="evos">${l.stages.slice(1).map(s => s[1]).join(' → ')}</div></button>`).join('');
+  renderStarters();
 }
+function renderStarters() {
+  const q = ($('#pickSearch').value || '').trim();
+  // 검색어가 있으면 모든 세대에서, 없으면 고른 세대만 (스타팅 먼저)
+  const all = Object.entries(META.lines).filter(([, l]) => q ? l.stages.some(s => s[1].includes(q)) : l.gen === pickGen)
+    .sort((a, b) => (b[1].starter - a[1].starter) || (a[1].stages[0][0] - b[1].stages[0][0]));
+  const card = ([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}" aria-label="${l.stages.map(s => s[1]).join(', ')}">
+    ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
+    <div class="evos">${l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
+    <span class="badge">${TYPE_KO[l.type]}</span></button>`;
+  const starters = all.filter(([, l]) => l.starter), others = all.filter(([, l]) => !l.starter);
+  $('#starters').innerHTML = !all.length ? '<div class="pick-group">찾는 포켓몬이 없어요</div>'
+    : (q || !others.length ? all.map(card).join('')
+      : `<div class="pick-group">⭐ 스타팅</div>${starters.map(card).join('')}<div class="pick-group">${pickGen}세대 포켓몬 ${others.length}종</div>${others.map(card).join('')}`);
+}
+$('#pickSearch').addEventListener('input', renderStarters);
 $('#pickClose').onclick = () => $('#pickModal').classList.remove('open');
 $('#switchBtn').onclick = () => openPicker();
 $('#pauseBtn').onclick = async () => {
@@ -720,7 +742,7 @@ $('#starters').onclick = async e => {
   const l = META.lines[b.dataset.k];
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
-  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}Lv.0 ${l.stages[0][1]} → Lv.16 ${l.stages[1][1]} → Lv.36 ${l.stages[2][1]}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
+  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
   S = await api('/api/choose', {line: b.dataset.k, replace});
   $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); speak(true); toast(`${l.stages[0][1]}와(과) 함께 Lv.0부터 출발!`);
 };
@@ -808,10 +830,11 @@ async function makeCard() {
   g.textAlign = 'center'; g.fillStyle = '#fff';
   g.font = '56px Jua'; g.fillText('FIGMON', 540, 120);
   try { const art = await loadImg(ART(p.species[0])); g.drawImage(art, 190, 230, 700, 700); } catch {}
-  for (let i = 0; i < 3; i++) {
-    try { const s = await loadImg(ART(p.stages[i][0])); g.globalAlpha = .9; g.drawImage(s, 300 + i * 170, 930, 140, 140); g.globalAlpha = 1; } catch {}
+  const n = p.stages.length;
+  for (let i = 0; i < n; i++) {
+    try { const s = await loadImg(ART(p.stages[i][0])); g.globalAlpha = .9; g.drawImage(s, 540 - n * 85 + 15 + i * 170, 930, 140, 140); g.globalAlpha = 1; } catch {}
   }
-  g.font = '78px Jua'; g.fillText(`${p.name} 최종 진화 완료!`, 540, 1160);
+  g.font = '78px Jua'; g.fillText(`${p.name} 완전 성장!`, 540, 1160);
   g.font = '42px Jua'; g.fillStyle = 'rgba(255,255,255,.85)';
   g.fillText(`${dur(p.work_sec)} 작업 · Lv.${p.level}`, 540, 1230);
   g.font = '30px Jua'; g.fillStyle = 'rgba(255,255,255,.6)';
@@ -819,9 +842,9 @@ async function makeCard() {
   return c;
 }
 async function openShare() {
-  if (!S.pet || S.pet.stage < 3) return;
+  if (!S.pet || !S.pet.mastered) return;
   const c = await makeCard();
-  shareText = `${dur(S.pet.work_sec)} 작업으로 ${S.pet.species[1]} 최종 진화 완료! 🎨✨ 나랑 같이 자라는 포켓몬 #Figmon`;
+  shareText = `${dur(S.pet.work_sec)} 작업으로 ${S.pet.species[1]} 완전 성장 (Lv.${S.pet.level})! 🎨✨ 나랑 같이 자라는 포켓몬 #Figmon`;
   $('#shareImg').src = c.toDataURL('image/png');
   cardBlob = await new Promise(r => c.toBlob(r, 'image/png'));
   $('#shareModal').classList.add('open');

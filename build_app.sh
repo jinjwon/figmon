@@ -2,7 +2,7 @@
 # Figmon.app 빌드 → dist/Figmon.app, dist/Figmon-macOS.zip
 set -e
 cd "$(dirname "$0")"
-VERSION=1.5.0
+VERSION=1.6.0
 APP=dist/Figmon.app
 
 echo "▸ 아이콘"

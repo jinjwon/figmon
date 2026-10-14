@@ -42,7 +42,8 @@ if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로�
     sys.stdout, sys.stderr = sys.stdout or _log, sys.stderr or _log
 
 XP_PER_LEVEL = 50
-EVO1_LV, EVO2_LV, MAX_LV = 16, 36, 100  # Lv.0 기본형 → Lv.16 → Lv.36 최종
+MASTER_LV, MAX_LV = 36, 100   # Lv.36 = 완전 성장 (자랑 카드·졸업)
+EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 단계 수별 진화 레벨
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
                "Photoshop", "Illustrator", "XD"]  # 아래 소문자/64 이름들은 Windows 실행 파일 이름
@@ -122,7 +123,91 @@ _RAW = [
     (9, "fire", [(909, "뜨아거"), (910, "악뜨거"), (911, "라우드본")]),
     (9, "water", [(912, "꾸왁스"), (913, "아꾸왁"), (914, "웨이니발")]),
 ]
-LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st]} for g, t, st in _RAW}
+# 1세대 151마리 (스타팅 제외 나머지 진화 계열). 키는 첫 단계 도감번호, 이브이는 진화 방향별로 따로.
+_GEN1 = [
+    ("10", "bug", [(10, "캐터피"), (11, "단데기"), (12, "버터플")]),
+    ("13", "bug", [(13, "뿔충이"), (14, "딱충이"), (15, "독침붕")]),
+    ("16", "normal", [(16, "구구"), (17, "피죤"), (18, "피죤투")]),
+    ("19", "normal", [(19, "꼬렛"), (20, "레트라")]),
+    ("21", "normal", [(21, "깨비참"), (22, "깨비드릴조")]),
+    ("23", "poison", [(23, "아보"), (24, "아보크")]),
+    ("25", "electric", [(25, "피카츄"), (26, "라이츄")]),
+    ("27", "ground", [(27, "모래두지"), (28, "고지")]),
+    ("29", "poison", [(29, "니드런♀"), (30, "니드리나"), (31, "니드퀸")]),
+    ("32", "poison", [(32, "니드런♂"), (33, "니드리노"), (34, "니드킹")]),
+    ("35", "fairy", [(35, "삐삐"), (36, "픽시")]),
+    ("37", "fire", [(37, "식스테일"), (38, "나인테일")]),
+    ("39", "normal", [(39, "푸린"), (40, "푸크린")]),
+    ("41", "poison", [(41, "주뱃"), (42, "골뱃")]),
+    ("43", "grass", [(43, "뚜벅쵸"), (44, "냄새꼬"), (45, "라플레시아")]),
+    ("46", "bug", [(46, "파라스"), (47, "파라섹트")]),
+    ("48", "bug", [(48, "콘팡"), (49, "도나리")]),
+    ("50", "ground", [(50, "디그다"), (51, "닥트리오")]),
+    ("52", "normal", [(52, "나옹"), (53, "페르시온")]),
+    ("54", "water", [(54, "고라파덕"), (55, "골덕")]),
+    ("56", "fighting", [(56, "망키"), (57, "성원숭")]),
+    ("58", "fire", [(58, "가디"), (59, "윈디")]),
+    ("60", "water", [(60, "발챙이"), (61, "슈륙챙이"), (62, "강챙이")]),
+    ("63", "psychic", [(63, "캐이시"), (64, "윤겔라"), (65, "후딘")]),
+    ("66", "fighting", [(66, "알통몬"), (67, "근육몬"), (68, "괴력몬")]),
+    ("69", "grass", [(69, "모다피"), (70, "우츠동"), (71, "우츠보트")]),
+    ("72", "water", [(72, "왕눈해"), (73, "독파리")]),
+    ("74", "rock", [(74, "꼬마돌"), (75, "데구리"), (76, "딱구리")]),
+    ("77", "fire", [(77, "포니타"), (78, "날쌩마")]),
+    ("79", "water", [(79, "야돈"), (80, "야도란")]),
+    ("81", "electric", [(81, "코일"), (82, "레어코일")]),
+    ("83", "normal", [(83, "파오리")]),
+    ("84", "normal", [(84, "두두"), (85, "두트리오")]),
+    ("86", "water", [(86, "쥬쥬"), (87, "쥬레곤")]),
+    ("88", "poison", [(88, "질퍽이"), (89, "질뻐기")]),
+    ("90", "water", [(90, "셀러"), (91, "파르셀")]),
+    ("92", "ghost", [(92, "고오스"), (93, "고우스트"), (94, "팬텀")]),
+    ("95", "rock", [(95, "롱스톤")]),
+    ("96", "psychic", [(96, "슬리프"), (97, "슬리퍼")]),
+    ("98", "water", [(98, "크랩"), (99, "킹크랩")]),
+    ("100", "electric", [(100, "찌리리공"), (101, "붐볼")]),
+    ("102", "grass", [(102, "아라리"), (103, "나시")]),
+    ("104", "ground", [(104, "탕구리"), (105, "텅구리")]),
+    ("106", "fighting", [(106, "시라소몬")]),
+    ("107", "fighting", [(107, "홍수몬")]),
+    ("108", "normal", [(108, "내루미")]),
+    ("109", "poison", [(109, "또가스"), (110, "또도가스")]),
+    ("111", "ground", [(111, "뿔카노"), (112, "코뿌리")]),
+    ("113", "normal", [(113, "럭키")]),
+    ("114", "grass", [(114, "덩쿠리")]),
+    ("115", "normal", [(115, "캥카")]),
+    ("116", "water", [(116, "쏘드라"), (117, "시드라")]),
+    ("118", "water", [(118, "콘치"), (119, "왕콘치")]),
+    ("120", "water", [(120, "별가사리"), (121, "아쿠스타")]),
+    ("122", "psychic", [(122, "마임맨")]),
+    ("123", "bug", [(123, "스라크")]),
+    ("124", "ice", [(124, "루주라")]),
+    ("125", "electric", [(125, "에레브")]),
+    ("126", "fire", [(126, "마그마")]),
+    ("127", "bug", [(127, "쁘사이저")]),
+    ("128", "normal", [(128, "켄타로스")]),
+    ("129", "water", [(129, "잉어킹"), (130, "갸라도스")]),
+    ("131", "water", [(131, "라프라스")]),
+    ("132", "normal", [(132, "메타몽")]),
+    ("133-water", "water", [(133, "이브이"), (134, "샤미드")]),
+    ("133-electric", "electric", [(133, "이브이"), (135, "쥬피썬더")]),
+    ("133-fire", "fire", [(133, "이브이"), (136, "부스터")]),
+    ("137", "normal", [(137, "폴리곤")]),
+    ("138", "rock", [(138, "암나이트"), (139, "암스타")]),
+    ("140", "rock", [(140, "투구"), (141, "투구푸스")]),
+    ("142", "rock", [(142, "프테라")]),
+    ("143", "normal", [(143, "잠만보")]),
+    ("144", "ice", [(144, "프리져")]),
+    ("145", "electric", [(145, "썬더")]),
+    ("146", "fire", [(146, "파이어")]),
+    ("147", "dragon", [(147, "미뇽"), (148, "신뇽"), (149, "망나뇽")]),
+    ("150", "psychic", [(150, "뮤츠")]),
+    ("151", "psychic", [(151, "뮤")]),
+]
+LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "starter": True} for g, t, st in _RAW}
+LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
+for _l in LINES.values():
+    _l["evo_levels"] = [0] + EVO_LEVELS[len(_l["stages"])]   # 각 단계가 시작되는 레벨
 
 BROWSERS = {
     "Google Chrome": "chromium", "Arc": "chromium", "Brave Browser": "chromium",
@@ -153,12 +238,13 @@ def level_of(xp):
     return min(MAX_LV, int(xp // XP_PER_LEVEL))
 
 
-def stage_of(lv):
-    return 1 if lv < EVO1_LV else 2 if lv < EVO2_LV else 3
+def stage_of(lv, line="1"):
+    """지금 몇 번째 모습인지 (1부터)"""
+    return sum(1 for need in LINES[line]["evo_levels"] if lv >= need)
 
 
-def stage_floor_xp(stage):
-    return [0, 0, EVO1_LV, EVO2_LV][stage] * XP_PER_LEVEL
+def stage_floor_xp(stage, line="1"):
+    return LINES[line]["evo_levels"][stage - 1] * XP_PER_LEVEL
 
 
 def species_name(pet, stage):
@@ -419,7 +505,7 @@ def step(app, url, idle, dt, title=""):
     LIVE.update(app=app, label=label, idle=int(idle))
     pet = s["pet"]
     before = level_of(pet["xp"]) if pet else None
-    name = species_name(pet, stage_of(before)) if pet else "포켓몬"
+    name = species_name(pet, stage_of(before, pet["line"])) if pet else "포켓몬"
 
     if kind != "distract":
         LIVE["distract_since"] = LIVE["penalty_since"] = None
@@ -462,7 +548,7 @@ def step(app, url, idle, dt, title=""):
                 mode = "penalty"
                 if pet:
                     loss = dt / 60 * cfg["penalty_xp_per_min"]
-                    floor = stage_floor_xp(stage_of(level_of(pet["xp"])))
+                    floor = stage_floor_xp(stage_of(level_of(pet["xp"]), pet["line"]), pet["line"])
                     loss = min(loss, max(0.0, pet["xp"] - floor))
                     pet["xp"] -= loss
                     s["today"]["xp_lost"] += loss
@@ -482,13 +568,16 @@ def step(app, url, idle, dt, title=""):
     if pet:
         after = level_of(pet["xp"])
         if after != before:
-            sb, sa = stage_of(before), stage_of(after)
+            sb, sa = stage_of(before, pet["line"]), stage_of(after, pet["line"])
             if sa > sb:
                 msg = f"{species_name(pet, sb)} → {species_name(pet, sa)} 진화!"
                 log("evo", msg)
                 notify("✨ 진화!", msg)
-                if sa == 3:
-                    notify("🏆 최종 진화 완료", "Figmon 창에서 공유 카드를 만들어 자랑해보세요!")
+            if before < MASTER_LV <= after:
+                log("grad", f"Lv.{MASTER_LV} 완전 성장! 자랑 카드를 만들 수 있어요")
+                notify("🏆 완전 성장", "Figmon 창에서 자랑 카드를 만들어 자랑해보세요!")
+            elif sa > sb:
+                pass
             elif after > before:
                 log("lvup", f"Lv.{after} 달성!")
             else:
@@ -524,15 +613,20 @@ def view():
     if pet:
         xp = pet["xp"]
         lv = level_of(xp)
-        st = stage_of(lv)
         line = LINES[pet["line"]]
-        nxt = [None, EVO1_LV, EVO2_LV][st] if st < 3 else None
+        st = stage_of(lv, pet["line"])
+        lv_list = line["evo_levels"]
+        nxt = lv_list[st] if st < len(lv_list) else None
+        rate = max(cfg["xp_per_work_min"], 0.01)
         out["pet"] = {**pet, "level": lv, "stage": st, "type": line["type"], "gen": line["gen"],
                       "stages": line["stages"], "species": line["stages"][st - 1],
                       "name": pet.get("nickname") or species_name(pet, st),
                       "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
+                      "evo_levels": lv_list, "final": st == len(line["stages"]),
+                      "mastered": lv >= MASTER_LV, "master_lv": MASTER_LV,
                       "next_evo_lv": nxt,
-                      "min_to_evo": (nxt * XP_PER_LEVEL - xp) / max(cfg["xp_per_work_min"], 0.01) if nxt else None}
+                      "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
+                      "min_to_master": max(0.0, (MASTER_LV * XP_PER_LEVEL - xp) / rate)}
     return out
 
 
@@ -569,7 +663,7 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 self._send(200, view())
         elif self.path == "/api/meta":
-            self._send(200, {"lines": LINES, "levels": [0, EVO1_LV, EVO2_LV],
+            self._send(200, {"lines": LINES, "master_lv": MASTER_LV,
                              "xp_per_level": XP_PER_LEVEL, "presets": PRESETS,
                              "platform": "windows" if IS_WIN else "mac"})
         elif self.path == "/pet":
@@ -594,19 +688,20 @@ class Handler(BaseHTTPRequestHandler):
                             "nickname": "", "born": time.time()}
                 new = LINES[s["pet"]["line"]]["stages"][0][1]
                 if old:
-                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp'])))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
+                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp']), old['line']))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
                 else:
                     log("hatch", f"{new}와(과) 함께 시작! 작업할수록 같이 자라요")
             elif self.path == "/api/nickname" and s["pet"]:
                 s["pet"]["nickname"] = str(body.get("nickname", ""))[:12]
             elif self.path == "/api/graduate":
                 pet = s["pet"]
-                if not pet or stage_of(level_of(pet["xp"])) < 3:
-                    return self._send(400, {"error": "최종 진화 후에 졸업할 수 있어요"})
+                if not pet or level_of(pet["xp"]) < MASTER_LV:
+                    return self._send(400, {"error": f"Lv.{MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
                 lv = level_of(pet["xp"])
-                s["dex"].append({**pet, "level": lv, "species": LINES[pet["line"]]["stages"][2],
+                st = stage_of(lv, pet["line"])
+                s["dex"].append({**pet, "level": lv, "species": LINES[pet["line"]]["stages"][st - 1],
                                  "finished": time.time()})
-                log("grad", f"{species_name(pet, 3)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
+                log("grad", f"{species_name(pet, st)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
                 s["pet"] = None
             elif self.path == "/api/pause":
                 minutes = float(body.get("minutes", 0))

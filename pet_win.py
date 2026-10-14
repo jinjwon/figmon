@@ -253,9 +253,8 @@ class Pet:
         self.root.after(300, self.apply_state)
 
     def zoom_for(self, p, s):
-        lv0, lv1 = [(0, 16), (16, 36), (36, 100)][p["stage"] - 1]
-        t = min(1, (p["level"] - lv0) / (lv1 - lv0))
-        scale = [1.25, 1.55, 1.85][p["stage"] - 1] * (1 + 0.18 * t) * float(s["config"].get("pet_size", 1)) * self.dpi
+        # 레벨에 따라 조금씩 커짐 (진화 단계 수와 상관없이 같은 규칙)
+        scale = (1.25 + 0.85 * min(p["level"], 40) / 40) * float(s["config"].get("pet_size", 1)) * self.dpi
         return max(1, round(scale * 1.4))
 
     def mode_line(self, m):

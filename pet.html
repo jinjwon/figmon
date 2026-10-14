@@ -258,9 +258,8 @@ function reportRect() {
 /* ---------- 스프라이트 (진화 단계 + 레벨에 따라 크기가 자람) ---------- */
 function scaleFor(p) {
   if (!p || !p.species) return (S && S.config.pet_size) || 1;
-  const lv = [0, 0, 16, 36], nx = [0, 16, 36, 100];
-  const t = Math.min(1, (p.level - lv[p.stage]) / (nx[p.stage] - lv[p.stage]));
-  return [0, 1.25, 1.55, 1.85][p.stage] * (1 + 0.18 * t) * ((S && S.config.pet_size) || 1);
+  // 레벨에 따라 조금씩 커짐 (Lv.0 1.25배 → Lv.40 이상 2.1배). 진화 단계 수와 상관없이 같은 규칙
+  return (1.25 + 0.85 * Math.min(p.level, 40) / 40) * ((S && S.config.pet_size) || 1);
 }
 function draw() {
   const p = S && S.pet, body = $('#body');
