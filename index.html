@@ -162,6 +162,8 @@ button.b:disabled{opacity:.35;cursor:default}
 .filters .toggle{display:flex;gap:5px;align-items:center;font-size:13px;color:var(--text);cursor:pointer;padding:0 4px}
 .more-btn{grid-column:1/-1}
 .starter .legend-mark{position:absolute;top:6px;right:8px;font-size:12px}
+.starter.locked .lock{display:block;font-size:11px;color:var(--warn);margin-top:3px}
+.starter .rare{display:block;font-size:10px;color:var(--warn);margin-top:2px}
 .starter{position:relative}
 .pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
@@ -389,7 +391,7 @@ label.f textarea{height:64px;resize:vertical}
   <div class="filters">
     <select id="fType" aria-label="타입"><option value="">모든 타입</option></select>
     <select id="fStage" aria-label="진화 단계"><option value="">모든 진화</option><option value="1">진화 없음</option><option value="2">2단 진화</option><option value="3">3단 진화</option></select>
-    <label class="toggle"><input type="checkbox" id="fLegend"> 전설·환상만</label>
+    <label class="toggle"><input type="checkbox" id="fLegend"> ✨ 전설·환상만</label>
     <button type="button" class="link-btn" id="fReset">필터 초기화</button>
   </div>
   <div class="muted" id="pickCount" aria-live="polite" style="margin:0 2px 8px"></div>
@@ -767,7 +769,7 @@ function render() {
   if (p) {
     $('#name').textContent = p.name;
     $('#lv').textContent = `Lv.${p.level}`;
-    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type]} · ${p.species[1]}`;
+    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type] || p.type} · ${p.species[1]}${p.rarity ? ` · ${p.rarity === 'mythical' ? '🌟 환상' : '✨ 전설'} (경험치 ${p.xp_mult === 0.5 ? '½' : p.xp_mult + '배'})` : ''}`;
     $('#xpBar').style.width = (p.lv_progress * 100) + '%';
     $('#xpWrap').setAttribute('aria-valuenow', Math.round(p.lv_progress * 100));
     $('#monBox').setAttribute('aria-label', `${p.name} 쓰다듬기`);
@@ -992,6 +994,13 @@ function openPicker() {
   pickLimit = 60;
   renderStarters();
 }
+// 전설·환상: 졸업한 수로 열리고 경험치가 덜 쌓임
+function rarityOf(l) {
+  if (!l.rarity || !META.rarity) return null;
+  const r = META.rarity[l.rarity], have = (S && S.unlock && S.unlock.graduated) || 0;
+  return {...r, key: l.rarity, mark: l.rarity === 'mythical' ? '🌟' : '✨', have, open: have >= r.need,
+    xpText: r.xp === 0.5 ? '½' : `${r.xp}배`, hours: Math.round((META.master_lv * META.xp_per_level) / r.xp / 60)};
+}
 // 초성 검색: "ㅍㅋㅊ" → 피카츄
 const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
 const chosung = t => [...t].map(c => { const k = c.charCodeAt(0) - 0xAC00; return k >= 0 && k < 11172 ? CHO[Math.floor(k / 588)] : c; }).join('');
@@ -1012,11 +1021,16 @@ function renderStarters() {
       && (!ft || l.type === ft || (l.branches || []).some(b => b.type === ft))
       && (!fs || (l.branches ? fs === '2' : String(l.stages.length) === fs)) && (!fl || l.legendary))
     .sort((a, b) => (b[1].starter - a[1].starter) || (a[1].gen - b[1].gen) || (a[1].stages[0][0] - b[1].stages[0][0]) || (a[0] > b[0] ? 1 : -1));
-  const card = ([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}" aria-label="${l.stages.map(s => s[1]).join(', ')}${l.legendary ? ', 전설·환상' : ''}">
-    ${l.legendary ? '<span class="legend-mark" aria-hidden="true">✨</span>' : ''}
+  const card = ([k, l]) => {
+    const rr = rarityOf(l), lock = rr && !rr.open;
+    return `<button class="starter ${lock ? 'locked' : ''}" data-k="${k}" style="--c:${TYPE[l.type]}"
+      aria-label="${l.stages.map(s => s[1]).join(', ')}${rr ? `, ${rr.name}` : ''}${lock ? `, 잠김: ${rr.need}마리 졸업 필요` : ''}">
+    ${rr ? `<span class="legend-mark" aria-hidden="true">${lock ? '🔒' : rr.mark}</span>` : ''}
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
     <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
-    <span class="badge">${TYPE_KO[l.type] || l.type}</span></button>`;
+    <span class="badge">${TYPE_KO[l.type] || l.type}</span>
+    ${rr ? (lock ? `<span class="lock">🔒 졸업 ${rr.have}/${rr.need}마리</span>` : `<span class="rare">${rr.mark} ${rr.name} · 경험치 ${rr.xpText}</span>`) : ''}</button>`;
+  };
   const shown = all.slice(0, pickLimit);
   const more = all.length > pickLimit ? `<button type="button" class="b more-btn" id="pickMore">더 보기 (${all.length - pickLimit}마리 더)</button>` : '';
   const starters = shown.filter(([, l]) => l.starter), others = shown.filter(([, l]) => !l.starter);
@@ -1060,9 +1074,11 @@ $('#genTabs').onclick = e => { const g = e.target.dataset.g; if (g) { pickGen = 
 $('#starters').onclick = async e => {
   const b = e.target.closest('.starter'); if (!b) return;
   const l = META.lines[b.dataset.k];
+  const rr = rarityOf(l);
+  if (rr && !rr.open) return toast(`🔒 ${rr.name} 포켓몬은 ${rr.need}마리를 졸업시키면 열려요 (지금 ${rr.have}마리)`);
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
-  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
+  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬은 경험치가 ${rr.xpText}만 쌓여요. 완전 성장까지 작업 약 ${rr.hours}시간!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
   S = await api('/api/choose', {line: b.dataset.k, replace});
   $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); speak(true); toast(`${l.stages[0][1]}와(과) 함께 Lv.0부터 출발!`);
 };

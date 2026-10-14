@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.12.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.13.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -52,6 +52,18 @@ if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로�
 
 XP_PER_LEVEL = 50
 MASTER_LV, MAX_LV = 36, 100   # Lv.36 = 완전 성장 (자랑 카드·졸업)
+# 전설·환상: 졸업한 포켓몬 수로 열리고, 경험치가 덜 쌓여서 키우기 어렵다 (도전 요소)
+RARITY = {"legendary": {"name": "전설", "need": 1, "xp": 0.5}, "mythical": {"name": "환상", "need": 3, "xp": 0.4}}
+
+
+def xp_mult(line_key):
+    r = LINES[line_key].get("rarity")
+    return RARITY[r]["xp"] if r else 1.0
+
+
+def is_unlocked(line_key):
+    r = LINES[line_key].get("rarity")
+    return not r or len(STATE.get("dex", [])) >= RARITY[r]["need"]
 EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 단계 수별 진화 레벨
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
@@ -231,9 +243,11 @@ try:
     for _k, _l in _DEX["lines"].items():
         if _k not in LINES:
             LINES[_k] = {**_l, "starter": False}
-    _LEGEND = set(_DEX.get("legendary", []))
+    _LEGEND, _MYTH = set(_DEX.get("legendary", [])), set(_DEX.get("mythical", []))
     for _l in LINES.values():
-        _l["legendary"] = _l.get("legendary") or any(i in _LEGEND for i, _ in _l["stages"])
+        _ids = [i for i, _ in _l["stages"]]
+        _l["rarity"] = "mythical" if any(i in _MYTH for i in _ids) else "legendary" if any(i in _LEGEND for i in _ids) else None
+        _l["legendary"] = bool(_l["rarity"])
 except Exception as _e:
     print("pokedex.json을 읽지 못했어요:", _e)
 for _l in LINES.values():
@@ -685,7 +699,7 @@ def step(app, url, idle, dt, title=""):
         track(label, "work", dt)
         s["bank_sec"] = min(cfg["bank_max_min"] * 60, s["bank_sec"] + dt / max(cfg["break_earn_ratio"], 0.1))
         if pet:
-            pet["xp"] += dt / 60 * cfg["xp_per_work_min"]
+            pet["xp"] += dt / 60 * cfg["xp_per_work_min"] * xp_mult(pet["line"])
             pet["work_sec"] += dt
             if LINES[pet["line"]].get("branches") and not pet.get("branch"):
                 ev = pet.setdefault("eevee", {})
@@ -797,7 +811,8 @@ def view():
     out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"], "paused_until": s.get("paused_until", 0),
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
-           "update": LIVE["update"], "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
+           "update": LIVE["update"],
+           "unlock": {"graduated": len(s["dex"]), **{k: v["need"] for k, v in RARITY.items()}}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -806,12 +821,13 @@ def view():
         st = stage_of(lv, line)
         lv_list = line["evo_levels"]
         nxt = lv_list[st] if st < len(lv_list) else None
-        rate = max(cfg["xp_per_work_min"], 0.01)
+        rate = max(cfg["xp_per_work_min"] * xp_mult(pet["line"]), 0.01)
         out["pet"] = {**pet, "level": lv, "stage": st, "type": line["type"], "gen": line["gen"],
                       "stages": line["stages"], "species": line["stages"][st - 1],
                       "name": pet.get("nickname") or species_name(pet, st),
                       "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
+                      "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]),
                       "mastered": lv >= MASTER_LV, "master_lv": MASTER_LV,
                       "next_evo_lv": nxt,
                       "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
@@ -864,7 +880,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"today": STATE["today"], "history": STATE.get("history", [])[-HISTORY_DAYS:],
                                  "now": time.time()})
         elif self.path == "/api/meta":
-            self._send(200, {"lines": LINES, "master_lv": MASTER_LV,
+            self._send(200, {"lines": LINES, "master_lv": MASTER_LV, "rarity": RARITY,
                              "xp_per_level": XP_PER_LEVEL, "presets": PRESETS,
                              "platform": "windows" if IS_WIN else "mac"})
         elif self.path == "/pet":
@@ -884,6 +900,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "잘못된 선택"})
                 if s["pet"] is not None and not body.get("replace"):
                     return self._send(400, {"error": "이미 키우는 포켓몬이 있어요"})
+                if not is_unlocked(str(body["line"])):
+                    r = RARITY[LINES[str(body["line"])]["rarity"]]
+                    return self._send(400, {"error": f"{r['name']} 포켓몬은 {r['need']}마리를 졸업시키면 열려요"})
                 old = s["pet"]
                 s["pet"] = {"line": str(body["line"]), "xp": 0.0, "work_sec": 0.0,
                             "nickname": "", "born": time.time()}

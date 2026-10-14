@@ -45,10 +45,12 @@ def main(folder=None):
             return [[sid]]
         return [[sid] + p for k in kids for p in paths(k)]
 
-    lines, legendary = {}, []
+    lines, legendary, mythical = {}, [], []
     for sid, r in sorted(species.items()):
-        if r["is_legendary"] == "1" or r["is_mythical"] == "1":
+        if r["is_legendary"] == "1":
             legendary.append(sid)
+        if r["is_mythical"] == "1":
+            mythical.append(sid)
         if r["evolves_from_species_id"]:      # 진화 전 단계(가장 처음 모습)만 계열의 시작
             continue
         gen = int(r["generation_id"])
@@ -62,15 +64,17 @@ def main(folder=None):
                 "gen": gen,
                 "type": first_type.get(p[-1], "normal"),
                 "stages": [[i, names.get(i, species[i]["identifier"])] for i in p],
-                "legendary": r["is_legendary"] == "1" or r["is_mythical"] == "1",
+                "legendary": r["is_legendary"] == "1",
+                "mythical": r["is_mythical"] == "1",
             }
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",
-                               "lines": lines, "legendary": legendary}, ensure_ascii=False, separators=(",", ":")),
+                               "lines": lines, "legendary": legendary, "mythical": mythical},
+                              ensure_ascii=False, separators=(",", ":")),
                    encoding="utf-8")
     by_gen = defaultdict(int)
     for l in lines.values():
         by_gen[l["gen"]] += 1
-    print(f"{OUT.name}: 계열 {len(lines)}개 (세대별 {dict(sorted(by_gen.items()))}), 전설·환상 {len(legendary)}마리")
+    print(f"{OUT.name}: 계열 {len(lines)}개 (세대별 {dict(sorted(by_gen.items()))}), 전설 {len(legendary)} · 환상 {len(mythical)}마리")
 
 
 if __name__ == "__main__":
