@@ -1,0 +1,59 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: pip install pyinstaller pillow
+
+      - name: Smoke test (source)
+        run: python tools/win_smoketest.py source
+
+      - name: Build Figmon.exe
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name Figmon
+          --icon assets/figmon.ico
+          --add-data "index.html;." --add-data "pet.html;."
+          --hidden-import pet_win server.py
+
+      - name: Smoke test (exe)
+        run: python tools/win_smoketest.py exe
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/Figmon.exe -DestinationPath Figmon-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoketest
+          path: smoketest/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Figmon-Windows
+          path: Figmon-Windows.zip
+
+      - name: Attach to release
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "${{ github.ref_name }}" }
+          gh release upload $tag Figmon-Windows.zip --clobber

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figmon — 작업 시간으로 포켓몬을 키우는 macOS 데스크톱 펫.
+Figmon — 작업 시간으로 포켓몬을 키우는 데스크톱 펫 (macOS · Windows).
 
 - Figma, VS Code, Xcode, 터미널 같은 작업 앱(또는 figma.com, github.com)을 쓰면 경험치와 휴식 잔고가 쌓인다.
 - 유튜브/인스타/게임 등 딴짓을 하면 휴식 잔고가 줄어든다.
@@ -8,8 +8,10 @@ Figmon — 작업 시간으로 포켓몬을 키우는 macOS 데스크톱 펫.
 - (선택) AI 절제 모드: ChatGPT/Claude 등은 하루 무료 시간만큼만, 넘기면 딴짓 취급.
 
 실행:  python3 server.py            (http://localhost:7777)
+       Windows에서는 같은 명령으로 서버 + 펫(pet_win.py)이 함께 뜬다.
 테스트: FIGMON_SPEED=60 python3 server.py   (1초 = 1분으로 빨리 감기)
 """
+import base64
 import json
 import os
 import re
@@ -25,19 +27,28 @@ from pathlib import Path
 PORT = int(os.environ.get("FIGMON_PORT", 7777))
 SPEED = float(os.environ.get("FIGMON_SPEED", 1))
 TICK = 3  # 초
-HERE = Path(__file__).resolve().parent
+IS_WIN = sys.platform == "win32"
+HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))  # PyInstaller 묶음이면 압축 해제 폴더
 DATA_DIR = Path(os.environ.get("FIGMON_HOME", Path.home() / ".figmon"))
 STATE_FILE = DATA_DIR / "state.json"
+if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로그 파일로
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _log = open(DATA_DIR / "server.log", "a", encoding="utf-8", buffering=1)
+    sys.stdout, sys.stderr = sys.stdout or _log, sys.stderr or _log
 
 XP_PER_LEVEL = 50
 EVO1_LV, EVO2_LV, MAX_LV = 16, 36, 100  # Lv.0 기본형 → Lv.16 → Lv.36 최종
 
-DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot"]
+DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
+               "Photoshop", "Illustrator", "XD"]  # 아래 소문자/64 이름들은 Windows 실행 파일 이름
 DEV_APPS = ["Code", "Visual Studio Code", "Cursor", "Windsurf", "Zed", "Xcode", "Android Studio",
             "IntelliJ IDEA", "PyCharm", "WebStorm", "GoLand", "Rider", "CLion", "PhpStorm", "RubyMine",
             "DataGrip", "Fleet", "Sublime Text", "Nova", "Terminal", "iTerm2", "Warp", "Ghostty",
             "Alacritty", "kitty", "WezTerm", "Docker Desktop", "Postman", "Insomnia", "TablePlus",
-            "Simulator", "GitHub Desktop", "Fork", "Tower", "Sourcetree"]
+            "Simulator", "GitHub Desktop", "Fork", "Tower", "Sourcetree",
+            "devenv", "idea64", "pycharm64", "webstorm64", "goland64", "rider64", "clion64", "phpstorm64",
+            "rubymine64", "datagrip64", "studio64", "sublime_text", "notepad++", "WindowsTerminal",
+            "powershell", "pwsh", "cmd", "wezterm-gui", "GitHubDesktop", "Unity", "Godot"]
 DESIGN_DOMAINS = ["figma.com", "framer.com", "penpot.app"]
 DEV_DOMAINS = ["github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com", "developer.mozilla.org",
                "developer.apple.com", "vercel.com", "netlify.com", "codesandbox.io", "stackblitz.com",
@@ -52,7 +63,9 @@ DEFAULT_CONFIG = {
     "work_apps": DESIGN_APPS + DEV_APPS,
     "work_domains": DESIGN_DOMAINS + DEV_DOMAINS,
     "distract_apps": ["Steam", "League of Legends", "Battle.net", "Minecraft",
-                      "Roblox", "Genshin Impact", "Hearthstone", "Overwatch"],
+                      "Roblox", "Genshin Impact", "Hearthstone", "Overwatch", "WutheringWaves",
+                      "LeagueClient", "RiotClient", "VALORANT", "RobloxPlayer", "GenshinImpact",
+                      "MapleStory", "LOSTARK", "Client-Win64-Shipping"],
     "distract_domains": ["youtube.com", "youtu.be", "instagram.com", "tiktok.com",
                          "netflix.com", "twitch.tv", "chzzk.naver.com", "x.com",
                          "twitter.com", "facebook.com", "afreecatv.com", "sooplive.co.kr"],
@@ -113,8 +126,20 @@ BROWSERS = {
     "Safari": "safari", "Safari Technology Preview": "safari",
 }
 
+# Windows: 브라우저 탭 주소 대신 창 제목으로 사이트를 알아낸다 ("영상 제목 - YouTube - Chrome")
+WIN_BROWSERS = {"chrome", "msedge", "firefox", "brave", "whale", "opera", "vivaldi", "arc", "zen"}
+TITLE_HINTS = {
+    "x.com": ["/ X"], "twitter.com": ["Twitter"], "youtu.be": [], "chzzk.naver.com": ["치지직", "CHZZK"],
+    "afreecatv.com": ["아프리카TV", "AfreecaTV"], "sooplive.co.kr": ["SOOP"], "chatgpt.com": ["ChatGPT"],
+    "chat.openai.com": ["ChatGPT"], "claude.ai": ["Claude"], "gemini.google.com": ["Gemini"],
+    "aistudio.google.com": ["AI Studio"], "copilot.microsoft.com": ["Copilot"], "chat.deepseek.com": ["DeepSeek"],
+    "clova-x.naver.com": ["CLOVA X"], "poe.com": ["Poe"], "wrtn.ai": ["뤼튼", "wrtn"],
+    "developer.mozilla.org": ["MDN"], "developer.apple.com": ["Apple Developer"], "docs.python.org": ["Python documentation"],
+    "stackoverflow.com": ["Stack Overflow"], "npmjs.com": ["npm"],
+}
+
 LOCK = threading.Lock()
-LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None,
+LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None, "front_hwnd": 0,
         "distract_since": None, "penalty_since": None, "last_dialog": 0.0}
 
 
@@ -175,7 +200,8 @@ def log(kind, msg):
 # ---------- macOS 감지 ----------
 def sh(args, timeout=2):
     try:
-        return subprocess.run(args, capture_output=True, text=True, timeout=timeout).stdout.strip()
+        return subprocess.run(args, capture_output=True, text=True, timeout=timeout,
+                              creationflags=0x08000000 if IS_WIN else 0).stdout.strip()  # CREATE_NO_WINDOW
     except Exception:
         return ""
 
@@ -201,7 +227,82 @@ def idle_seconds():
     return int(m.group(1)) / 1e9 if m else 0.0
 
 
-def classify(app, url, cfg):
+if IS_WIN:
+    import ctypes
+    from ctypes import wintypes
+    user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetTickCount.restype = wintypes.DWORD
+
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+
+def win_front():
+    """Windows: 앞에 있는 창의 (실행 파일 이름, 창 제목, hwnd)"""
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return "", "", 0
+    n = user32.GetWindowTextLengthW(hwnd)
+    buf = ctypes.create_unicode_buffer(n + 1)
+    user32.GetWindowTextW(hwnd, buf, n + 1)
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    name = ""
+    h = kernel32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if h:
+        size = wintypes.DWORD(1024)
+        path = ctypes.create_unicode_buffer(1024)
+        if kernel32.QueryFullProcessImageNameW(h, 0, path, ctypes.byref(size)):
+            name = Path(path.value).stem
+        kernel32.CloseHandle(h)
+    return name, buf.value, hwnd
+
+
+def win_idle_seconds():
+    li = LASTINPUTINFO()
+    li.cbSize = ctypes.sizeof(li)
+    user32.GetLastInputInfo(ctypes.byref(li))
+    return ((kernel32.GetTickCount() - li.dwTime) & 0xFFFFFFFF) / 1000
+
+
+def sample():
+    """지금 앞에 있는 (앱 이름, 탭 주소, 창 제목, 입력 없는 초)"""
+    if IS_WIN:
+        app, title, hwnd = win_front()
+        LIVE["front_hwnd"] = hwnd
+        return app, "", title, win_idle_seconds()
+    app = front_app()
+    return app, browser_url(app), "", idle_seconds()
+
+
+def title_keywords(domain):
+    if domain in TITLE_HINTS:
+        return TITLE_HINTS[domain]
+    name = domain.split(".")[0]
+    return [name] if len(name) >= 4 else []
+
+
+def classify_title(title, cfg):
+    """브라우저 창 제목으로 분류. 맨 끝(브라우저 이름)을 빼고 마지막 조각(보통 사이트 이름)을 먼저 본다."""
+    parts = [p.strip() for p in re.split(r"\s[-–—|·]\s", title) if p.strip()]
+    if len(parts) > 1:
+        parts = parts[:-1]
+    site = parts[-1] if parts else title
+    for text in (site, title):
+        low = text.lower()
+        for kind in ("ai", "work", "distract"):
+            for d in cfg[kind + "_domains"]:
+                hit = next((k for k in title_keywords(d) if k.lower() in low), None)
+                if hit:
+                    return kind, d
+    return "neutral", (parts[0] if parts else title)[:40]
+
+
+def classify(app, url, cfg, title=""):
+    if title and app.lower() in WIN_BROWSERS:
+        return classify_title(title, cfg)
     host = re.sub(r"^[a-z]+://", "", url.lower()).split("/")[0].split(":")[0] if url else ""
     dom = lambda lst: bool(host) and any(host == d or host.endswith("." + d) for d in lst)
     # 앱 이름은 정확히 같거나 앞부분이 같으면 인정 ("IntelliJ IDEA" ↔ "IntelliJ IDEA CE")
@@ -224,7 +325,25 @@ def esc(t):
     return t.replace("\\", "\\\\").replace('"', '\\"')
 
 
+PS_TOAST = """
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+$x = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$t = $x.GetElementsByTagName('text')
+$t.Item(0).AppendChild($x.CreateTextNode('@TITLE@')) > $null
+$t.Item(1).AppendChild($x.CreateTextNode('@MSG@')) > $null
+$n = [Windows.UI.Notifications.ToastNotification]::new($x)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show($n)
+"""
+
+
 def notify(title, msg):
+    if IS_WIN:  # Windows 토스트 알림 (PowerShell 내장 API)
+        q = lambda t: t.replace("'", "''")
+        ps = PS_TOAST.replace("@TITLE@", q("Figmon · " + title)).replace("@MSG@", q(msg))
+        enc = base64.b64encode(ps.encode("utf-16-le")).decode()
+        threading.Thread(target=sh, args=(["powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                                           "-EncodedCommand", enc], 15), daemon=True).start()
+        return
     threading.Thread(target=sh, args=(["osascript", "-e",
         f'display notification "{esc(msg)}" with title "Figmon" subtitle "{esc(title)}" sound name "Pop"'],),
         daemon=True).start()
@@ -237,6 +356,18 @@ def ask_return(msg):
     if now - LIVE["last_dialog"] < 90:
         return
     LIVE["last_dialog"] = now
+
+    def run_win():
+        # 예/아니요 | 경고 아이콘 | 맨 위 | 시스템 모달
+        r = user32.MessageBoxW(None, msg + "\n\n작업으로 돌아갈까요? (아니요 = 경험치 감소)", "Figmon", 0x4 | 0x30 | 0x40000 | 0x1000)
+        back = LIVE["last_work"]
+        if r == 6 and back and back[0] == "hwnd" and back[1]:
+            user32.ShowWindow(back[1], 9)  # SW_RESTORE
+            user32.SetForegroundWindow(back[1])
+
+    if IS_WIN:
+        threading.Thread(target=run_win, daemon=True).start()
+        return
 
     def run():
         out = sh(["osascript", "-e",
@@ -258,11 +389,11 @@ def fmt(sec):
 
 
 # ---------- 게임 루프 ----------
-def step(app, url, idle, dt):
+def step(app, url, idle, dt, title=""):
     s, cfg, now = STATE, STATE["config"], time.time()
     if s["today"]["date"] != date.today().isoformat():
         s["today"] = new_today()
-    kind, label = classify(app, url, cfg)
+    kind, label = classify(app, url, cfg, title)
     if now < s.get("paused_until", 0):  # 일시정지 중엔 아무것도 쌓거나 깎지 않음
         LIVE.update(app=app, label=label, idle=int(idle), mode="paused", distract_since=None, penalty_since=None)
         save()
@@ -270,7 +401,7 @@ def step(app, url, idle, dt):
     if kind == "work" and idle > cfg["idle_limit_sec"]:
         kind = "idle"
     if kind == "work":
-        LIVE["last_work"] = ("url", url) if url else ("app", app)
+        LIVE["last_work"] = ("url", url) if url else ("hwnd", LIVE["front_hwnd"]) if IS_WIN else ("app", app)
     ai_over = False
     if kind == "ai":
         if not cfg["ai_limit_enabled"]:
@@ -367,12 +498,10 @@ def loop():
         now = time.time()
         dt = min(now - last, TICK * 4) * SPEED  # 잠자기 모드 후 폭주 방지
         last = now
-        app = front_app()
-        url = browser_url(app)
-        idle = idle_seconds()
+        app, url, title, idle = sample()
         with LOCK:
             try:
-                step(app, url, idle, dt)
+                step(app, url, idle, dt, title)
             except Exception as e:
                 print("tick error:", e, file=sys.stderr)
 
@@ -436,7 +565,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, view())
         elif self.path == "/api/meta":
             self._send(200, {"lines": LINES, "levels": [0, EVO1_LV, EVO2_LV],
-                             "xp_per_level": XP_PER_LEVEL, "presets": PRESETS})
+                             "xp_per_level": XP_PER_LEVEL, "presets": PRESETS,
+                             "platform": "windows" if IS_WIN else "mac"})
         elif self.path == "/pet":
             self._send(200, (HERE / "pet.html").read_bytes(), "text/html; charset=utf-8")
         else:
@@ -494,8 +624,16 @@ def launch_pet():
     return subprocess.Popen([str(exe)], env=env)
 
 
-def open_window():
-    url = f"http://localhost:{PORT}/?title=1"  # 실행할 때마다 타이틀 화면부터
+def open_window(title=True):
+    url = f"http://localhost:{PORT}/" + ("?title=1" if title else "")  # 실행할 때는 타이틀 화면부터
+    if IS_WIN:  # Edge 앱 창 (Windows 10/11 기본 설치)
+        for base_dir in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
+            edge = Path(base_dir or "") / "Microsoft/Edge/Application/msedge.exe"
+            if base_dir and edge.exists():
+                subprocess.Popen([str(edge), f"--app={url}", "--window-size=460,860"])
+                return
+        webbrowser.open(url)
+        return
     if Path("/Applications/Google Chrome.app").exists():
         subprocess.Popen(["open", "-na", "Google Chrome", "--args", f"--app={url}", "--window-size=460,860"])
     else:
@@ -503,12 +641,32 @@ def open_window():
 
 
 if __name__ == "__main__":
+    quiet = "--no-open" in sys.argv or "--startup" in sys.argv   # --startup: 로그인 자동 실행 (창 안 띄움)
+    if IS_WIN:
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 고해상도 화면에서 흐려지지 않게
+        except Exception:
+            pass
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    except OSError:  # 이미 실행 중이면 대시보드만 열고 끝
+        if not quiet:
+            open_window(False)
+        sys.exit(0)
     threading.Thread(target=loop, daemon=True).start()
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"Figmon 실행 중 → http://localhost:{PORT}  (속도 x{SPEED:g}, 종료: Ctrl+C)")
-    pet_proc = None if "--no-pet" in sys.argv else launch_pet()
-    if "--no-open" not in sys.argv:
+    if not quiet:
         open_window()
+    if IS_WIN and "--no-pet" not in sys.argv:  # Windows: 펫(tkinter)이 메인 스레드, 서버는 백그라운드
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        import pet_win
+        try:
+            pet_win.run(PORT, open_window)
+        finally:
+            with LOCK:
+                save()
+        sys.exit(0)
+    pet_proc = None if "--no-pet" in sys.argv else launch_pet()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
