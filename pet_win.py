@@ -159,6 +159,8 @@ class Pet:
         self.vx, self.look_until, self.next_look = 0.0, 0.0, 0.0
         self.last_click, self.clicks, self.last_hover, self.next_dust = 0.0, [], 0.0, 0.0
         self.squash_until = 0.0
+        self.rub = {"x": None, "sign": 0, "travel": 0.0, "turns": 0, "last": 0.0, "pet": 0.0}   # 쓰다듬기 감지
+        self.vx_air, self.thrown, self.bounced, self.spin_until, self.samples = 0.0, False, False, 0.0, []
         self.drag, self.falling, self.vy = None, False, 0.0
         self.evolving_until = 0.0
         self.bubble_until = None
@@ -173,6 +175,7 @@ class Pet:
         self.cv.bind("<ButtonRelease-1>", self.on_up)
         self.cv.bind("<Button-3>", self.on_menu)
         self.cv.bind("<Enter>", self.on_hover)
+        self.cv.bind("<Motion>", self.on_rub)
         self.place()
 
         threading.Thread(target=self.poll_loop, daemon=True).start()
@@ -397,6 +400,32 @@ class Pet:
         if self.target is not None:
             self.target, self.vx, self.rest_until = None, 0.0, now + 3
 
+    def on_rub(self, e):
+        """커서를 펫 위에서 좌우로 비비면 쓰다듬기 (반응만, 경험치와 무관)"""
+        if self.drag or self.falling:
+            return
+        r, now = self.rub, time.time()
+        if r["x"] is not None:
+            dxm = e.x_root - r["x"]
+            if abs(dxm) > 1.5:
+                sign = 1 if dxm > 0 else -1
+                if sign != r["sign"] and r["travel"] > 6:
+                    r["turns"] += 1
+                    r["travel"] = 0.0
+                r["sign"], r["last"] = sign, now
+                r["travel"] += abs(dxm)
+        r["x"] = e.x_root
+        if now - r["last"] > 0.6:
+            r["turns"] = 0
+        if r["turns"] >= 3 and now - r["pet"] > 1.2:
+            r["pet"], r["turns"] = now, 0
+            self.target, self.vx, self.rest_until = None, 0.0, now + 4
+            self.hop(0.3)
+            self.hearts(2)
+            if self.bubble_until is None or now - getattr(self, "pet_said", 0) > 2.6:
+                self.pet_said = now
+                self.say(random.choice(["쓰담쓰담~ 좋아 💕", "기분 좋아~ 😊", "헤헤 더 해줘!", "스르르… 행복해"]), 2.6)
+
     def react_line(self):
         if not self.state or not self.state.get("pet"):
             return "대시보드에서 파트너를 골라줘! (두 번 누르기)"
@@ -416,6 +445,7 @@ class Pet:
     def on_down(self, e):
         self.drag = {"ox": e.x_root - self.x, "oy": e.y_root - self.y, "dist": 0.0, "last": (e.x_root, e.y_root), "grab": False}
         self.falling = False
+        self.samples = [(time.time(), e.x_root, e.y_root)]
 
     def on_move(self, e):
         if not self.drag:
@@ -424,6 +454,8 @@ class Pet:
         self.drag["dist"] += math.hypot(e.x_root - lx, e.y_root - ly)
         self.drag["last"] = (e.x_root, e.y_root)
         self.x, self.y = e.x_root - self.drag["ox"], e.y_root - self.drag["oy"]
+        now = time.time()
+        self.samples = [p for p in self.samples if now - p[0] <= 0.12] + [(now, e.x_root, e.y_root)]
         if self.drag["dist"] > 6 and not self.drag["grab"]:
             self.drag["grab"] = True
             self.say(random.choice(["으아아 내려줘~", "높다…!", "어디 가는 거야?"]), 2)
@@ -453,8 +485,17 @@ class Pet:
                     self.hearts(3)
                 self.say(self.react_line(), 3)
         else:
-            self.falling, self.vy = True, 0.0
-            self.target, self.rest_until = None, time.time() + 2
+            self.falling, self.vy, self.vx_air, self.thrown, self.bounced = True, 0.0, 0.0, False, False
+            self.target, self.vx, self.rest_until = None, 0.0, time.time() + 2
+            (t0, x0, y0), (t1, x1, y1) = self.samples[0], self.samples[-1]
+            if t1 - t0 > 0.01:
+                vx, vy = (x1 - x0) / (t1 - t0), (y1 - y0) / (t1 - t0)
+                if math.hypot(vx, vy) > 900 * self.dpi:   # 세게 던짐 → 날아감
+                    self.thrown = True
+                    self.vx_air = max(-2600.0, min(2600.0, vx))
+                    self.vy = max(-2600.0, min(2600.0, vy))
+                    self.spin_until = time.time() + 5
+                    self.say(random.choice(["으아아아~!", "날 수 있다…?!", "살려줘어~"]), 0, True)
 
     def on_menu(self, e):
         m = tk.Menu(self.root, tearoff=0, font=("Malgun Gothic", 10))
@@ -504,11 +545,34 @@ class Pet:
         elif self.falling:
             self.vy += 2600 * dt
             self.y += self.vy * dt
+            self.x += self.vx_air * dt
+            self.vx_air *= 0.6 ** dt   # 공기 저항
+            lo, hi = l - self.W * 0.3, r - self.W * 0.7   # 화면 가장자리에 튕김
+            if self.x < lo:
+                self.x, self.vx_air = lo, abs(self.vx_air) * 0.5
+            if self.x > hi:
+                self.x, self.vx_air = hi, -abs(self.vx_air) * 0.5
+            if self.y < self.area[1]:
+                self.y, self.vy = self.area[1], abs(self.vy) * 0.3
             if self.y >= ground:
-                self.y, self.vy, self.falling, self.vx = ground, 0.0, False, 0.0
-                self.squash_until = time.time() + 0.35
-                self.dust(4)
-                self.say("착지!", 1.2)
+                impact = self.vy
+                self.y = ground
+                if self.thrown and not self.bounced and impact > 900:   # 한 번 통 튕기고
+                    self.bounced, self.vy, self.vx_air = True, -impact * 0.35, self.vx_air * 0.6
+                else:
+                    self.vy, self.falling, self.vx, self.vx_air = 0.0, False, 0.0, 0.0
+                    self.squash_until = time.time() + 0.35
+                    self.dust(5 if self.thrown else 4)
+                    if self.thrown:   # 깜짝 놀람
+                        self.spin_until = 0
+                        self.hop(0.7)
+                        self.float_text("!?", "#f5b400", 18, 30)
+                        self.root.after(300, lambda: self.float_text("💫", "#f5b400", -20, 30))
+                        self.say(random.choice(["깜짝이야!! 😵", "어지러워~ 💫", "던지지 마아~ 😣", "휴… 살았다"]), 3.2)
+                        self.rest_until = time.time() + 4
+                    else:
+                        self.say("착지!", 1.2)
+                    self.thrown = False
         else:
             self.y = ground
             self.think(now, mx, l, r, dt)
@@ -582,6 +646,8 @@ class Pet:
                 dx = math.sin(t * 22) * 2
             elif self.mode == "warning":
                 dx = math.sin(t * 12) * 1.5
+        if self.falling and self.thrown and now < self.spin_until and not self.calm:
+            self.facing = 1 if int(t * 10) % 2 else -1
         self.cv.coords(self.img_item, self.W / 2 + dx, self.H - 6 + dy)
         # 진화 중 깜빡임 (동작 줄이기면 생략)
         if now < self.evolving_until and not self.calm:

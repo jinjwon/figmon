@@ -205,6 +205,11 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var vx: CGFloat = 0              // 현재 속도 (가속·감속해서 자연스럽게)
     var lookUntil = Date()           // 출발 전에 목표 쪽을 잠깐 바라보는 시간
     var hovering = false, lastHover = Date.distantPast, nextLook = Date()
+    // 쓰다듬기(커서 비비기) 감지
+    var lastMouseX: CGFloat = 0, rubSign = 0, rubTravel: CGFloat = 0, rubTurns = 0, rubLast = Date.distantPast, lastPet = Date.distantPast
+    // 던지기
+    var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
+    var thrown = false, bounced = false, vxAir: CGFloat = 0
     var pauseUntil = Date()
     var dragging = false, falling = false, grabOffset = CGPoint.zero, dragDistance: CGFloat = 0, lastMouse = CGPoint.zero
     var facing = 0, gait = 0, lastTick = Date(), hidden = false, clickThrough = true   // gait: 0 멈춤, 1 걷기, 2 달리기
@@ -299,12 +304,16 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         dragging = true; falling = false
         grabOffset = CGPoint(x: m.x - x, y: m.y - y)
         dragDistance = 0; lastMouse = m
+        dragSamples = [(ProcessInfo.processInfo.systemUptime, m)]
     }
 
     func dragMoved() {
         let m = NSEvent.mouseLocation
         dragDistance += hypot(m.x - lastMouse.x, m.y - lastMouse.y)
         lastMouse = m
+        let t = ProcessInfo.processInfo.systemUptime
+        dragSamples.append((t, m))
+        dragSamples.removeAll { t - $0.t > 0.12 }   // 놓기 직전 0.12초로 던지는 속도 계산
         if dragDistance > 6 && !grabbed { grabbed = true; js("petEvent('grabbed')") }
     }
 
@@ -323,8 +332,17 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 setFacing(NSEvent.mouseLocation.x > x + W / 2 ? 1 : -1)
             }
         } else {
-            falling = true; vy = 0
-            targetX = nil; pauseUntil = Date().addingTimeInterval(2)
+            falling = true; vy = 0; vxAir = 0; thrown = false; bounced = false
+            targetX = nil; vx = 0; pauseUntil = Date().addingTimeInterval(2)
+            if let a = dragSamples.first, let b = dragSamples.last, b.t - a.t > 0.01 {
+                let vel = CGPoint(x: (b.p.x - a.p.x) / CGFloat(b.t - a.t), y: (b.p.y - a.p.y) / CGFloat(b.t - a.t))
+                if hypot(vel.x, vel.y) > 900 {       // 세게 던짐 → 날아감
+                    thrown = true
+                    vxAir = max(-2600, min(2600, vel.x))
+                    vy = max(-2600, min(2600, vel.y))
+                    js("petEvent('fly')")
+                }
+            }
         }
     }
 
@@ -347,7 +365,25 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         } else if falling {
             vy -= 2600 * dt
             y += vy * dt
-            if y <= ground { y = ground; vy = 0; vx = 0; falling = false; js("petEvent('land')") }
+            x += vxAir * dt
+            vxAir *= CGFloat(pow(0.6, Double(dt)))          // 공기 저항
+            // 화면 가장자리에 튕김
+            let minX = vf.minX - petRect.minX, maxX = vf.maxX - petRect.maxX
+            if x < minX { x = minX; vxAir = abs(vxAir) * 0.5 }
+            if x > maxX { x = maxX; vxAir = -abs(vxAir) * 0.5 }
+            if y > vf.maxY - H { y = vf.maxY - H; vy = -abs(vy) * 0.3 }
+            if y <= ground {
+                let impact = -vy
+                y = ground
+                if thrown && !bounced && impact > 900 {     // 한 번 통 튕기고
+                    bounced = true; vy = impact * 0.35; vxAir *= 0.6
+                } else {
+                    vy = 0; vx = 0; vxAir = 0; falling = false
+                    js(thrown ? "petEvent('surprised')" : "petEvent('land')")
+                    if thrown { pauseUntil = now.addingTimeInterval(4) }
+                    thrown = false
+                }
+            }
         } else {
             y = ground
             think(now: now, mouse: mouse, vf: vf, dt: dt)
@@ -367,6 +403,22 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             if targetX != nil { targetX = nil; pauseUntil = now.addingTimeInterval(3) }
         }
         hovering = over
+        // 커서를 펫 위에서 좌우로 비비면 쓰다듬기 (경험치와는 무관한 반응만)
+        let dxm = mouse.x - lastMouseX
+        lastMouseX = mouse.x
+        if over && !dragging && !falling {
+            if abs(dxm) > 1.5 {
+                let sign = dxm > 0 ? 1 : -1
+                if sign != rubSign && rubTravel > 6 { rubTurns += 1; rubTravel = 0 }
+                rubSign = sign; rubTravel += abs(dxm); rubLast = now
+            }
+            if now.timeIntervalSince(rubLast) > 0.6 { rubTurns = 0 }
+            if rubTurns >= 3 && now.timeIntervalSince(lastPet) > 1.2 {
+                lastPet = now; rubTurns = 0
+                js("petEvent('pet')")
+                targetX = nil; vx = 0; pauseUntil = now.addingTimeInterval(4)
+            }
+        } else { rubTurns = 0 }
     }
 
     /// 모드별 행동: 작업 중엔 가끔 커서 근처로 와서 지켜보고, 딴짓하면 커서로 달려와 항의한다.

@@ -34,7 +34,13 @@ body{font-family:Jua,-apple-system,sans-serif}
 .notice #body{animation:notice .45s ease-out !important}
 .turn #body{animation:turn .2s ease-out !important}
 .land #body{animation:landing .4s ease-out !important}
+.petting #body{animation:petting .7s ease-in-out !important}
+.flying #body{animation:spin .45s linear infinite !important}
+.surprised #body{animation:surprised .9s ease-out !important}
 .evolving #body{animation:evoflash 3s steps(1) forwards !important}
+@keyframes petting{0%,100%{transform:scale(1,1) rotate(0)}20%{transform:scale(1.08,.92) rotate(-5deg)}45%{transform:scale(.97,1.03) rotate(4deg)}70%{transform:scale(1.06,.94) rotate(-3deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes surprised{0%{transform:scale(1.25,.7)}20%{transform:translateY(-18px) scale(.9,1.12)}40%{transform:translateY(0) scale(1.1,.9)}55%{transform:translateX(-4px) rotate(-6deg)}70%{transform:translateX(4px) rotate(6deg)}85%{transform:translateX(-2px) rotate(-3deg)}100%{transform:none}}
 @keyframes breathe{50%{transform:scale(1.025,.975)}}
 @keyframes sleep{50%{transform:scale(1.04,.95)}}
 @keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
@@ -126,6 +132,19 @@ function petEvent(k) {
     }
   }
   if (k === 'dashboard') say('대시보드 열게!', 1500);
+  // 커서로 비비기 → 쓰다듬기 (반응만, 경험치 없음)
+  if (k === 'pet' && !evolving) {
+    play('petting', 700); hearts(2);
+    if (!$('#bubble').classList.contains('show') || !petEvent.petting) say(pick(['쓰담쓰담~ 좋아 💕', '기분 좋아~ 😊', '헤헤 더 해줘!', '스르르… 행복해']), 2600);
+    petEvent.petting = true; clearTimeout(petEvent.pt); petEvent.pt = setTimeout(() => petEvent.petting = false, 2600);
+  }
+  // 세게 던지기 → 날아갔다가 깜짝 놀람
+  if (k === 'fly') { b.classList.remove('grabbed'); if (!calm()) b.classList.add('flying'); say(pick(['으아아아~!', '날 수 있다…?!', '살려줘어~']), 0, true); }
+  if (k === 'surprised') {
+    b.classList.remove('flying', 'grabbed'); play('surprised', 900); dust(5); mark('!?');
+    setTimeout(() => { if (!calm()) floatText('💫', '#ffd84d'); }, 300);
+    say(pick(['깜짝이야!! 😵', '어지러워~ 💫', '던지지 마아~ 😣', '휴… 살았다']), 3200);
+  }
 }
 function reactLine() {
   if (!S || !S.pet) return '대시보드에서 파트너를 골라줘! (두 번 누르기)';
@@ -180,7 +199,7 @@ function modeLine(m) {
 function play(cls, ms) {
   if (calm()) return;
   const b = document.body;
-  ['react', 'tickle', 'notice', 'turn', 'land'].forEach(c => b.classList.remove(c));
+  ['react', 'tickle', 'notice', 'turn', 'land', 'petting', 'surprised'].forEach(c => b.classList.remove(c));
   void b.offsetWidth; b.classList.add(cls);
   clearTimeout(play.t); play.t = setTimeout(() => b.classList.remove(cls), ms);
 }

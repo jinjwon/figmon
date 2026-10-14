@@ -727,6 +727,25 @@ $('#starters').onclick = async e => {
 
 /* ---------- 상호작용 ---------- */
 $('#monBox').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#monBox').click(); } };
+// 커서로 비비면 쓰다듬기 (반응만, 경험치와 무관)
+const rub = {x: null, sign: 0, travel: 0, turns: 0, last: 0, pet: 0};
+$('#monBox').addEventListener('mousemove', e => {
+  const now = Date.now();
+  if (rub.x !== null && Math.abs(e.clientX - rub.x) > 1.5) {
+    const sign = e.clientX > rub.x ? 1 : -1;
+    if (sign !== rub.sign && rub.travel > 6) { rub.turns++; rub.travel = 0; }
+    rub.sign = sign; rub.travel += Math.abs(e.clientX - rub.x); rub.last = now;
+  }
+  rub.x = e.clientX;
+  if (now - rub.last > 600) rub.turns = 0;
+  if (rub.turns >= 3 && now - rub.pet > 1200) {
+    rub.pet = now; rub.turns = 0; wander.restUntil = now + 4000;
+    const b = $('#monBox'); b.classList.remove('pet-jump', 'pet-tickle'); void b.offsetWidth; b.classList.add('pet-tickle');
+    setTimeout(() => b.classList.remove('pet-tickle'), 700);
+    floatText('♥', '#ff8fa8');
+    $('#bubble').textContent = ['쓰담쓰담~ 좋아 💕', '기분 좋아~ 😊', '헤헤 더 해줘!'][Math.floor(Math.random() * 3)];
+  }
+});
 let petClicks = [];
 $('#monBox').onclick = () => {
   const b = $('#monBox'), now = Date.now(), mode = S ? S.live.mode : 'neutral';
