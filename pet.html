@@ -135,7 +135,7 @@ function reportRect() {
 /* ---------- 스프라이트 (진화 단계 + 레벨에 따라 크기가 자람) ---------- */
 function scaleFor(p) {
   if (!p || !p.species) return 1;
-  const lv = [0, 3, 16, 36], nx = [3, 16, 36, 100];
+  const lv = [0, 0, 16, 36], nx = [0, 16, 36, 100];
   const t = Math.min(1, (p.level - lv[p.stage]) / (nx[p.stage] - lv[p.stage]));
   return [0, 1.25, 1.55, 1.85][p.stage] * (1 + 0.18 * t);
 }

@@ -30,7 +30,7 @@ DATA_DIR = Path(os.environ.get("FIGMON_HOME", Path.home() / ".figmon"))
 STATE_FILE = DATA_DIR / "state.json"
 
 XP_PER_LEVEL = 50
-HATCH_LV, EVO1_LV, EVO2_LV, MAX_LV = 3, 16, 36, 100
+EVO1_LV, EVO2_LV, MAX_LV = 16, 36, 100  # Lv.0 기본형 → Lv.16 → Lv.36 최종
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot"]
 DEV_APPS = ["Code", "Visual Studio Code", "Cursor", "Windsurf", "Zed", "Xcode", "Android Studio",
@@ -117,19 +117,19 @@ LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None,
 
 # ---------- 레벨 계산 ----------
 def level_of(xp):
-    return min(MAX_LV, 1 + int(xp // XP_PER_LEVEL))
+    return min(MAX_LV, int(xp // XP_PER_LEVEL))
 
 
 def stage_of(lv):
-    return 0 if lv < HATCH_LV else 1 if lv < EVO1_LV else 2 if lv < EVO2_LV else 3
+    return 1 if lv < EVO1_LV else 2 if lv < EVO2_LV else 3
 
 
 def stage_floor_xp(stage):
-    return [0, HATCH_LV - 1, EVO1_LV - 1, EVO2_LV - 1][stage] * XP_PER_LEVEL
+    return [0, 0, EVO1_LV, EVO2_LV][stage] * XP_PER_LEVEL
 
 
 def species_name(pet, stage):
-    return "알" if stage == 0 else LINES[pet["line"]]["stages"][stage - 1][1]
+    return LINES[pet["line"]]["stages"][stage - 1][1]
 
 
 # ---------- 상태 저장 ----------
@@ -339,8 +339,7 @@ def step(app, url, idle, dt):
         if after != before:
             sb, sa = stage_of(before), stage_of(after)
             if sa > sb:
-                msg = (f"알이 부화했다! {species_name(pet, sa)} 탄생!" if sb == 0
-                       else f"{species_name(pet, sb)} → {species_name(pet, sa)} 진화!")
+                msg = f"{species_name(pet, sb)} → {species_name(pet, sa)} 진화!"
                 log("evo", msg)
                 notify("✨ 진화!", msg)
                 if sa == 3:
@@ -384,13 +383,13 @@ def view():
         lv = level_of(xp)
         st = stage_of(lv)
         line = LINES[pet["line"]]
-        nxt = [HATCH_LV, EVO1_LV, EVO2_LV][st] if st < 3 else None
+        nxt = [None, EVO1_LV, EVO2_LV][st] if st < 3 else None
         out["pet"] = {**pet, "level": lv, "stage": st, "type": line["type"], "gen": line["gen"],
-                      "stages": line["stages"], "species": line["stages"][st - 1] if st else None,
+                      "stages": line["stages"], "species": line["stages"][st - 1],
                       "name": pet.get("nickname") or species_name(pet, st),
                       "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
                       "next_evo_lv": nxt,
-                      "min_to_evo": ((nxt - 1) * XP_PER_LEVEL - xp) / max(cfg["xp_per_work_min"], 0.01) if nxt else None}
+                      "min_to_evo": (nxt * XP_PER_LEVEL - xp) / max(cfg["xp_per_work_min"], 0.01) if nxt else None}
     return out
 
 
@@ -421,13 +420,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        if self.path.split("?")[0] in ("/", "/index.html"):
             self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/state":
             with LOCK:
                 self._send(200, view())
         elif self.path == "/api/meta":
-            self._send(200, {"lines": LINES, "levels": [HATCH_LV, EVO1_LV, EVO2_LV],
+            self._send(200, {"lines": LINES, "levels": [0, EVO1_LV, EVO2_LV],
                              "xp_per_level": XP_PER_LEVEL, "presets": PRESETS})
         elif self.path == "/pet":
             self._send(200, (HERE / "pet.html").read_bytes(), "text/html; charset=utf-8")
@@ -442,11 +441,18 @@ class Handler(BaseHTTPRequestHandler):
         with LOCK:
             s = STATE
             if self.path == "/api/choose":
-                if s["pet"] is not None or str(body.get("line")) not in LINES:
-                    return self._send(400, {"error": "이미 키우는 포켓몬이 있거나 잘못된 선택"})
+                if str(body.get("line")) not in LINES:
+                    return self._send(400, {"error": "잘못된 선택"})
+                if s["pet"] is not None and not body.get("replace"):
+                    return self._send(400, {"error": "이미 키우는 포켓몬이 있어요"})
+                old = s["pet"]
                 s["pet"] = {"line": str(body["line"]), "xp": 0.0, "work_sec": 0.0,
                             "nickname": "", "born": time.time()}
-                log("hatch", f"{LINES[s['pet']['line']]['stages'][0][1]}의 알을 받았어요! 작업해서 부화시키자")
+                new = LINES[s["pet"]["line"]]["stages"][0][1]
+                if old:
+                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp'])))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
+                else:
+                    log("hatch", f"{new}와(과) 함께 시작! 작업할수록 같이 자라요")
             elif self.path == "/api/nickname" and s["pet"]:
                 s["pet"]["nickname"] = str(body.get("nickname", ""))[:12]
             elif self.path == "/api/graduate":
@@ -476,7 +482,7 @@ def launch_pet():
 
 
 def open_window():
-    url = f"http://localhost:{PORT}"
+    url = f"http://localhost:{PORT}/?title=1"  # 실행할 때마다 타이틀 화면부터
     if Path("/Applications/Google Chrome.app").exists():
         subprocess.Popen(["open", "-na", "Google Chrome", "--args", f"--app={url}", "--window-size=460,860"])
     else:
@@ -488,7 +494,7 @@ if __name__ == "__main__":
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"Figmon 실행 중 → http://localhost:{PORT}  (속도 x{SPEED:g}, 종료: Ctrl+C)")
     pet_proc = None if "--no-pet" in sys.argv else launch_pet()
-    if "--no-open" not in sys.argv and (pet_proc is None or STATE["pet"] is None):
+    if "--no-open" not in sys.argv:
         open_window()
     try:
         srv.serve_forever()

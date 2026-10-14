@@ -140,6 +140,25 @@ label.f textarea{height:64px;resize:vertical}
 .evo-overlay p{font:22px Jua,sans-serif;margin-top:24px;text-align:center;padding:0 20px}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:99px;font:16px Jua,sans-serif;transition:transform .35s;z-index:40}
 .toast.show{transform:translateX(-50%) translateY(0)}
+/* ---------- 타이틀 화면 ---------- */
+.title{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 16px;
+  background:radial-gradient(circle at 50% 35%,#2b3260 0%,#12141c 65%);overflow:hidden}
+.title.open{display:flex}
+.title .logo{font:64px/1 Jua,sans-serif;letter-spacing:2px;color:#fff;text-shadow:0 4px 0 #ff6b6b,0 8px 0 #7a2a35,0 14px 30px rgba(0,0,0,.5);animation:logoIn .7s cubic-bezier(.2,1.6,.4,1)}
+.title .logo span{color:#ffd84d}
+.title .tag{margin-top:18px;color:#c9cde0;font-size:15px}
+@keyframes logoIn{from{transform:scale(.3) rotate(-8deg);opacity:0}}
+.parade{display:flex;gap:4px;margin:28px 0 8px;height:72px;align-items:flex-end}
+.parade img{width:min(56px,10vw);height:auto;image-rendering:pixelated;animation:pbounce .9s ease-in-out infinite alternate}
+@keyframes pbounce{to{transform:translateY(-10px)}}
+.title .menu{display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;margin-top:22px}
+.title .menu button{border:0;border-radius:14px;padding:14px;font:19px Jua,sans-serif;cursor:pointer;background:#2a2f45;color:#fff;transition:transform .1s}
+.title .menu button:hover{transform:translateY(-2px)}
+.title .menu .go{background:#ff6b6b;box-shadow:0 4px 0 #a93c45}
+.title .press{margin-top:16px;color:#ffd84d;font:15px Jua,sans-serif;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.title .legal{position:absolute;bottom:14px;left:16px;right:16px;font-size:11px;color:#6f7590;line-height:1.5}
+.legal-foot{margin-top:18px;text-align:center;font-size:11px;color:#5f6580;line-height:1.5}
 @media (max-width:380px){.grid2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -199,6 +218,7 @@ label.f textarea{height:64px;resize:vertical}
       <button class="b primary" id="shareBtn" disabled>🏆 자랑 카드</button>
       <button class="b" id="gradBtn" disabled>🎓 졸업시키기</button>
     </div>
+    <div class="btns"><button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button><button class="b" id="titleBtn">🏠 타이틀 화면</button></div>
   </div>
 
   <div class="card">
@@ -206,16 +226,28 @@ label.f textarea{height:64px;resize:vertical}
     <ul class="events" id="events"></ul>
   </div>
 
+  <div class="legal-foot">비공식 · 비영리 팬 프로젝트 (수익 없음) · Pokémon © Nintendo / Creatures Inc. / GAME FREAK inc.</div>
+
   <div class="card" id="dexCard" style="display:none">
     <div class="muted" style="margin-bottom:8px">📕 졸업한 포켓몬 도감</div>
     <div class="dex" id="dex"></div>
   </div>
 </div>
 
+<!-- 타이틀 화면 -->
+<div class="title" id="title">
+  <div class="logo">FIG<span>MON</span></div>
+  <div class="tag">작업한 만큼 같이 자라는 포켓몬 데스크톱 펫</div>
+  <div class="parade" id="parade"></div>
+  <div class="menu" id="titleMenu"></div>
+  <div class="press">PRESS START</div>
+  <div class="legal">비공식 · 비영리 팬 프로젝트입니다. 수익을 얻지 않습니다.<br>Pokémon © Nintendo / Creatures Inc. / GAME FREAK inc.</div>
+</div>
+
 <!-- 스타팅 고르기 -->
 <div class="modal" id="pickModal"><div class="sheet">
-  <h2>함께 자랄 파트너를 골라줘</h2>
-  <div class="muted">Figma·코딩 등 작업한 시간만큼 알이 부화하고, Lv.16 · Lv.36에 진화해요.</div>
+  <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기">✕</button></div>
+  <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.</div>
   <div class="tabs" id="genTabs"></div>
   <div class="starters" id="starters"></div>
 </div></div>
@@ -442,20 +474,20 @@ function render() {
   if (p) {
     $('#name').textContent = p.name;
     $('#lv').textContent = `Lv.${p.level}`;
-    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type]} · ${p.species ? p.species[1] : '알'}`;
+    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type]} · ${p.species[1]}`;
     $('#xpBar').style.width = (p.lv_progress * 100) + '%';
     $('#evoInfo').textContent = p.next_evo_lv
-      ? `${p.stage === 0 ? '부화' : '다음 진화'}까지 Lv.${p.next_evo_lv} · 작업 약 ${dur(p.min_to_evo * 60)} 남음`
+      ? `다음 진화까지 Lv.${p.next_evo_lv} · 작업 약 ${dur(p.min_to_evo * 60)} 남음`
       : `최종 진화 완료! 누적 작업 ${dur(p.work_sec)} 🎉`;
     $('#track').innerHTML = p.stages.map((s, i) => {
       const reached = p.stage >= i + 1, now = p.stage === i + 1;
       return (i ? '<span class="arrow">›</span>' : '') +
-        `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${[META.levels[0], META.levels[1], META.levels[2]][i]}</div>`;
+        `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${META.levels[i]}</div>`;
     }).join('');
   } else {
     $('#name').textContent = '파트너 없음'; $('#lv').textContent = ''; $('#species').textContent = '';
     $('#xpBar').style.width = '0'; $('#evoInfo').textContent = ''; $('#track').innerHTML = '';
-    if (!$('#pickModal').classList.contains('open')) openPicker();
+    if (!$('#pickModal').classList.contains('open') && !$('#title').classList.contains('open')) openPicker();
   }
 
   $('#bank').textContent = clock(S.bank_sec);
@@ -486,19 +518,47 @@ async function poll() {
 /* ---------- 스타팅 선택 ---------- */
 function openPicker() {
   $('#pickModal').classList.add('open');
+  $('#pickClose').style.display = S && S.pet ? '' : 'none';
+  $('#pickHint').textContent = S && S.pet
+    ? `⚠️ 바꾸면 지금 ${S.pet.name}(Lv.${S.pet.level})와 헤어지고 새 포켓몬이 Lv.0부터 다시 시작해요.`
+    : '진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.';
   $('#genTabs').innerHTML = [1,2,3,4,5,6,7,8,9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}">${g}세대</button>`).join('');
   const lines = Object.entries(META.lines).filter(([, l]) => l.gen === pickGen);
   $('#starters').innerHTML = lines.map(([k, l]) => `<button class="starter" data-k="${k}" style="--c:${TYPE[l.type]}">
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
     <div class="evos">${l.stages.slice(1).map(s => s[1]).join(' → ')}</div></button>`).join('');
 }
+$('#pickClose').onclick = () => $('#pickModal').classList.remove('open');
+$('#switchBtn').onclick = () => openPicker();
+$('#titleBtn').onclick = () => openTitle();
+
+/* ---------- 타이틀 화면 ---------- */
+function openTitle() {
+  const starters = Object.values(META.lines).map(l => l.stages[0][0]).filter((_, i) => i % 3 === (Math.floor(Date.now() / 1000) % 3)).slice(0, 9);
+  $('#parade').innerHTML = starters.map((id, i) => pixTag(id).replace('<img', `<img style="animation-delay:${i * .1}s"`)).join('');
+  $('#titleMenu').innerHTML = S.pet
+    ? `<button class="go" data-a="continue">▶ 이어하기 · ${S.pet.name} Lv.${S.pet.level}</button><button data-a="pick">🔄 포켓몬 바꾸기</button>`
+    : `<button class="go" data-a="pick">▶ 시작하기 · 포켓몬 고르기</button>`;
+  $('#title').classList.add('open');
+}
+$('#titleMenu').onclick = e => {
+  const a = e.target.closest('button')?.dataset.a; if (!a) return;
+  $('#title').classList.remove('open');
+  if (a === 'pick') openPicker();
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && $('#title').classList.contains('open')) $('#titleMenu .go').click();
+});
+
 $('#genTabs').onclick = e => { const g = e.target.dataset.g; if (g) { pickGen = +g; openPicker(); } };
 $('#starters').onclick = async e => {
   const b = e.target.closest('.starter'); if (!b) return;
   const l = META.lines[b.dataset.k];
-  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}Lv.3 부화 → Lv.16 ${l.stages[1][1]} → Lv.36 ${l.stages[2][1]}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
-  S = await api('/api/choose', {line: b.dataset.k});
-  $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); toast('🥚 알을 받았다! 작업해서 부화시키자');
+  const replace = !!S.pet;
+  const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
+  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}Lv.0 ${l.stages[0][1]} → Lv.16 ${l.stages[1][1]} → Lv.36 ${l.stages[2][1]}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
+  S = await api('/api/choose', {line: b.dataset.k, replace});
+  $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); speak(true); toast(`${l.stages[0][1]}와(과) 함께 Lv.0부터 출발!`);
 };
 
 /* ---------- 상호작용 ---------- */
@@ -582,6 +642,9 @@ $('#doShare').onclick = async () => {
 /* ---------- 시작 ---------- */
 (async () => {
   META = await api('/api/meta');
+  S = await api('/api/state');
+  // 실행할 때(?title=1)나 아직 파트너가 없으면 타이틀 화면부터
+  if (new URLSearchParams(location.search).has('title') || !S.pet) openTitle();
   await poll();
   setInterval(poll, 1500);
   setInterval(particle, 700);
