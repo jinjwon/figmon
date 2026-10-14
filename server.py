@@ -18,6 +18,7 @@ import tempfile
 import urllib.request
 import zipfile
 import os
+import plistlib
 import re
 import subprocess
 import sys
@@ -28,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.10.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.11.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -79,16 +80,22 @@ DEFAULT_CONFIG = {
     "distract_apps": ["Steam", "League of Legends", "Battle.net", "Minecraft",
                       "Roblox", "Genshin Impact", "Hearthstone", "Overwatch", "WutheringWaves",
                       "LeagueClient", "RiotClient", "VALORANT", "RobloxPlayer", "GenshinImpact",
-                      "MapleStory", "LOSTARK", "Client-Win64-Shipping"],
+                      "MapleStory", "LOSTARK", "Client-Win64-Shipping",
+                      # 설치형 앱·웹앱으로 쓰는 딴짓 서비스 (브라우저가 아니라 주소를 못 볼 때 이름으로)
+                      "Instagram", "YouTube", "TikTok", "Netflix", "Twitch", "Facebook", "Threads",
+                      "Disney+", "TVING", "티빙", "wavve", "웨이브", "WATCHA", "왓챠", "Coupang Play", "쿠팡플레이",
+                      "CHZZK", "치지직", "SOOP", "Games"],
     "distract_domains": ["youtube.com", "youtu.be", "instagram.com", "tiktok.com",
                          "netflix.com", "twitch.tv", "chzzk.naver.com", "x.com",
-                         "twitter.com", "facebook.com", "afreecatv.com", "sooplive.co.kr"],
+                         "twitter.com", "facebook.com", "afreecatv.com", "sooplive.co.kr", "threads.net",
+                         "disneyplus.com", "tving.com", "wavve.com", "watcha.com", "coupangplay.com"],
     "xp_per_work_min": 1.0,      # 작업 1분당 경험치
     "break_earn_ratio": 5.0,     # 작업 N분 = 휴식 1분
     "bank_max_min": 60.0,        # 휴식 잔고 최대치
     "penalty_xp_per_min": 3.0,   # 잔고 없이 딴짓할 때 분당 감소 경험치
     "grace_sec": 20,             # 경고 후 페널티까지 유예
     "idle_limit_sec": 120,       # 이만큼 입력이 없으면 작업 시간에서 제외
+    "detect_games": True,        # 게임 분류 앱·Steam/Epic 게임은 목록에 없어도 딴짓으로
     # 사용성 / 접근성
     "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
     "pet_size": 1.0,             # 데스크톱 펫 크기 배율
@@ -352,12 +359,26 @@ def track(label, kind, dt, part="", xp=0.0):
     e["xp_lost"] += xp
 
 
+def merge_new_defaults(cfg):
+    """새 버전에서 기본 목록에 추가된 앱·사이트를 기존 사용자 설정에도 넣는다.
+    한 번 본 기본 항목은 기억해 두어서, 사용자가 일부러 지운 건 다시 넣지 않는다."""
+    known = set(cfg.get("_known_defaults", []))
+    for k, v in DEFAULT_CONFIG.items():
+        if isinstance(v, list):
+            cur = cfg.setdefault(k, [])
+            for item in v:
+                if f"{k}:{item}" not in known and item not in cur:
+                    cur.append(item)
+    cfg["_known_defaults"] = [f"{k}:{i}" for k, v in DEFAULT_CONFIG.items() if isinstance(v, list) for i in v]
+
+
 def load_state():
     s = fresh_state()
     if STATE_FILE.exists():
         try:
             s.update(json.loads(STATE_FILE.read_text(encoding="utf-8")))
             s["config"] = {**DEFAULT_CONFIG, **s.get("config", {})}
+            merge_new_defaults(s["config"])
             s["today"] = {**new_today(), **s["today"]}
             s.setdefault("history", [])
         except Exception as e:
@@ -390,11 +411,35 @@ def sh(args, timeout=2):
 
 
 def front_app():
+    """macOS: 앞에 있는 앱의 (이름, 번들 위치)"""
     asn = sh(["lsappinfo", "front"])
     if not asn:
-        return ""
+        return "", ""
     m = re.search(r'"LSDisplayName"\s*=\s*"([^"]*)"', sh(["lsappinfo", "info", "-only", "name", asn]))
-    return m.group(1) if m else ""
+    b = re.search(r'"LSBundlePath"\s*=\s*"([^"]*)"', sh(["lsappinfo", "info", "-only", "bundlepath", asn]))
+    return (m.group(1) if m else ""), (b.group(1) if b else "")
+
+
+GAME_PATHS = ("/steamapps/common/", "\\steamapps\\common\\", "/epic games/", "\\epic games\\",
+              "\\riot games\\", "\\xboxgames\\", "\\gog galaxy\\games\\", "/gog galaxy/games/")
+_APP_INFO = {}
+
+
+def app_info(path):
+    """번들 정보로 알아낸 (웹앱 원래 주소, 게임인지). 크롬·브레이브·엣지 웹앱은 CrAppModeShortcutURL에 주소가 있다"""
+    if not path:
+        return "", False
+    if path not in _APP_INFO:
+        url, game = "", any(g in path.lower() for g in GAME_PATHS)
+        try:
+            with open(os.path.join(path, "Contents", "Info.plist"), "rb") as f:
+                info = plistlib.load(f)
+            url = info.get("CrAppModeShortcutURL", "") or ""
+            game = game or "games" in str(info.get("LSApplicationCategoryType", ""))
+        except Exception:
+            pass
+        _APP_INFO[path] = (url, game)
+    return _APP_INFO[path]
 
 
 def browser_url(app):
@@ -432,14 +477,16 @@ def win_front():
     user32.GetWindowTextW(hwnd, buf, n + 1)
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    name = ""
+    name = full = ""
     h = kernel32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
     if h:
         size = wintypes.DWORD(1024)
         path = ctypes.create_unicode_buffer(1024)
         if kernel32.QueryFullProcessImageNameW(h, 0, path, ctypes.byref(size)):
-            name = Path(path.value).stem
+            full = path.value
+            name = Path(full).stem
         kernel32.CloseHandle(h)
+    LIVE["front_path"] = full
     return name, buf.value, hwnd
 
 
@@ -451,13 +498,17 @@ def win_idle_seconds():
 
 
 def sample():
-    """지금 앞에 있는 (앱 이름, 탭 주소, 창 제목, 입력 없는 초)"""
+    """지금 앞에 있는 (앱 이름, 탭 주소, 창 제목, 입력 없는 초). 게임 여부는 LIVE["front_game"]에"""
     if IS_WIN:
         app, title, hwnd = win_front()
         LIVE["front_hwnd"] = hwnd
+        LIVE["front_game"] = any(g in LIVE.get("front_path", "").lower() for g in GAME_PATHS)
         return app, "", title, win_idle_seconds()
-    app = front_app()
-    return app, browser_url(app), "", idle_seconds()
+    app, path = front_app()
+    shortcut_url, game = app_info(path)
+    LIVE["front_game"] = game
+    # 웹앱(크롬으로 만든 Instagram 앱 등)은 원래 주소로 판단
+    return app, browser_url(app) or shortcut_url, "", idle_seconds()
 
 
 def title_keywords(domain):
@@ -483,23 +534,30 @@ def classify_title(title, cfg):
     return "neutral", (parts[0] if parts else title)[:40]
 
 
-def classify(app, url, cfg, title=""):
-    if title and app.lower() in WIN_BROWSERS:
-        return classify_title(title, cfg)
+WIN_TITLE_APPS = WIN_BROWSERS | {"applicationframehost", "wwahost"}   # 스토어 앱은 창 제목으로
+
+
+def classify(app, url, cfg, title="", game=False):
+    if title and app.lower() in WIN_TITLE_APPS:
+        kind, label = classify_title(title, cfg)
+        if kind != "neutral" or app.lower() in WIN_BROWSERS:
+            return kind, label
+        app = title   # 스토어 앱: 창 제목("Netflix")을 앱 이름처럼 비교
     host = re.sub(r"^[a-z]+://", "", url.lower()).split("/")[0].split(":")[0] if url else ""
     dom = lambda lst: bool(host) and any(host == d or host.endswith("." + d) for d in lst)
     # 앱 이름은 정확히 같거나 앞부분이 같으면 인정 ("IntelliJ IDEA" ↔ "IntelliJ IDEA CE")
     appm = lambda lst: bool(app) and any(a and app.lower().startswith(a.lower()) for a in lst)
     label = host or app
     # AI를 먼저 본다 ("Codex"가 작업 앱 "Code"로 잡히지 않게). AI 절제 모드가 꺼져 있으면 step()에서 neutral 처리
-    if url:  # 브라우저는 앱 이름이 아니라 열린 사이트로 판단
+    if url:  # 브라우저·웹앱은 열린 사이트로 먼저 판단
         for kind in ("ai", "work", "distract"):
             if dom(cfg[kind + "_domains"]):
                 return kind, label
-        return "neutral", label
     for kind in ("ai", "work", "distract"):
         if appm(cfg[kind + "_apps"]):
-            return kind, label
+            return kind, (label if not url else app)
+    if game and cfg.get("detect_games", True):   # 목록에 없어도 게임이면 딴짓
+        return "distract", app
     return "neutral", label
 
 
@@ -575,7 +633,7 @@ def fmt(sec):
 def step(app, url, idle, dt, title=""):
     s, cfg, now = STATE, STATE["config"], time.time()
     roll_day()
-    kind, label = classify(app, url, cfg, title)
+    kind, label = classify(app, url, cfg, title, LIVE.get("front_game", False))
     if now < s.get("paused_until", 0):  # 일시정지 중엔 아무것도 쌓거나 깎지 않음
         LIVE.update(app=app, label=label, idle=int(idle), mode="paused", distract_since=None, penalty_since=None)
         save()
