@@ -113,7 +113,10 @@ function statusLine() {
   const left = min == null ? '최종 진화 완료!' : `${p.stage === 0 ? '부화' : '진화'}까지 ${min >= 60 ? Math.floor(min / 60) + '시간 ' : ''}${Math.ceil(min % 60)}분`;
   return `${p.name} Lv.${p.level} · ${left}`;
 }
+const DAY_LINES = {morning: ['좋은 아침! ☀️ 오늘도 같이 크자'], noon: ['점심은 먹었어? 🍚'], evening: ['저녁 시간이야, 조금만 더!'], night: ['새벽이야… 무리하지 마 🌙']};
+const daypart = (h = new Date().getHours()) => h >= 6 && h < 11 ? 'morning' : h >= 11 && h < 17 ? 'noon' : h >= 17 && h < 21 ? 'evening' : 'night';
 function modeLine(m) {
+  if ((m === 'work' || m === 'neutral') && Math.random() < .25) return pick(DAY_LINES[daypart()]);
   if (S && S.pet && S.pet.stage === 0 && (m === 'work' || m === 'neutral')) return pick(LINES.egg);
   if (m === 'warning') return `${Math.ceil(S.live.grace_left || 0)}초 안에 돌아가! ⚠️`;
   return pick(LINES[m] || LINES.neutral);

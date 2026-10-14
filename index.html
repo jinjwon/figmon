@@ -30,6 +30,15 @@ header h1 span{color:var(--type)}
 .region{position:absolute;inset:0}
 .region svg{width:100%;height:100%;display:block}
 .ground{position:absolute;left:-10%;right:-10%;bottom:-60px;height:130px;border-radius:50%;background:var(--ground);transition:background 1.2s}
+/* 시간대: 아침·점심·저녁·새벽 (지방 배경 위, 펫 아래) */
+.daylayer{position:absolute;inset:0;pointer-events:none;transition:background 2s,opacity 2s}
+.daylayer svg{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 2s}
+.scene.t-morning .daylayer{background:linear-gradient(rgba(255,160,140,.32),rgba(255,215,140,.22) 60%,transparent)}
+.scene.t-evening .daylayer{background:linear-gradient(rgba(110,50,150,.42),rgba(255,105,40,.45) 55%,rgba(90,30,40,.25))}
+.scene.t-night .daylayer{background:linear-gradient(rgba(6,12,40,.78),rgba(20,30,80,.55) 70%,rgba(5,10,30,.5))}
+.scene.t-night .daylayer svg{opacity:1}
+.twinkle{animation:twinkle 3s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.3}}
 /* 상태 틴트: 지방 배경 위에 덮어서 작업/휴식/페널티/자리비움을 표시 */
 .tint{position:absolute;inset:0;pointer-events:none;transition:background 1.2s}
 .scene.break .tint{background:rgba(255,140,60,.22)}
@@ -190,6 +199,13 @@ label.f textarea{height:64px;resize:vertical}
   <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
     <div class="region" id="region" aria-hidden="true"></div>
     <div class="ground"></div>
+    <div class="daylayer" id="daylayer"><svg viewBox="0 0 460 280" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
+      <circle cx="390" cy="48" r="18" fill="#fff6d6"/><circle cx="398" cy="42" r="16" fill="#1a2350"/>
+      <g fill="#fff">
+        <circle class="twinkle" cx="40" cy="30" r="1.6"/><circle cx="90" cy="70" r="1.2"/><circle class="twinkle" cx="150" cy="24" r="1.8" style="animation-delay:1s"/>
+        <circle cx="210" cy="60" r="1.2"/><circle class="twinkle" cx="270" cy="34" r="1.5" style="animation-delay:2s"/><circle cx="330" cy="90" r="1.1"/>
+        <circle class="twinkle" cx="440" cy="100" r="1.4" style="animation-delay:.5s"/><circle cx="20" cy="110" r="1.1"/><circle cx="180" cy="110" r="1"/>
+      </g></svg></div>
     <div class="tint"></div>
     <div class="region-tag" id="regionTag"></div>
     <div class="bubble" id="bubble">…</div>
@@ -458,7 +474,18 @@ const REGIONS = {
     `<polygon points="300,214 330,160 420,160 470,214" fill="#c97a45"/>` +
     `<g transform="translate(400 168)"><polygon points="-9,0 9,0 5,-62 -5,-62" fill="#f2efe6"/><polygon points="-7,-62 7,-62 0,-72" fill="#c4553a"/><g stroke="#8a6a4a" stroke-width="4" stroke-linecap="round"><path d="M0 -62 L24 -86 M0 -62 L-24 -38 M0 -62 L24 -38 M0 -62 L-24 -86"/></g></g>`},
 };
+const DAYPARTS = {
+  morning: {name: '아침', icon: '🌅', lines: ['좋은 아침! ☀️ 오늘도 같이 크자', '아침 공기 좋다~ 시작해볼까?']},
+  noon: {name: '점심', icon: '☀️', lines: ['점심은 먹었어? 🍚', '오후도 힘내자!']},
+  evening: {name: '저녁', icon: '🌇', lines: ['저녁 시간이야, 조금만 더!', '노을 예쁘다… 오늘 수고했어']},
+  night: {name: '새벽', icon: '🌙', lines: ['새벽이야… 무리하지 마 🌙', '졸리면 자도 돼, 내일 또 크자']},
+};
+const daypart = (h = new Date().getHours()) => h >= 6 && h < 11 ? 'morning' : h < 17 && h >= 11 ? 'noon' : h >= 17 && h < 21 ? 'evening' : 'night';
 let regionGen = null;
+function updateTag() {
+  const d = DAYPARTS[daypart()];
+  $('#regionTag').textContent = `${regionGen}세대 · ${REGIONS[regionGen].name} 지방 · ${d.icon} ${d.name}`;
+}
 function setRegion(gen) {
   gen = gen || 1;
   if (gen === regionGen) return;
@@ -466,7 +493,7 @@ function setRegion(gen) {
   const r = REGIONS[gen], sc = $('#scene');
   sc.style.setProperty('--sky1', r.sky[0]); sc.style.setProperty('--sky2', r.sky[1]); sc.style.setProperty('--ground', r.ground);
   $('#region').innerHTML = `<svg viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice">${r.svg}</svg>`;
-  $('#regionTag').textContent = `${gen}세대 · ${r.name} 지방`;
+  updateTag();
   sc.setAttribute('aria-label', `${r.name} 지방 배경에서 포켓몬이 노는 화면`);
 }
 
@@ -487,6 +514,7 @@ function speak(force) {
   if (!force && mode === lastMode && Math.random() < .5) return;
   let pool = LINES[mode] || LINES.neutral;
   if (S.pet && S.pet.stage === 0 && (mode === 'work' || mode === 'neutral')) pool = LINES.egg;
+  if (S.pet && (mode === 'work' || mode === 'neutral') && Math.random() < .25) pool = DAYPARTS[daypart()].lines;
   if (!S.pet) pool = ['파트너를 골라줘!'];
   $('#bubble').textContent = pool[Math.floor(Math.random() * pool.length)];
 }
@@ -562,7 +590,9 @@ const EGG_SVG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://w
 function render() {
   const p = S.pet, live = S.live, cfg = S.config;
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b');
-  $('#scene').className = 'scene ' + live.mode;
+  const dp = daypart();
+  $('#scene').className = `scene ${live.mode} t-${dp}`;
+  if (dp !== render.dp) { render.dp = dp; if (regionGen) updateTag(); }
   setRegion(p ? p.gen : pickGen);
 
   const chipTxt = {work:`🎨 작업 중 · ${live.label}`, break:`🍿 휴식 중 · ${live.label}`, warning:`⚠️ 경고 · ${live.label}`,

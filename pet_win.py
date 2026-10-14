@@ -252,6 +252,11 @@ class Pet:
         return max(1, round(scale * 1.4))
 
     def mode_line(self, m):
+        h = time.localtime().tm_hour
+        part = "morning" if 6 <= h < 11 else "noon" if 11 <= h < 17 else "evening" if 17 <= h < 21 else "night"
+        if m in ("work", "neutral") and random.random() < .25:
+            return {"morning": "좋은 아침! ☀️ 오늘도 같이 크자", "noon": "점심은 먹었어? 🍚",
+                    "evening": "저녁 시간이야, 조금만 더!", "night": "새벽이야… 무리하지 마 🌙"}[part]
         if m == "warning":
             return f"{math.ceil(self.state['live'].get('grace_left') or 0)}초 안에 돌아가! ⚠️"
         return random.choice(LINES.get(m, LINES["neutral"]))
