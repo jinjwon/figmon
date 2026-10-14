@@ -747,44 +747,49 @@ def latest_tag():
 
 
 def win_update(manual=False):
-    """Windows exe 자동 업데이트: 새 Figmon.exe를 받아 두고, 종료 뒤 바꿔 끼운 다음 다시 실행. 업데이트를 시작하면 True."""
+    """Windows exe 자동 업데이트: 새 exe를 받아 실행하면, 새 exe가 이 프로세스가 끝나길 기다렸다가
+    원래 자리에 자기를 복사하고 다시 켠다 (--apply-update). 업데이트를 시작하면 이 프로세스는 끝난다."""
     if not (IS_WIN and getattr(sys, "frozen", False)):
         if manual:
             notify("업데이트", "소스로 실행 중이면 git pull로 업데이트해 주세요")
         return False
     try:
-        tag = latest_tag()
+        test = "--updated" not in sys.argv and os.environ.get("FIGMON_UPDATE_TAG")   # CI 점검용
+        tag = test or latest_tag()
         print(f"update check: latest {tag}, current {VERSION}", flush=True)
         if not newer(tag, VERSION):
             if manual:
                 notify("최신 버전이에요", f"Figmon v{VERSION}")
             return False
-        url = f"https://github.com/{REPO}/releases/download/{tag}/Figmon-Windows.zip"
+        url = (test and os.environ.get("FIGMON_UPDATE_URL")) or f"https://github.com/{REPO}/releases/download/{tag}/Figmon-Windows.zip"
         tmp = Path(tempfile.mkdtemp(prefix="figmon-update-"))
         zpath = tmp / "update.zip"
         zpath.write_bytes(urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Figmon"}), timeout=180).read())
         with zipfile.ZipFile(zpath) as z:
             z.extract("Figmon.exe", tmp)
-        exe = Path(sys.executable)
-        script = tmp / "update.cmd"
-        new = tmp / "Figmon.exe"
-        # onefile exe는 같은 파일로 프로세스가 둘이라, 파일 잠금이 풀릴 때까지 바꿔 끼우기를 다시 시도
-        script.write_text(
-            "@echo off\r\nset n=0\r\n:wait\r\nping -n 2 127.0.0.1 >nul\r\n"
-            f"move /Y \"{new}\" \"{exe}\" >nul 2>&1\r\n"
-            f"if not exist \"{new}\" goto done\r\n"
-            "set /a n+=1\r\nif %n% lss 40 goto wait\r\n:done\r\n"
-            f"start \"\" \"{exe}\" --startup --updated\r\n", encoding="mbcs")  # cmd는 시스템 코드 페이지로 읽음 (한글 사용자 이름 대비)
-        subprocess.Popen(["cmd", "/c", str(script)], creationflags=0x08000000 | 0x00000008)  # 창 없이, 분리 실행
         log("update", f"v{tag.lstrip('v')} 업데이트를 설치하고 다시 시작해요")
         with LOCK:
             save()
+        subprocess.Popen([str(tmp / "Figmon.exe"), "--apply-update", sys.executable, str(os.getpid())],
+                         creationflags=0x00000008 | 0x00000200, close_fds=True)  # DETACHED | NEW_PROCESS_GROUP
         os._exit(0)
     except Exception as e:
         print("update check failed:", repr(e), flush=True)
         if manual:
             notify("업데이트 확인 실패", "인터넷 연결을 확인해 주세요")
     return False
+
+
+def apply_update(target):
+    """(새 exe로 실행됨) 옛 exe 잠금이 풀리면 그 자리에 나를 복사하고 다시 켠다"""
+    import shutil
+    for _ in range(90):
+        try:
+            shutil.copy2(sys.executable, target)
+            break
+        except OSError:
+            time.sleep(1)
+    subprocess.Popen([target, "--startup", "--updated"], close_fds=True)
 
 
 def update_loop():
@@ -821,6 +826,9 @@ def open_window(title=True):
 
 
 if __name__ == "__main__":
+    if "--apply-update" in sys.argv:   # Windows 업데이트 마무리 단계
+        apply_update(sys.argv[sys.argv.index("--apply-update") + 1])
+        sys.exit(0)
     quiet = "--no-open" in sys.argv or "--startup" in sys.argv or "--updated" in sys.argv  # 로그인 자동 실행·업데이트 후엔 창 안 띄움
     if IS_WIN:
         try:

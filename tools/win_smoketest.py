@@ -23,8 +23,17 @@ if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스�
     shutil.copy(ROOT / "dist" / "Figmon.exe", exe)
     before = exe.stat().st_mtime
     home = Path(tempfile.mkdtemp())
+    # 업데이트 파일: 이번에 빌드한 exe를 로컬 서버로 내려줌 (새 업데이트 방식까지 끝까지 점검)
+    serve = Path(tempfile.mkdtemp())
+    import zipfile
+    with zipfile.ZipFile(serve / "Figmon-Windows.zip", "w") as z:
+        z.write(ROOT / "dist" / "Figmon.exe", "Figmon.exe")
+    http = subprocess.Popen([sys.executable, "-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", str(serve)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1)
     env = {**os.environ, "FIGMON_HOME": str(home), "FIGMON_PORT": "7777",
-           "FIGMON_VERSION_OVERRIDE": "1.0.0", "FIGMON_UPDATE_DELAY": "3"}
+           "FIGMON_VERSION_OVERRIDE": "1.0.0", "FIGMON_UPDATE_DELAY": "3",
+           "FIGMON_UPDATE_TAG": "v9.9.9", "FIGMON_UPDATE_URL": "http://127.0.0.1:8765/Figmon-Windows.zip"}
     subprocess.Popen([str(exe), "--startup"], env=env)
     result = "timeout"
     for _ in range(90):
@@ -32,7 +41,7 @@ if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스�
         try:
             with urllib.request.urlopen("http://127.0.0.1:7777/api/state", timeout=3) as r:
                 v = json.loads(r.read()).get("version", "(이전 릴리스)")
-            if v != "1.0.0" and exe.stat().st_mtime != before:
+            if v not in ("1.0.0",) and exe.stat().st_mtime != before:
                 result = f"updated OK -> v{v}"
                 break
         except Exception:
