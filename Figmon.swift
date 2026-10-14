@@ -546,19 +546,20 @@ final class Updater {
         }.resume()
     }
 
+    /// 최신 릴리스: API 대신 releases/latest 리디렉트를 따라가 태그를 알아냄 (요청 횟수 제한 없음)
     private func fetchLatest(manual: Bool) {
-        var req = URLRequest(url: URL(string: "https://api.github.com/repos/jinjwon/figmon/releases/latest")!)
+        var req = URLRequest(url: URL(string: "https://github.com/jinjwon/figmon/releases/latest")!)
         req.setValue("Figmon", forHTTPHeaderField: "User-Agent")
-        URLSession.shared.dataTask(with: req) { data, _, _ in
-            guard let d = data, let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                  let tag = j["tag_name"] as? String, let assets = j["assets"] as? [[String: Any]] else {
+        req.httpMethod = "HEAD"
+        URLSession.shared.dataTask(with: req) { _, resp, _ in
+            guard let final = resp?.url, final.path.contains("/releases/tag/") else {
                 if manual { DispatchQueue.main.async { self.tell("업데이트를 확인하지 못했어요", "인터넷 연결을 확인해 주세요.") } }
                 return
             }
+            let tag = final.lastPathComponent
             let ver = tag.trimmingCharacters(in: CharacterSet(charactersIn: "v"))
             guard Updater.newer(ver, than: appVersion),
-                  let zip = assets.first(where: { $0["name"] as? String == "Figmon-macOS.zip" })?["browser_download_url"] as? String,
-                  let zipURL = URL(string: zip) else {
+                  let zipURL = URL(string: "https://github.com/jinjwon/figmon/releases/download/\(tag)/Figmon-macOS.zip") else {
                 if manual { DispatchQueue.main.async { self.tell("최신 버전이에요", "Figmon v\(appVersion)") } }
                 return
             }

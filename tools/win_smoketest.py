@@ -38,6 +38,11 @@ if mode == "update":   # 옛 버전인 척하는 exe가 최신 릴리스로 스�
         except Exception:
             pass
     print("[update]", result)
+    if not result.startswith("updated"):   # 실패하면 원인 파악용 기록
+        log_file = home / "server.log"
+        print("--- server.log ---\n" + (log_file.read_text(encoding="utf-8", errors="replace") if log_file.exists() else "(none)"))
+        for d in Path(tempfile.gettempdir()).glob("figmon-update-*"):
+            print("--- update dir:", d, [p.name for p in d.iterdir()])
     (OUT / "report-update.txt").write_text(result, encoding="utf-8")
     subprocess.run(["taskkill", "/F", "/IM", "Figmon.exe"], capture_output=True)
     sys.exit(0 if result.startswith("updated") else 1)

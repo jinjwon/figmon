@@ -739,11 +739,11 @@ def newer(a, b):
     return num(a) > num(b)
 
 
-def latest_release():
-    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
-                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "Figmon"})
+def latest_tag():
+    """최신 릴리스 태그. API 대신 releases/latest 리디렉트를 따라가서 알아냄 (요청 횟수 제한 없음)"""
+    req = urllib.request.Request(f"https://github.com/{REPO}/releases/latest", headers={"User-Agent": "Figmon"})
     with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read())
+        return r.geturl().rstrip("/").rsplit("/", 1)[-1]   # …/releases/tag/v1.7.0 → v1.7.0
 
 
 def win_update(manual=False):
@@ -753,16 +753,16 @@ def win_update(manual=False):
             notify("업데이트", "소스로 실행 중이면 git pull로 업데이트해 주세요")
         return False
     try:
-        rel = latest_release()
-        tag = rel.get("tag_name", "")
+        tag = latest_tag()
+        print(f"update check: latest {tag}, current {VERSION}", flush=True)
         if not newer(tag, VERSION):
             if manual:
                 notify("최신 버전이에요", f"Figmon v{VERSION}")
             return False
-        asset = next(a for a in rel.get("assets", []) if a["name"] == "Figmon-Windows.zip")
+        url = f"https://github.com/{REPO}/releases/download/{tag}/Figmon-Windows.zip"
         tmp = Path(tempfile.mkdtemp(prefix="figmon-update-"))
         zpath = tmp / "update.zip"
-        zpath.write_bytes(urllib.request.urlopen(asset["browser_download_url"], timeout=120).read())
+        zpath.write_bytes(urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Figmon"}), timeout=180).read())
         with zipfile.ZipFile(zpath) as z:
             z.extract("Figmon.exe", tmp)
         exe = Path(sys.executable)
@@ -778,7 +778,7 @@ def win_update(manual=False):
             save()
         os._exit(0)
     except Exception as e:
-        print("update check failed:", e)
+        print("update check failed:", repr(e), flush=True)
         if manual:
             notify("업데이트 확인 실패", "인터넷 연결을 확인해 주세요")
     return False
