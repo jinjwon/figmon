@@ -11,6 +11,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "smoketest"
 OUT.mkdir(exist_ok=True)

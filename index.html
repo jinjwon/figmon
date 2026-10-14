@@ -286,7 +286,7 @@ label.f textarea{height:64px;resize:vertical}
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="alert_dialog" style="width:18px;height:18px"> 휴식 잔고가 없을 때 경고 팝업 띄우기 (끄면 알림만)
       </label>
-      <div class="muted" style="margin-top:6px">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
+      <div class="muted" style="margin-top:6px" id="motionHint">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
     </div>
     <div class="card" style="background:var(--card2);margin-top:14px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer" class="jua">
@@ -700,6 +700,7 @@ $('#doShare').onclick = async () => {
 /* ---------- 시작 ---------- */
 (async () => {
   META = await api('/api/meta');
+  if (META.platform === 'windows') $('#motionHint').innerHTML = '움직임이 불편하면 Windows 설정 › 접근성 › 시각 효과 › <b>애니메이션 효과</b>를 꺼 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.';
   S = await api('/api/state');
   // 실행할 때(?title=1)나 아직 파트너가 없으면 타이틀 화면부터
   if (new URLSearchParams(location.search).has('title') || !S.pet) openTitle();

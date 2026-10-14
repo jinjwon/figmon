@@ -31,6 +31,11 @@ IS_WIN = sys.platform == "win32"
 HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))  # PyInstaller 묶음이면 압축 해제 폴더
 DATA_DIR = Path(os.environ.get("FIGMON_HOME", Path.home() / ".figmon"))
 STATE_FILE = DATA_DIR / "state.json"
+for _stream in (sys.stdout, sys.stderr):  # 한글을 못 찍는 Windows 콘솔에서도 죽지 않게
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로그 파일로
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     _log = open(DATA_DIR / "server.log", "a", encoding="utf-8", buffering=1)
