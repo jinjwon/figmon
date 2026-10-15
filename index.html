@@ -220,7 +220,8 @@ button.b:disabled{opacity:.35;cursor:default}
 label.f{display:block;margin-top:10px;font-size:12px;color:var(--mute)}
 label.f input,label.f textarea{display:block;width:100%;margin-top:4px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px;font:13px -apple-system,sans-serif}
 label.f textarea{height:64px;resize:vertical}
-.share-img{width:100%;border-radius:14px;margin-top:10px}
+.share-img{display:block;height:min(62vh,640px);aspect-ratio:9/16;margin:10px auto 0;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.share-hint{text-align:center;font-size:12px;color:var(--mute);margin-top:6px}
 
 .evo-overlay{position:fixed;inset:0;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:30;color:#fff}
 .evo-overlay.open{display:flex}
@@ -522,7 +523,8 @@ label.f textarea{height:64px;resize:vertical}
 <!-- 공유 -->
 <div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-label="자랑 카드"><div class="sheet">
   <h2>완전 성장! 자랑해볼까?</h2>
-  <img class="share-img" id="shareImg" alt="공유 카드">
+  <img class="share-img" id="shareImg" alt="인스타 스토리 크기 자랑 카드">
+  <p class="share-hint">인스타 스토리 크기(1080×1920)예요. 저장해서 스토리에 바로 올려보세요</p>
   <div class="btns">
     <button class="b primary" id="doShare">공유하기</button>
     <button class="b" id="doSave">이미지 저장</button>
@@ -1888,33 +1890,59 @@ $('#setForm').onsubmit = async e => {
 /* ---------- 공유 카드 ---------- */
 let cardBlob, shareText;
 const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
+// 인스타 스토리 규격 1080×1920. 위·아래 250px쯤은 스토리 화면의 프로필·답장 칸에 가려서 중요한 글자는 그 사이에 둠
 async function makeCard() {
-  const p = S.pet, col = TYPE[p.type];
+  const p = S.pet, col = TYPE[p.type], W = 1080, H = 1920;
   await document.fonts.ready;
-  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
-  const bg = g.createLinearGradient(0, 0, 0, 1350); bg.addColorStop(0, '#12141c'); bg.addColorStop(1, col);
-  g.fillStyle = bg; g.fillRect(0, 0, 1080, 1350);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#12141c'); bg.addColorStop(.55, '#12141c'); bg.addColorStop(1, col);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
   const sanct = sanctumOf(p);
-  try {   // 위쪽은 키운 곳(지방·성지) 풍경, 아래로 갈수록 타입 색으로 이어짐
+  try {   // 위쪽 2/3은 키운 곳(지방·성지) 풍경, 아래로 갈수록 어둡게 → 타입 색
     const svg = sceneSVG(sanct ? 'L' + sanct.id : 'g' + p.gen, sanct);
     const scn = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
-    g.drawImage(scn, -166, 0, 1413, 860);
-    const fade = g.createLinearGradient(0, 0, 0, 1350);
-    fade.addColorStop(0, 'rgba(10,12,20,.55)'); fade.addColorStop(.2, 'rgba(10,12,20,0)'); fade.addColorStop(.5, 'rgba(10,12,20,0)'); fade.addColorStop(.66, col);
-    g.fillStyle = fade; g.fillRect(0, 0, 1080, 1350);
-  } catch { g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.arc(540, 620, 400, 0, 7); g.fill(); }
-  g.textAlign = 'center'; g.fillStyle = '#fff';
-  g.font = '56px Jua'; g.fillText('FIGMON', 540, 120);
-  try { const art = await loadImg(ART(p.species[0])); g.drawImage(art, 190, 230, 700, 700); } catch {}
-  const n = p.stages.length;
+    g.drawImage(scn, -518, 0, 2116, 1288);
+  } catch {}
+  let f = g.createLinearGradient(0, 0, 0, H);
+  f.addColorStop(0, 'rgba(10,12,20,.7)'); f.addColorStop(.12, 'rgba(10,12,20,0)'); f.addColorStop(.5, 'rgba(10,12,20,0)');
+  f.addColorStop(.67, 'rgba(14,16,26,1)'); f.addColorStop(1, 'rgba(14,16,26,.55)');
+  g.fillStyle = f; g.fillRect(0, 0, W, H);
+  // 로고 + 배지
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = '64px Jua'; const lw = g.measureText('FIGMON').width, mw = g.measureText('MON').width;
+  g.textAlign = 'left'; g.fillStyle = '#fff'; g.fillText('FIG', W / 2 - lw / 2, 300); g.fillStyle = '#ffd84d'; g.fillText('MON', W / 2 + lw / 2 - mw, 300);
+  g.textAlign = 'center';
+  const badge = sanct ? (sanct.myth ? '✧ 환상의 포켓몬 완전 성장' : '✦ 전설의 포켓몬 완전 성장') : '★ 완전 성장 달성';
+  g.font = '34px Jua'; const bw = g.measureText(badge).width + 64;
+  rr(W / 2 - bw / 2, 330, bw, 62, 31); g.fillStyle = sanct ? (sanct.myth ? 'rgba(255,150,230,.9)' : 'rgba(240,200,90,.92)') : 'rgba(255,255,255,.9)'; g.fill();
+  g.fillStyle = '#1a1420'; g.fillText(badge, W / 2, 373);
+  // 주인공
+  const glow = g.createRadialGradient(W / 2, 760, 40, W / 2, 760, 420); glow.addColorStop(0, col + 'aa'); glow.addColorStop(1, col + '00');
+  g.fillStyle = glow; g.fillRect(0, 300, W, 900);
+  g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(W / 2, 1068, 230, 34, 0, 0, 7); g.fill();
+  try { const art = await loadImg(ART(p.species[0])); g.drawImage(art, 160, 340, 760, 760); } catch {}
+  // 정보 카드
+  rr(70, 1130, 940, 520, 44); g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2; g.stroke();
+  g.font = '38px Jua'; g.fillStyle = '#ffd84d'; g.fillText('완전 성장!', W / 2, 1205);
+  g.font = '108px Jua'; g.fillStyle = '#fff'; g.fillText(p.name, W / 2, 1310, 880);
+  const days = Math.max(1, Math.ceil((Date.now() / 1000 - (p.born || Date.now() / 1000)) / 86400));
+  const stats = [[dur(p.work_sec), '작업한 시간'], [`Lv.${p.level}`, '레벨'], [`${days}일`, '함께한 날']];
+  stats.forEach(([v, l], i) => {
+    const x = 70 + 940 / 6 * (i * 2 + 1);
+    g.font = (v.length > 7 ? 44 : 54) + 'px Jua'; g.fillStyle = '#fff'; g.fillText(v, x, 1408);
+    g.font = '28px Jua'; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(l, x, 1452);
+    if (i) { g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(70 + 940 / 3 * i - 1, 1360, 2, 100); }
+  });
+  const n = p.stages.length, sw = 130, gap = 70, x0 = W / 2 - (n * sw + (n - 1) * gap) / 2;
   for (let i = 0; i < n; i++) {
-    try { const s = await loadImg(ART(p.stages[i][0])); g.globalAlpha = .9; g.drawImage(s, 540 - n * 85 + 15 + i * 170, 930, 140, 140); g.globalAlpha = 1; } catch {}
+    try { const s = await loadImg(ART(p.stages[i][0])); g.drawImage(s, x0 + i * (sw + gap), 1490, sw, sw); } catch {}
+    if (i < n - 1) { g.font = '44px Jua'; g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText('›', x0 + i * (sw + gap) + sw + gap / 2, 1570); }
   }
-  g.font = '78px Jua'; g.fillText(`${p.name} 완전 성장!`, 540, 1160);
-  g.font = '42px Jua'; g.fillStyle = 'rgba(255,255,255,.85)';
-  g.fillText(`${dur(p.work_sec)} 작업 · Lv.${p.level}`, 540, 1230);
-  g.font = '30px Jua'; g.fillStyle = 'rgba(255,255,255,.6)';
-  g.fillText(`${sanct ? sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬 · #Figmon`, 540, 1295);
+  g.font = '32px Jua'; g.fillStyle = 'rgba(255,255,255,.8)';
+  g.fillText(`${sanct ? sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬`, W / 2, 1712);
+  g.font = '28px Jua'; g.fillStyle = 'rgba(255,255,255,.5)';
+  g.fillText('작업한 만큼 자라는 포켓몬 · #Figmon', W / 2, 1758);
   return c;
 }
 async function openShare() {
