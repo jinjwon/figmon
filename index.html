@@ -34,7 +34,6 @@ header h1 span{color:var(--type)}
   background:linear-gradient(var(--sky1),var(--sky2) 72%)}
 .region{position:absolute;inset:0}
 .region svg{width:100%;height:100%;display:block}
-.ground{position:absolute;left:-10%;right:-10%;bottom:-60px;height:130px;border-radius:50%;background:var(--ground);transition:background 1.2s}
 /* 시간대: 아침·점심·저녁·새벽 (지방 배경 위, 펫 아래) */
 .daylayer{position:absolute;inset:0;pointer-events:none;transition:background 2s,opacity 2s}
 .daylayer svg{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 2s}
@@ -52,6 +51,31 @@ header h1 span{color:var(--type)}
 .scene.idle .tint{background:rgba(8,12,40,.62)}
 .scene.ai .tint{background:rgba(110,100,255,.22)}
 .scene.paused .tint{background:rgba(60,64,84,.45)}
+.region .wave{animation:bg-wave 6s linear infinite}
+.region .fall{animation:bg-fall var(--d,20s) linear infinite}
+.region .rise{animation:bg-rise var(--d,20s) linear infinite}
+.region .float{animation:bg-float var(--d,10s) ease-in-out infinite}
+.region .bob{animation:bg-bob var(--d,6s) ease-in-out infinite}
+.region .sway{animation:bg-sway var(--d,8s) ease-in-out infinite alternate}
+.region .spin,.region .tumble{transform-box:fill-box;transform-origin:center;animation:bg-spin var(--d,40s) linear infinite}
+.region .tumble{animation-duration:3s}
+.region .pulse{animation:bg-pulse 4s ease-in-out infinite}
+.region .flash{animation:bg-flash 6s linear infinite}
+@keyframes bg-wave{to{transform:translateX(40px)}}
+@keyframes bg-fall{from{transform:translate(calc(var(--dx) * -1),-300px)}to{transform:translate(var(--dx),300px)}}
+@keyframes bg-rise{0%{transform:translate(0,120px);opacity:0}20%,80%{opacity:1}100%{transform:translate(var(--dx),-120px);opacity:0}}
+@keyframes bg-float{50%{transform:translate(6px,-8px)}}
+@keyframes bg-bob{50%{transform:translateY(-5px)}}
+@keyframes bg-sway{to{transform:translateX(16px)}}
+@keyframes bg-spin{to{transform:rotate(360deg)}}
+@keyframes bg-pulse{50%{opacity:.45}}
+@keyframes bg-flash{0%,88%,93%,100%{opacity:0}89%,91%{opacity:.9}90%,92%{opacity:.25}}
+/* 전설은 금빛 테두리, 환상은 무지갯빛으로 도는 테두리 */
+.scene.legend{box-shadow:0 0 22px rgba(240,200,90,.35)}
+.scene.myth{box-shadow:0 0 22px rgba(255,150,230,.35)}
+.scene.legend:after,.scene.myth:after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 2px #f0cc5a,inset 0 0 34px rgba(255,210,90,.3)}
+.scene.myth:after{box-shadow:inset 0 0 0 2px #ff9fe0,inset 0 0 34px rgba(255,160,230,.3);animation:bg-hue 8s linear infinite}
+@keyframes bg-hue{to{filter:hue-rotate(360deg)}}
 .region-tag{position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font:12px Jua,sans-serif;backdrop-filter:blur(4px)}
 .cloud{animation:drift 60s linear infinite}
 @keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
@@ -298,7 +322,6 @@ label.f textarea{height:64px;resize:vertical}
   <section id="tab-home" role="tabpanel" aria-labelledby="tabbtn-home">
   <div class="scene neutral" id="scene" role="img" aria-label="포켓몬이 노는 화면">
     <div class="region" id="region" aria-hidden="true"></div>
-    <div class="ground"></div>
     <div class="daylayer" id="daylayer"><svg viewBox="0 0 460 280" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
       <circle cx="390" cy="48" r="18" fill="#fff6d6"/><circle cx="398" cy="42" r="16" fill="#1a2350"/>
       <g fill="#fff">
@@ -606,56 +629,603 @@ function ask(title, html, {input = null, yes = '확인', no = '취소'} = {}) {
   });
 }
 
-/* ---------- 세대별 지방 배경 (직접 그린 단순 일러스트) ---------- */
-const cloud = (x, y, s = 1, c = '#fff') => `<g class="cloud"><g transform="translate(${x} ${y}) scale(${s})" fill="${c}" opacity=".9"><ellipse rx="26" ry="11"/><ellipse cx="16" cy="-7" rx="17" ry="12"/><ellipse cx="-15" cy="-4" rx="13" ry="9"/></g></g>`;
-const tree = (x, y, s = 1, c = '#4f9d45') => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-3" y="-4" width="6" height="16" fill="#7a5233"/><circle cy="-14" r="14" fill="${c}"/></g>`;
-const palm = (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 0 Q6 -40 -4 -78" stroke="#8a5a34" stroke-width="7" fill="none"/><g fill="#3f9d55"><path d="M-4 -78 q-34 -6 -46 14 q24 -10 46 -14z"/><path d="M-4 -78 q30 -14 48 4 q-26 -6 -48 -4z"/><path d="M-4 -78 q-12 -26 -38 -24 q22 4 38 24z"/><path d="M-4 -78 q14 -24 38 -18 q-22 2 -38 18z"/></g></g>`;
-const dots = (n, c, r, ymax) => Array.from({length: n}, (_, i) => `<circle cx="${(i * 97) % 460}" cy="${(i * 53) % ymax + 8}" r="${r}" fill="${c}"/>`).join('');
-const REGIONS = {
-  1: {name: '관동', sky: ['#8fd3ff', '#e3f6ff'], ground: '#6cbf5a', svg:
-    cloud(80, 50) + cloud(330, 70, .8) +
-    `<ellipse cx="90" cy="232" rx="170" ry="62" fill="#a6dc8c"/><ellipse cx="390" cy="238" rx="190" ry="72" fill="#93cf7b"/>` +
-    tree(40, 196) + tree(70, 190, .8, '#5aa64e') + tree(400, 186, 1.1) + tree(430, 192, .8, '#5aa64e')},
-  2: {name: '성도', sky: ['#ffbe82', '#ffead0'], ground: '#b7a24a', svg:
-    cloud(110, 55, .9, '#fff3e3') +
-    `<ellipse cx="80" cy="236" rx="180" ry="66" fill="#e39a55"/><ellipse cx="420" cy="240" rx="170" ry="70" fill="#d27f3e"/>` +
-    `<g fill="#8f3f2b"><rect x="356" y="132" width="34" height="80"/><polygon points="338,140 408,140 392,124 354,124"/><polygon points="342,114 404,114 390,100 356,100"/><polygon points="346,90 400,90 388,78 358,78"/><rect x="371" y="56" width="4" height="24"/></g>` +
-    `<g fill="#e0662f" opacity=".8"><ellipse cx="60" cy="90" rx="5" ry="3" transform="rotate(30 60 90)"/><ellipse cx="200" cy="130" rx="5" ry="3" transform="rotate(-20 200 130)"/><ellipse cx="290" cy="70" rx="5" ry="3" transform="rotate(50 290 70)"/></g>`},
-  3: {name: '호연', sky: ['#5cc8f0', '#d2f5ff'], ground: '#e5cf92', svg:
-    `<circle cx="70" cy="60" r="24" fill="#fff3a8"/>` + cloud(200, 50, .8) +
-    `<polygon points="290,206 360,92 388,92 470,206" fill="#8d5b45"/><polygon points="360,92 388,92 382,104 366,104" fill="#e5643a"/>` +
-    `<g fill="#c9c9cf" opacity=".8"><circle cx="372" cy="78" r="9"/><circle cx="384" cy="62" r="12"/><circle cx="398" cy="44" r="15"/></g>` +
-    `<rect x="0" y="182" width="460" height="40" fill="#2f9fd8"/><path d="M0 192 q20 -6 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#bfeaff" stroke-width="2" fill="none"/>`},
-  4: {name: '신오', sky: ['#b5cff0', '#eef5ff'], ground: '#e8f0f7', svg:
-    `<polygon points="-20,215 90,80 200,215" fill="#8ea3c3"/><polygon points="90,80 66,110 80,106 92,118 104,104 114,110" fill="#fff"/>` +
-    `<polygon points="150,215 300,48 450,215" fill="#7a90b3"/><polygon points="300,48 268,86 286,82 300,96 316,80 334,88" fill="#fff"/>` +
-    `<polygon points="340,215 430,110 520,215" fill="#95aac8"/><polygon points="430,110 412,132 432,128 446,132" fill="#fff"/>` +
-    dots(18, '#fff', 2, 170)},
-  5: {name: '하나', sky: ['#7ea7e0', '#dbe6f7'], ground: '#7fae6a', svg:
-    cloud(380, 45, .8) +
-    `<g fill="#5b6b8a">${[[10,120,40],[54,90,34],[92,140,30],[126,70,40],[170,110,36],[300,100,30],[334,60,42],[380,130,34],[418,86,44]].map(([x,y,w]) => `<rect x="${x}" y="${y}" width="${w}" height="${215 - y}"/>`).join('')}</g>` +
-    `<g fill="#ffe7a1" opacity=".85">${dots(26, '#ffe7a1', 1.6, 200).replace(/cy="(\d+)"/g, (m, v) => `cy="${80 + (+v % 120)}"`)}</g>` +
-    `<path d="M200 150 L280 150" stroke="#3f4d66" stroke-width="4"/><path d="M210 110 L210 160 M270 110 L270 160" stroke="#3f4d66" stroke-width="5"/><path d="M200 150 Q210 108 240 140 Q270 108 280 150" stroke="#3f4d66" stroke-width="2" fill="none"/>`},
-  6: {name: '칼로스', sky: ['#ffb6cb', '#fff0f4'], ground: '#8ccf7a', svg:
-    cloud(90, 55, .9) +
-    `<g fill="none" stroke="#6a6f8a" stroke-width="5"><path d="M330 212 L362 60 L370 60 L402 212"/><path d="M338 175 Q366 150 394 175"/><path d="M346 130 L386 130"/></g><rect x="363" y="44" width="6" height="18" fill="#6a6f8a"/>` +
-    `<ellipse cx="120" cy="238" rx="200" ry="64" fill="#a7dc8f"/>` +
-    `${[[40,200,'#ff8fb1'],[80,206,'#ffd166'],[130,198,'#ff8fb1'],[180,204,'#c39bff'],[230,200,'#ffd166']].map(([x,y,c]) => `<circle cx="${x}" cy="${y}" r="5" fill="${c}"/>`).join('')}`},
-  7: {name: '알로라', sky: ['#ff9a6a', '#ffe3a6'], ground: '#f1d49a', svg:
-    `<circle cx="230" cy="168" r="46" fill="#ffd36b"/>` +
-    `<rect x="0" y="170" width="460" height="50" fill="#36b2c8"/><path d="M0 182 q20 -5 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#c6f2f7" stroke-width="2" fill="none"/>` +
-    palm(60, 214) + palm(400, 214, 1.1) + palm(440, 216, .8)},
-  8: {name: '가라르', sky: ['#a7b6c8', '#e6eaf0'], ground: '#6f9a55', svg:
-    cloud(70, 50, 1, '#f1f3f6') + cloud(250, 40, 1.2, '#e3e7ec') + cloud(400, 62, .9, '#f1f3f6') +
-    `<ellipse cx="100" cy="238" rx="200" ry="68" fill="#86ad6f"/><ellipse cx="400" cy="232" rx="170" ry="60" fill="#7aa364"/>` +
-    `<g><ellipse cx="330" cy="176" rx="70" ry="16" fill="#9b9bab"/><rect x="260" y="150" width="140" height="28" fill="#8a8a9a"/><ellipse cx="330" cy="150" rx="70" ry="16" fill="#b5b5c4"/><ellipse cx="330" cy="150" rx="52" ry="10" fill="#6f9a55"/></g>`},
-  9: {name: '팔데아', sky: ['#6fc3ff', '#dcf2ff'], ground: '#b9c96a', svg:
-    cloud(120, 48) +
-    `<ellipse cx="236" cy="172" rx="130" ry="20" fill="#c98a5a"/><ellipse cx="236" cy="168" rx="104" ry="12" fill="#7d5a44" opacity=".7"/>` +
-    `<polygon points="-10,214 20,140 120,140 150,214" fill="#d98a4f"/><polygon points="20,140 120,140 112,152 28,152" fill="#e9a46a"/>` +
-    `<polygon points="300,214 330,160 420,160 470,214" fill="#c97a45"/>` +
-    `<g transform="translate(400 168)"><polygon points="-9,0 9,0 5,-62 -5,-62" fill="#f2efe6"/><polygon points="-7,-62 7,-62 0,-72" fill="#c4553a"/><g stroke="#8a6a4a" stroke-width="4" stroke-linecap="round"><path d="M0 -62 L24 -86 M0 -62 L-24 -38 M0 -62 L24 -38 M0 -62 L-24 -86"/></g></g>`},
+/* ---------- 배경: 지방 9곳 + 전설·환상마다 다른 성지 ---------- */
+// 장면 하나 = 460×280 SVG 한 장 (대시보드 배경과 공유 카드에서 같이 씀). 같은 장면은 늘 같은 모양이 나오게 고정 난수를 씀.
+function sceneCanvas(seed, tag = '') {
+  let s = (seed * 7919 + 104729) % 2147483647, n = 0;
+  const S = {defs: '', out: '',
+    r: () => (s = s * 16807 % 2147483647) / 2147483647,
+    rr: (a, b) => a + (b - a) * S.r(),
+    lin(stops, horiz) {
+      const id = `bg${tag}-${++n}`;
+      S.defs += `<linearGradient id="${id}" x1="0" y1="0" x2="${horiz ? 1 : 0}" y2="${horiz ? 0 : 1}">${stops.map((c, i) => { const [col, a = 1] = [].concat(c); return `<stop offset="${(i / (stops.length - 1)).toFixed(3)}" stop-color="${col}" stop-opacity="${a}"/>`; }).join('')}</linearGradient>`;
+      return `url(#${id})`;
+    },
+    glow(c, a = .7) {
+      const id = `bg${tag}-${++n}`;
+      S.defs += `<radialGradient id="${id}"><stop offset="0" stop-color="${c}" stop-opacity="${a}"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`;
+      return `url(#${id})`;
+    },
+    add(...xs) { S.out += xs.join(''); return S; },
+    flip: inner => S.r() < .5 ? `<g transform="translate(460 0) scale(-1 1)">${inner}</g>` : inner,   // 좌우 반전으로 장면마다 구도를 다르게
+  };
+  return S;
+}
+const f0 = v => Math.round(v);
+const cloud = (x, y, s = 1, c = '#fff', a = .92) => `<g class="cloud"><g transform="translate(${x} ${y}) scale(${s})" fill="${c}" opacity="${a}"><ellipse rx="28" ry="10"/><ellipse cx="14" cy="-8" rx="17" ry="12"/><ellipse cx="-12" cy="-5" rx="13" ry="9"/><ellipse cx="2" cy="-12" rx="10" ry="8"/></g></g>`;
+const tree = (x, y, s, c, hi = '#ffffff') => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-3" y="-9" width="6" height="13" rx="2" fill="#6b4a2f"/><circle cy="-22" r="15" fill="${c}"/><circle cx="-9" cy="-14" r="10" fill="${c}"/><circle cx="9" cy="-15" r="10" fill="${c}"/><circle cx="-5" cy="-27" r="7" fill="${hi}" opacity=".18"/></g>`;
+const pine = (x, y, s, c, snow) => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-2" y="-6" width="4" height="8" fill="#4a3324"/><polygon points="0,-44 -9,-26 9,-26" fill="${c}"/><polygon points="0,-34 -12,-15 12,-15" fill="${c}"/><polygon points="0,-24 -15,-4 15,-4" fill="${c}"/>${snow ? `<g fill="#fff" opacity=".9"><polygon points="0,-44 -4,-36 0,-38 4,-36"/><path d="M-12 -15 L-6 -19 L0 -16 L6 -19 L12 -15 L6 -17 L0 -14 L-6 -17Z"/><path d="M-15 -4 L-8 -9 L0 -6 L8 -9 L15 -4 L8 -6 L0 -3 L-8 -6Z"/></g>` : ''}</g>`;
+const palm = (x, y, s = 1, c = '#2f8a4a', t = '#8a5a34') => `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 0 Q7 -40 -4 -78" stroke="${t}" stroke-width="7" fill="none" stroke-linecap="round"/><g fill="${c}"><path d="M-4 -78 q-34 -6 -48 16 q26 -12 48 -16z"/><path d="M-4 -78 q32 -14 50 6 q-28 -8 -50 -6z"/><path d="M-4 -78 q-14 -28 -40 -24 q24 4 40 24z"/><path d="M-4 -78 q16 -26 40 -18 q-24 2 -40 18z"/><path d="M-4 -78 q2 -24 -6 -34 q10 12 6 34z"/></g></g>`;
+const star = (n, r1, r2) => Array.from({length: n * 2}, (_, i) => { const a = Math.PI * i / n - Math.PI / 2, r = i % 2 ? r2 : r1; return `${(Math.cos(a) * r).toFixed(1)},${(Math.sin(a) * r).toFixed(1)}`; }).join(' ');
+const BGP = {
+  sky: (S, c) => S.add(`<rect width="460" height="280" fill="${S.lin(c)}"/>`),
+  sun: (S, x, y, r, c = '#fff6d0', g = c) => S.add(`<circle cx="${x}" cy="${y}" r="${r * 4}" fill="${S.glow(g, .5)}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/>`),
+  moon: (S, x, y, r, c = '#f3f0ff') => S.add(`<circle cx="${x}" cy="${y}" r="${r * 3.5}" fill="${S.glow(c, .3)}"/><circle cx="${x}" cy="${y}" r="${r}" fill="${c}"/><g fill="#000" opacity=".07"><circle cx="${f0(x - r * .35)}" cy="${f0(y - r * .2)}" r="${f0(r * .22)}"/><circle cx="${f0(x + r * .3)}" cy="${f0(y + r * .3)}" r="${f0(r * .16)}"/></g>`),
+  crescent: (S, x, y, r, c = '#fff3c4') => S.add(`<circle cx="${x}" cy="${y}" r="${r * 3.2}" fill="${S.glow(c, .3)}"/><path d="M${x} ${y - r} A${r} ${r} 0 1 0 ${x} ${y + r} A${f0(r * .7)} ${r} 0 1 1 ${x} ${y - r}Z" fill="${c}"/>`),
+  stars(S, n, ymax = 150, c = '#fff') {
+    let o = '';
+    for (let i = 0; i < n; i++) {
+      const tw = S.r() < .4;
+      o += `<circle${tw ? ` class="twinkle" style="animation-delay:${(S.r() * 3).toFixed(1)}s"` : ''} cx="${f0(S.rr(0, 460))}" cy="${f0(S.rr(3, ymax))}" r="${S.rr(.5, 1.6).toFixed(1)}" opacity="${S.rr(.45, 1).toFixed(2)}"/>`;
+    }
+    return S.add(`<g fill="${c}">${o}</g>`);
+  },
+  // 산맥 실루엣: 기본은 뾰족, smooth면 둥근 언덕, snow면 눈 덮인 봉우리
+  ridge(S, base, amp, fill, o = {}) {
+    const step = o.step || 46;
+    let d = `M-30 280 L-30 ${base}`, caps = '', prev = base;
+    for (let x = -30; x < 490; x += step) {
+      const px = x + step * S.rr(.35, .65), py = base - amp * S.rr(.35, 1), vx = x + step, vy = base - amp * S.rr(0, .25);
+      if (o.smooth) d += ` Q${f0(px)} ${f0(py - amp * .3)} ${vx} ${f0(vy)}`;
+      else {
+        d += ` L${f0(px)} ${f0(py)} L${vx} ${f0(vy)}`;
+        if (o.snow && py < base - amp * .55) {
+          const f = .32;
+          caps += `<path d="M${f0(px)} ${f0(py)} L${f0(px - (px - x) * f)} ${f0(py + (prev - py) * f)} L${f0(px - (px - x) * f * .4)} ${f0(py + (prev - py) * f * .65)} L${f0(px + (vx - px) * f * .2)} ${f0(py + (vy - py) * f * .8)} L${f0(px + (vx - px) * f)} ${f0(py + (vy - py) * f)}Z"/>`;
+        }
+      }
+      prev = vy;
+    }
+    return S.add(`<path d="${d} L490 280Z" fill="${fill}"/>`, caps ? `<g fill="${o.snow === true ? '#f5f8ff' : o.snow}">${caps}</g>` : '');
+  },
+  ground(S, c1, c2, o = {}) {
+    const y = o.y || 210;
+    S.add(`<path d="M-30 ${y + 8} Q100 ${y - 8} 230 ${y} T490 ${y + 2} L490 280 L-30 280Z" fill="${S.lin([c1, c2])}"/>`);
+    if (o.tuft) {
+      let t = '';
+      for (let i = 0; i < 26; i++) { const x = S.rr(0, 460), yy = S.rr(y + 12, 278); t += `<path d="M${f0(x)} ${f0(yy)} l-3 -6 l3 3 l1 -8 l2 8 l3 -5 l-2 8z"/>`; }
+      S.add(`<g fill="${o.tuft}" opacity=".75">${t}</g>`);
+    }
+    return S;
+  },
+  water(S, y, h, c1, c2, line = '#ffffff') {
+    let w = '';
+    for (let i = 0; i < 4; i++) {
+      const yy = y + 5 + i * (h / 4.2);
+      w += `<path class="wave" style="animation-duration:${6 + i * 2}s" d="M-40 ${f0(yy)}${' q10 -3 20 0 t20 0'.repeat(14)}" stroke="${line}" stroke-opacity="${(.55 - i * .1).toFixed(2)}" stroke-width="1.3" fill="none"/>`;
+    }
+    return S.add(`<rect x="0" y="${y}" width="460" height="${h}" fill="${S.lin([c1, c2])}"/>`, w);
+  },
+  bank(S, y, c, a = 1) {   // 구름 바다
+    let o = '';
+    for (let x = -20; x < 500; x += S.rr(26, 44)) o += `<circle cx="${f0(x)}" cy="${f0(y + S.rr(-6, 8))}" r="${f0(S.rr(20, 36))}"/>`;
+    return S.add(`<g fill="${c}" opacity="${a}">${o}<rect x="-20" y="${y}" width="520" height="${280 - y}"/></g>`);
+  },
+  rays(S, c, a = .18) {   // 위에서 비치는 빛줄기
+    let o = '';
+    for (let i = 0; i < 5; i++) { const x = S.rr(20, 440), w = S.rr(14, 34); o += `<polygon class="pulse" style="animation-delay:${-i * 1.3}s" points="${f0(x)},0 ${f0(x + w)},0 ${f0(x + w * 2.6 - 60)},230 ${f0(x - 60)},230"/>`; }
+    return S.add(`<g fill="${c}" opacity="${a}">${o}</g>`);
+  },
+  bolt: (S, x, c) => S.add(`<path class="flash" style="animation-delay:${(-S.r() * 5).toFixed(1)}s" d="M${x} 20 l-10 34 h9 l-14 38 h9 l-16 42" stroke="${c}" stroke-width="2.5" fill="none" stroke-linejoin="round"/>`),
+  // 날리는 것들: snow·leaf·petal은 내려오고 ember·bubble·note는 올라가고 mote는 둥실, spark는 반짝
+  fx(S, kind, n, c, o = {}) {
+    let out = '';
+    for (let i = 0; i < n; i++) {
+      const sz = S.rr(.7, 1.3), d = S.rr(o.min || 14, o.max || 26).toFixed(1), dl = (-S.r() * 26).toFixed(1), dx = f0(S.rr(-30, 30));
+      const shape = {
+        snow: `<circle r="${(1.6 * sz).toFixed(1)}"/>`, ember: `<circle r="${(1.3 * sz).toFixed(1)}"/>`, mote: `<circle r="${(1.5 * sz).toFixed(1)}"/>`,
+        leaf: `<g class="tumble"><path d="M0 -4 Q4 0 0 4 Q-4 0 0 -4z" transform="scale(${sz.toFixed(2)})"/></g>`,
+        petal: `<g class="tumble"><ellipse rx="${(2.6 * sz).toFixed(1)}" ry="${(1.4 * sz).toFixed(1)}"/></g>`,
+        bubble: `<circle r="${(2.4 * sz).toFixed(1)}" fill="none" stroke="${c}" stroke-width="1"/>`,
+        rain: `<path d="M0 0 l-3 11" stroke="${c}" stroke-width="1.1"/>`,
+        note: `<text font-size="${f0(12 * sz)}">${S.r() < .5 ? '♪' : '♫'}</text>`,
+        spark: `<polygon points="${star(4, 4 * sz, 1.2 * sz)}"/>`,
+      }[kind];
+      const cls = {snow: 'fall', leaf: 'fall', petal: 'fall', rain: 'fall', ember: 'rise', bubble: 'rise', note: 'rise', mote: 'float', spark: 'twinkle'}[kind];
+      out += `<g transform="translate(${f0(S.rr(0, 460))} ${f0(S.rr(o.top || 10, o.bottom || 270))})"><g class="${cls}" style="--d:${kind === 'rain' ? (d / 6).toFixed(1) : d}s;--dx:${dx}px;animation-delay:${dl}s">${shape}</g></g>`;
+    }
+    return S.add(`<g fill="${c}" opacity="${o.a || .9}">${out}</g>`);
+  },
+  // 전설·환상: 발밑 마법진 + 위로 솟는 빛
+  aura(S, a, myth) {
+    S.add(`<ellipse cx="230" cy="150" rx="70" ry="150" fill="${S.glow(a, .32)}" class="pulse"/>`,
+      `<ellipse cx="230" cy="225" rx="118" ry="26" fill="${S.glow(a, .6)}"/>`,
+      `<g transform="translate(230 225) scale(1 .25)" opacity=".9"><g class="spin"><circle r="92" fill="none" stroke="${a}" stroke-width="3" stroke-dasharray="16 7"/><circle r="74" fill="none" stroke="${a}" stroke-opacity=".6" stroke-width="2"/><polygon points="${star(myth ? 8 : 6, 72, 40)}" fill="none" stroke="${a}" stroke-opacity=".7" stroke-width="2"/></g></g>`);
+    return BGP.fx(S, 'spark', myth ? 14 : 8, a, {top: 30, bottom: 220});
+  },
 };
+
+/* 지방 9곳: 먼 산 → 랜드마크 → 가까운 언덕 → 땅 → 날리는 것 순서로 겹겹이 */
+const REGIONS = {
+  1: {name: '관동', draw(S) {   // 태초마을과 은빛산
+    BGP.sky(S, ['#5fb8f2', '#a6dbfb', '#e9f8ff']); BGP.sun(S, 70, 48, 13, '#fffbe6', '#fff3b0');
+    S.add(cloud(170, 46, 1), cloud(330, 70, .8), cloud(420, 36, .6));
+    BGP.ridge(S, 182, 46, '#b6d4e6', {step: 70});
+    S.add(`<path d="M300 182 L372 74 L392 86 L410 72 L480 182Z" fill="#9cbcd6"/><path d="M372 74 L392 86 L410 72 L418 92 L404 88 L392 100 L380 90 L362 98Z" fill="#f7fbff"/>`);
+    BGP.ridge(S, 204, 26, '#8fd07a', {smooth: true, step: 90});
+    const house = (x, y, s, roof) => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-18" y="-22" width="36" height="22" fill="#f6f1e4"/><polygon points="-23,-21 0,-38 23,-21" fill="${roof}"/><rect x="-5" y="-12" width="10" height="12" fill="#7a5a3a"/><rect x="-15" y="-17" width="7" height="6" fill="#9fd0f0"/><rect x="8" y="-17" width="7" height="6" fill="#9fd0f0"/></g>`;
+    S.add(house(58, 208, 1, '#d9483b'), house(118, 204, .85, '#d9483b'), `<g transform="translate(176 206)"><rect x="-26" y="-26" width="52" height="26" fill="#eef0f2"/><polygon points="-30,-25 30,-25 22,-36 -22,-36" fill="#7a8a9a"/><rect x="-20" y="-18" width="40" height="7" fill="#9fd0f0"/><rect x="-5" y="-11" width="10" height="11" fill="#5a6a7a"/></g>`);
+    S.add([340, 368, 396, 424, 452, 380, 412].map((x, i) => tree(x, 206 + (i > 4 ? 8 : 0), .95 + (i % 3) * .12, i % 2 ? '#3f8f45' : '#4fa04e')).join(''));
+    BGP.ground(S, '#7ccb62', '#4c973f', {tuft: '#3f8a3a'});
+    S.add(`<path d="M150 280 Q190 246 214 226 Q232 214 250 212" stroke="#e5cf96" stroke-width="16" fill="none" stroke-linecap="round" opacity=".9"/>`,
+      `<g stroke="#a07848" stroke-width="2.5"><path d="M20 236 H120"/><path d="M20 244 H120"/>${[24, 48, 72, 96, 118].map(x => `<path d="M${x} 230 V250"/>`).join('')}</g>`,
+      `<g>${[[300, 240, '#ff7aa8'], [320, 252, '#ffd84d'], [350, 244, '#fff'], [380, 258, '#ff7aa8'], [410, 246, '#ffd84d'], [60, 262, '#fff'], [90, 256, '#ffd84d']].map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="3" fill="${c}"/><circle cx="${x}" cy="${y}" r="1.2" fill="#e58a2a"/>`).join('')}</g>`);
+    BGP.fx(S, 'mote', 6, '#fffbe0', {top: 120, bottom: 230});
+  }},
+  2: {name: '성도', draw(S) {   // 인주시 방울탑과 단풍
+    BGP.sky(S, ['#ef8a5a', '#ffb87e', '#ffe5bf']); BGP.sun(S, 110, 92, 20, '#fff1d0', '#ffcf8a');
+    S.add(cloud(260, 54, .9, '#fff0e0', .8));
+    BGP.ridge(S, 176, 44, '#d8957f', {smooth: true, step: 80}); BGP.ridge(S, 196, 30, '#c27458', {smooth: true, step: 64});
+    let pag = '';
+    for (let i = 0; i < 6; i++) { const y = 210 - i * 22, w = 46 - i * 5; pag += `<rect x="${-w / 2 + 6}" y="${y - 16}" width="${w - 12}" height="16" fill="#8f3a2b"/><path d="M${-w / 2 - 8} ${y - 14} Q0 ${y - 22} ${w / 2 + 8} ${y - 14} L${w / 2 - 2} ${y - 20} L${-w / 2 + 2} ${y - 20}Z" fill="#4a2a2a"/>`; }
+    S.add(S.flip(`<g transform="translate(375 0)">${pag}<rect x="-1.5" y="54" width="3" height="28" fill="#c9a24a"/><circle cy="52" r="4" fill="#ffd84d"/></g>`));
+    S.add(`<g transform="translate(70 214)"><rect x="-26" y="-58" width="5" height="58" fill="#c8402c"/><rect x="21" y="-58" width="5" height="58" fill="#c8402c"/><path d="M-36 -62 Q0 -68 36 -62 L34 -56 L-34 -56Z" fill="#2a1a1a"/><rect x="-30" y="-48" width="60" height="5" fill="#c8402c"/></g>`);
+    S.add([[150, 212, 1.1, '#d9532c'], [190, 216, .8, '#f0862f'], [260, 214, .9, '#e8b03a'], [300, 212, 1.2, '#c8402c'], [450, 214, 1, '#f0862f'], [20, 214, .9, '#e8b03a']].map(([x, y, s, c]) => tree(x, y, s, c, '#fff3c0')).join(''));
+    BGP.ground(S, '#cfa552', '#8a6a2c', {tuft: '#a07a30'});
+    S.add(`<g transform="translate(120 238)"><rect x="-6" y="-26" width="12" height="4" fill="#9a9a9a"/><rect x="-4" y="-22" width="8" height="10" fill="#bdbdbd"/><rect x="-1" y="-20" width="2" height="5" fill="#ffd56b"/><polygon points="-9,-26 9,-26 0,-33" fill="#8a8a8a"/><rect x="-3" y="-12" width="6" height="12" fill="#a8a8a8"/></g>`);
+    BGP.fx(S, 'leaf', 16, '#e2582a'); BGP.fx(S, 'leaf', 8, '#f2a23a');
+  }},
+  3: {name: '호연', draw(S) {   // 굴뚝산과 바다
+    BGP.sky(S, ['#33aee8', '#86d6fb', '#e0f7ff']); BGP.sun(S, 60, 46, 16, '#fffae0', '#fff4a0');
+    S.add(cloud(190, 40, .8), cloud(250, 62, .6));
+    S.add(S.flip(`<path d="M250 174 L338 74 L366 78 L384 72 L470 174Z" fill="#9a6a52"/><path d="M338 74 L366 78 L384 72 L380 86 L362 82 L346 90Z" fill="#e5643a"/><g fill="#d6d6dc" opacity=".85"><circle class="float" style="--d:9s" cx="362" cy="62" r="10"/><circle class="float" style="--d:11s" cx="372" cy="44" r="14"/><circle class="float" style="--d:13s" cx="388" cy="24" r="18"/></g>`));
+    BGP.water(S, 168, 50, '#2aa2dc', '#1b7fb8', '#d6f4ff');
+    S.add(`<path d="M60 172 q20 -14 44 0z" fill="#3f9a5a"/><path d="M150 170 q10 -8 22 0z" fill="#4faa60"/>`,
+      `<g class="bob" style="--d:5s"><path d="M196 186 h34 l-6 7 h-22z" fill="#fff"/><path d="M212 185 v-26 l14 22z" fill="#ffefe0"/><path d="M210 185 v-20 l-10 18z" fill="#f05a4a"/></g>`,
+      `<g stroke="#2a3a4a" stroke-width="1.5" fill="none"><path class="float" style="--d:7s" d="M120 92 q5 -5 10 0 q5 -5 10 0"/><path class="float" style="--d:9s" d="M300 110 q4 -4 8 0 q4 -4 8 0"/></g>`);
+    BGP.ground(S, '#f2dea4', '#d6b874', {y: 214});
+    S.add(`<path class="wave" style="animation-duration:7s" d="M-40 218${' q10 -4 20 0 t20 0'.repeat(14)}" stroke="#fff" stroke-width="3" fill="none" opacity=".8"/>`,
+      palm(40, 244, 1.05), palm(424, 250, 1.15, '#2f9a55'),
+      `<g fill="#f7a8b8"><path d="M300 256 q6 -8 12 0 q-6 4 -12 0z"/><circle cx="140" cy="262" r="3" fill="#fff4dc"/><circle cx="350" cy="248" r="2.5" fill="#fff4dc"/></g>`);
+    BGP.fx(S, 'spark', 6, '#ffffff', {top: 172, bottom: 214});
+  }},
+  4: {name: '신오', draw(S) {   // 천관산과 눈 덮인 숲
+    BGP.sky(S, ['#8fb2e2', '#c6dbf3', '#f2f7ff']); BGP.sun(S, 400, 44, 11, '#ffffff', '#e8f2ff');
+    BGP.ridge(S, 170, 70, '#b4c7e0', {snow: true, step: 60});
+    S.add(`<path d="M120 196 L236 46 L262 60 L280 40 L400 196Z" fill="#7d93b8"/><path d="M236 46 L262 60 L280 40 L296 70 L282 64 L268 80 L252 68 L228 76Z" fill="#f8fbff"/><path d="M262 60 L268 196 L240 196Z" fill="#6c82a8" opacity=".55"/>`);
+    BGP.ridge(S, 200, 34, '#9fb4d2', {snow: true, step: 52});
+    S.add(`<ellipse cx="300" cy="228" rx="92" ry="12" fill="#cfe6f8"/><ellipse cx="290" cy="226" rx="50" ry="4" fill="#fff" opacity=".6"/>`);
+    S.add([10, 34, 58, 84, 384, 410, 436, 458].map((x, i) => pine(x, 214 + (i % 2) * 6, 1 + (i % 3) * .18, '#2f5a4f', true)).join(''));
+    BGP.ground(S, '#f5f9fd', '#d3e1ee', {y: 214});
+    S.add(`<g fill="#c4d6e8">${[[60, 250, 18], [180, 262, 26], [400, 256, 22]].map(([x, y, r]) => `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="4"/>`).join('')}</g>`);
+    BGP.fx(S, 'snow', 34, '#ffffff', {min: 16, max: 30});
+  }},
+  5: {name: '하나', draw(S) {   // 구름시티 빌딩 숲 · 스카이애로 브리지 · 관람차
+    BGP.sky(S, ['#4f74b8', '#8eaedd', '#e6eef9']);
+    S.add(cloud(380, 40, .8, '#eef3ff', .7));
+    let city = '', win = '';
+    [[0, 112, 30], [32, 86, 26], [60, 128, 22], [84, 64, 34], [120, 104, 28], [300, 96, 26], [328, 58, 36], [366, 118, 24], [392, 80, 34], [428, 108, 32]].forEach(([x, y, w], i) => {
+      city += `<rect x="${x}" y="${y}" width="${w}" height="${200 - y}" fill="${i % 2 ? '#5a6a8c' : '#4d5c7c'}"/>`;
+      for (let yy = y + 8; yy < 190; yy += 10) for (let xx = x + 5; xx < x + w - 5; xx += 8) if (S.r() < .45) win += `<rect x="${xx}" y="${yy}" width="4" height="5"/>`;
+    });
+    S.add(`<rect x="94" y="40" width="2" height="24" fill="#4d5c7c"/>`, city, `<g fill="#ffe6a0" opacity=".85" class="twinkle" style="--d:5s">${win}</g>`);
+    S.add(`<g transform="translate(60 128)"><g class="spin" style="--d:60s"><circle r="44" fill="none" stroke="#e8edf6" stroke-width="2.5"/>${Array.from({length: 12}, (_, i) => { const a = i * Math.PI / 6; return `<path d="M0 0 L${(Math.cos(a) * 44).toFixed(1)} ${(Math.sin(a) * 44).toFixed(1)}" stroke="#e8edf6" stroke-width="1"/><circle cx="${(Math.cos(a) * 44).toFixed(1)}" cy="${(Math.sin(a) * 44).toFixed(1)}" r="3.5" fill="${['#ff8a8a', '#ffd06b', '#8ad0ff'][i % 3]}"/>`; }).join('')}</g><path d="M-14 72 L0 0 L14 72" stroke="#c8d0e0" stroke-width="3" fill="none"/></g>`);
+    BGP.water(S, 196, 20, '#4a7fc0', '#3a6aa8', '#cfe2ff');
+    S.add(`<g stroke="#e8ecf4" fill="none"><path d="M140 186 H330" stroke-width="4"/><path d="M175 186 V120 M295 186 V120" stroke-width="5"/><path d="M140 182 Q175 112 235 168 Q295 112 330 182" stroke-width="1.6"/>${[190, 205, 220, 250, 265, 280].map(x => `<path d="M${x} 186 V${f0(160 - Math.abs(x - 235) * -.2)}" stroke-width=".8"/>`).join('')}</g>`);
+    BGP.ground(S, '#82b36c', '#557f48', {y: 214, tuft: '#4a7a3e'});
+    S.add([90, 380].map(x => `<g transform="translate(${x} 230)"><rect x="-1.5" y="-38" width="3" height="38" fill="#3f4d66"/><path d="M0 -38 h8" stroke="#3f4d66" stroke-width="2"/><circle cx="9" cy="-35" r="4" fill="#fff2b8"/><circle cx="9" cy="-35" r="12" fill="${S.glow('#fff2b8', .45)}"/></g>`).join(''));
+  }},
+  6: {name: '칼로스', draw(S) {   // 미르시티 프리즘타워
+    BGP.sky(S, ['#ff9fbd', '#ffc8d8', '#fff2f6']); BGP.sun(S, 90, 60, 14, '#fffaf0', '#ffe0ea');
+    S.add(cloud(170, 50, .9, '#fff', .8), cloud(410, 36, .6, '#fff', .8));
+    let bld = '';
+    for (let x = -10; x < 470; x += 40) {
+      if (x > 300 && x < 400) continue;
+      const h = S.rr(48, 70);
+      bld += `<rect x="${x}" y="${f0(200 - h)}" width="38" height="${f0(h)}" fill="#f4e6d2"/><path d="M${x - 2} ${f0(200 - h)} L${x + 6} ${f0(188 - h)} H${x + 32} L${x + 40} ${f0(200 - h)}Z" fill="#7d8aa8"/>`;
+      for (let yy = 206 - h; yy < 194; yy += 14) bld += `<rect x="${x + 6}" y="${f0(yy)}" width="7" height="9" fill="#a8c4e0"/><rect x="${x + 25}" y="${f0(yy)}" width="7" height="9" fill="#a8c4e0"/>`;
+    }
+    S.add(`<g opacity=".95">${bld}</g>`);
+    S.add(`<g transform="translate(352 0)"><path d="M-34 204 L-6 52 H6 L34 204 H22 Q0 160 -22 204Z" fill="${S.lin(['#8a92b8', '#5a6288'])}"/><path d="M-22 150 H22 M-14 108 H14 M-9 80 H9" stroke="#4a5278" stroke-width="3"/><polygon points="0,14 -7,52 7,52" fill="#6a7298"/><circle cy="30" r="22" fill="${S.glow('#fff3a8', .7)}" class="pulse"/><polygon points="0,18 -4,30 0,42 4,30" fill="#fff7c8"/></g>`);
+    BGP.ground(S, '#96d483', '#5e9f52', {y: 212, tuft: '#4f8f45'});
+    S.add(`<ellipse cx="90" cy="240" rx="70" ry="9" fill="#5e9f52"/><ellipse cx="380" cy="246" rx="64" ry="8" fill="#5e9f52"/>`,
+      `<g>${Array.from({length: 26}, (_, i) => `<circle cx="${f0((i < 13 ? 30 : 322) + (i % 13) * 9.5)}" cy="${f0((i < 13 ? 236 : 242) + (i % 2) * 3)}" r="3.4" fill="${['#ff7aa8', '#ffd166', '#c39bff', '#fff'][i % 4]}"/>`).join('')}</g>`,
+      `<g transform="translate(220 248)"><rect x="-14" y="-3" width="28" height="3" fill="#fff"/><rect x="-1" y="0" width="2" height="12" fill="#c8c8d8"/><path d="M-12 -3 Q0 -18 12 -3" fill="#ff7aa8" opacity=".9"/></g>`);
+    BGP.fx(S, 'petal', 14, '#ffb3cc');
+  }},
+  7: {name: '알로라', draw(S) {   // 노을 바다와 섬
+    BGP.sky(S, ['#ff6a5a', '#ffa86a', '#ffe0a0']); BGP.sun(S, 230, 160, 28, '#ffe680', '#ffb050');
+    S.add(cloud(80, 60, 1, '#ffd0b0', .6), cloud(390, 44, .8, '#ffd0b0', .6));
+    S.add(S.flip(`<path d="M300 168 L346 120 L360 124 L372 116 L430 168Z" fill="#b2507a"/><path d="M346 120 L360 124 L372 116 L368 128 L354 124Z" fill="#ff8a6a"/><path d="M20 168 q40 -26 96 0z" fill="#a04a72"/>`));
+    BGP.water(S, 166, 54, '#2a9fc0', '#176e8f', '#ffd8a8');
+    S.add(`<g fill="#ffe680" opacity=".7">${[172, 180, 190, 202].map((y, i) => `<rect class="pulse" style="animation-delay:${-i}s" x="${230 - 30 + i * 4}" y="${y}" width="${60 - i * 8}" height="2" rx="1"/>`).join('')}</g>`);
+    BGP.ground(S, '#f5d8a0', '#dcb878', {y: 216});
+    S.add(`<path class="wave" style="animation-duration:8s" d="M-40 220${' q10 -4 20 0 t20 0'.repeat(14)}" stroke="#fff" stroke-width="3" fill="none" opacity=".75"/>`,
+      palm(30, 250, 1.25, '#2a6a4a', '#6a3a2a'), palm(70, 244, .9, '#2a6a4a', '#6a3a2a'), palm(430, 252, 1.1, '#2a6a4a', '#6a3a2a'),
+      `<g transform="translate(380 252)"><path d="M0 0 q-8 -10 0 -16 q8 6 0 16z" fill="#ff4a6a"/><path d="M0 0 q-12 -2 -14 -12 q10 0 14 12z" fill="#ff5a7a"/><path d="M0 0 q12 -2 14 -12 q-10 0 -14 12z" fill="#ff5a7a"/><circle r="2" fill="#ffd84d"/></g>`,
+      `<g transform="translate(130 254) rotate(-14)"><ellipse rx="22" ry="5" fill="#4fc8e0"/><path d="M-20 0 H20" stroke="#fff" stroke-width="1.5"/></g>`);
+    BGP.fx(S, 'spark', 8, '#fff2c0', {top: 168, bottom: 214});
+  }},
+  8: {name: '가라르', draw(S) {   // 흐린 하늘 · 시계탑 · 스타디움 · 언덕의 울타리
+    BGP.sky(S, ['#8a9cb4', '#bcc9d8', '#eef1f5']);
+    S.add(cloud(70, 44, 1.3, '#f2f4f7'), cloud(240, 30, 1.6, '#e4e8ee'), cloud(400, 54, 1.1, '#f2f4f7'), cloud(320, 80, .7, '#dfe4ea'));
+    BGP.ridge(S, 186, 30, '#9fb79a', {smooth: true, step: 110});
+    S.add(S.flip(`<g transform="translate(70 0)"><rect x="-11" y="70" width="22" height="120" fill="#c8b48a"/><rect x="-14" y="98" width="28" height="28" fill="#b8a47a"/><circle cy="112" r="10" fill="#f6f1e0"/><path d="M0 112 V105 M0 112 H6" stroke="#3a3a3a" stroke-width="1.5"/><polygon points="-12,70 12,70 0,36" fill="#5a6a6a"/><rect x="-1" y="26" width="2" height="12" fill="#5a6a6a"/></g>`
+      + `<g transform="translate(350 0)"><ellipse cy="194" rx="84" ry="18" fill="#8a8a9c"/><rect x="-84" y="160" width="168" height="34" fill="#9a9aac"/><ellipse cy="160" rx="84" ry="18" fill="#b8b8c8"/><ellipse cy="161" rx="64" ry="11" fill="#6f9a55"/>${[-60, -20, 20, 60].map(x => `<rect x="${x}" y="128" width="2" height="34" fill="#7a7a8a"/><path d="M${x + 2} 128 h14 l-4 5 l4 5 h-14z" fill="${x < 0 ? '#e8414a' : '#4a7ae8'}"/>`).join('')}</g>`));
+    BGP.ridge(S, 206, 22, '#86ad6f', {smooth: true, step: 120});
+    BGP.ground(S, '#7aa65f', '#4c773c', {y: 214, tuft: '#45703a'});
+    S.add(`<path d="M-10 236 Q120 224 260 238 T480 230" stroke="#9a9a92" stroke-width="5" fill="none" stroke-dasharray="9 2"/>`,
+      [[110, 252], [140, 258], [340, 250]].map(([x, y]) => `<g transform="translate(${x} ${y})"><circle r="9" fill="#fbf8f0"/><circle cx="-6" cy="-4" r="6" fill="#fbf8f0"/><circle cx="6" cy="-4" r="6" fill="#fbf8f0"/><ellipse cx="0" cy="1" rx="4.5" ry="4" fill="#d8c8a8"/><circle cx="-1.5" cy="0" r=".9" fill="#333"/><circle cx="1.5" cy="0" r=".9" fill="#333"/></g>`).join(''));
+    BGP.fx(S, 'rain', 18, '#ffffff', {a: .35});
+  }},
+  9: {name: '팔데아', draw(S) {   // 에리어 제로 대공동 · 테이블시티 아카데미 · 풍차
+    BGP.sky(S, ['#43aaf4', '#93d3ff', '#e8f7ff']); BGP.sun(S, 400, 42, 14, '#fffbe6', '#fff2b0');
+    S.add(cloud(110, 44, .9), cloud(300, 30, .7));
+    S.add(`<ellipse cx="230" cy="170" rx="210" ry="22" fill="#b98a68"/><ellipse cx="230" cy="166" rx="176" ry="13" fill="#6a4a40"/><ellipse cx="230" cy="166" rx="150" ry="8" fill="${S.glow('#d8f0ff', .7)}"/>`);
+    S.add(S.flip(`<polygon points="-10,214 18,136 116,136 150,214" fill="#d98a4f"/><polygon points="18,136 116,136 110,148 24,148" fill="#eaa76c"/><g stroke="#b06a3a" stroke-width="1.5" opacity=".5"><path d="M30 160 H120 M24 180 H134"/></g>`));
+    S.add(`<g transform="translate(250 196)"><polygon points="-90,4 -60,-30 60,-30 92,4" fill="#cdb48a"/><rect x="-36" y="-66" width="72" height="38" fill="#f4efe4"/><path d="M-36 -66 Q0 -96 36 -66" fill="#e2a04a"/><rect x="-6" y="-112" width="12" height="48" fill="#f4efe4"/><polygon points="-9,-112 9,-112 0,-128" fill="#c4553a"/>${[-26, -12, 2, 16].map(x => `<rect x="${x}" y="-56" width="8" height="12" rx="4" fill="#8ab8d8"/>`).join('')}</g>`);
+    S.add([[400, 196, 1], [440, 202, .8]].map(([x, y, s]) => `<g transform="translate(${x} ${y}) scale(${s})"><polygon points="-8,0 8,0 5,-58 -5,-58" fill="#f2efe6"/><polygon points="-7,-58 7,-58 0,-70" fill="#c4553a"/><g transform="translate(0 -60)"><g class="spin" style="--d:${s > .9 ? 9 : 7}s"><g stroke="#8a6a4a" stroke-width="3.5" stroke-linecap="round"><path d="M-24 -24 L24 24 M-24 24 L24 -24"/></g><g fill="#f6f1e6">${[0, 90, 180, 270].map(a => `<polygon transform="rotate(${a + 45})" points="2,0 26,0 26,-7 2,-4"/>`).join('')}</g></g></g></g>`).join(''));
+    BGP.ground(S, '#c4d070', '#8fa34a', {y: 212});
+    S.add(`<g>${Array.from({length: 7}, (_, i) => `<path d="M-20 ${226 + i * 8} Q230 ${220 + i * 8} 480 ${228 + i * 8}" stroke="${i % 2 ? '#a8b85a' : '#d4dc78'}" stroke-width="4" fill="none" opacity=".7"/>`).join('')}</g>`,
+      [40, 70, 400, 432].map(x => `<g transform="translate(${x} 248)"><rect x="-1" y="-14" width="2" height="14" fill="#5a7a3a"/><g fill="#ffcc2a">${[0, 60, 120, 180, 240, 300].map(a => `<ellipse transform="rotate(${a} 0 -16) translate(0 -5)" cx="0" cy="-16" rx="2" ry="4"/>`).join('')}</g><circle cy="-16" r="3" fill="#7a4a1a"/></g>`).join(''));
+    BGP.fx(S, 'mote', 6, '#ffffff', {top: 150, bottom: 200});
+  }},
+};
+
+/* 전설·환상 성지: 테마(그리는 방식) + 장소 이름 + 고유 색. 같은 테마라도 색·구도·소품이 달라서 포켓몬마다 다른 장면이 됨 */
+const SANCT_THEMES = {
+  fire(S, o) {
+    BGP.sky(S, o.s || ['#1e0a14', '#6a1a1a', '#ff7a3a']);
+    BGP.ridge(S, 168, 60, '#22080e', {step: 58});
+    S.add(S.flip(`<path d="M30 214 L124 96 Q150 86 176 94 L290 214Z" fill="${S.lin(['#7a3426', '#3a1212'])}"/><path d="M124 96 Q150 86 176 94 L160 214 L140 214Z" fill="#000" opacity=".12"/><ellipse cx="150" cy="94" rx="24" ry="5" fill="${o.a}"/><circle cx="150" cy="92" r="30" fill="${S.glow(o.a, .55)}" class="pulse"/><path class="pulse" d="M150 98 Q140 140 158 168 T144 214" stroke="${o.a}" stroke-width="4" fill="none" opacity=".85"/><g fill="${o.steam ? '#e8eef2' : '#5a4a4a'}" opacity="${o.steam ? .8 : .7}"><circle class="float" style="--d:10s" cx="150" cy="70" r="13"/><circle class="float" style="--d:12s" cx="160" cy="46" r="18"/><circle class="float" style="--d:14s" cx="146" cy="20" r="22"/></g>`));
+    if (o.metal) S.add(`<g transform="translate(372 214)"><rect x="-26" y="-90" width="52" height="90" fill="#4a3a3a"/><rect x="-18" y="-120" width="10" height="32" fill="#3a2a2a"/><rect x="8" y="-110" width="10" height="22" fill="#3a2a2a"/><rect x="-14" y="-40" width="28" height="22" fill="${o.a}" class="pulse"/></g>`);
+    if (o.tower) S.add(`<g transform="translate(370 0)" fill="#2a1414">${[0, 1, 2, 3].map(i => `<rect x="${-22 + i * 3}" y="${200 - i * 30 - 26}" width="${44 - i * 6}" height="26"/><path d="M${-34 + i * 4} ${200 - i * 30 - 24} L${34 - i * 4} ${200 - i * 30 - 24} L${20 - i * 4} ${200 - i * 30 - 34} L${-20 + i * 4} ${200 - i * 30 - 34}Z" fill="#1a0a0a"/>`).join('')}<path d="M-30 100 L-12 76 L4 92 L18 72 L32 100" fill="none" stroke="${o.a}" stroke-width="2" opacity=".6"/></g>`);
+    BGP.ground(S, '#3a1614', '#140606', {y: 212});
+    S.add(`<g stroke="${o.a}" stroke-width="2" fill="none" opacity=".8" class="pulse"><path d="M40 240 l18 6 l10 -8 l20 10"/><path d="M300 256 l14 -6 l16 8 l22 -4"/><path d="M160 268 l20 -4 l12 6"/></g>`);
+    BGP.fx(S, o.steam ? 'mote' : 'ember', 22, o.steam ? '#ffffff' : o.a);
+  },
+  storm(S, o) {
+    BGP.sky(S, o.s || ['#141a34', '#38446a', '#6c7a9c']);
+    BGP.ridge(S, 186, 50, '#2a3250', {step: 64});
+    if (o.pylon) S.add(S.flip(`<g stroke="#1a2038" stroke-width="2.5" fill="none">${[80, 160].map(x => `<path d="M${x - 14} 204 L${x} 100 L${x + 14} 204 M${x - 20} 120 H${x + 20} M${x - 14} 140 H${x + 14} M${x - 8} 170 L${x + 10} 150"/>`).join('')}<path d="M60 120 Q120 140 180 120" stroke-width="1"/></g><g transform="translate(360 210)"><rect x="-50" y="-44" width="100" height="44" fill="#2a3048"/><rect x="-40" y="-60" width="18" height="18" fill="#2a3048"/>${[-34, -14, 6, 26].map(x => `<rect class="flash" style="animation-delay:${x / 10}s" x="${x}" y="-30" width="10" height="8" fill="${o.a}"/>`).join('')}</g>`));
+    if (o.ruins) S.add(S.flip(`<g fill="#3a4060">${[[300, 150, 16], [330, 120, 18], [364, 140, 16], [396, 110, 18]].map(([x, y, w]) => `<rect x="${x}" y="${y}" width="${w}" height="${214 - y}"/><rect x="${x - 3}" y="${y - 6}" width="${w + 6}" height="6"/>`).join('')}</g><g fill="${o.a}" opacity=".7" class="pulse">${[[306, 170], [336, 150], [370, 168], [402, 140]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2"/><circle cx="${x + 5}" cy="${y}" r="2"/><circle cx="${x + 2.5}" cy="${y + 6}" r="2"/>`).join('')}</g>`));
+    if (o.tower) S.add(S.flip(`<g transform="translate(380 0)"><path d="M-22 214 L-14 30 H14 L22 214Z" fill="#20263e"/>${[60, 100, 140, 180].map(y => `<rect x="-18" y="${y}" width="36" height="4" fill="${o.a}" opacity=".5"/>`).join('')}<path d="M-14 30 L0 6 L14 30Z" fill="#20263e"/><circle cy="20" r="18" fill="${S.glow(o.a, .7)}" class="pulse"/></g>`));
+    S.add(cloud(60, 34, 1.8, '#2a3048'), cloud(220, 22, 2.2, '#323a58'), cloud(400, 40, 1.9, '#2a3048'));
+    BGP.bolt(S, f0(S.rr(60, 160)), o.a); BGP.bolt(S, f0(S.rr(300, 420)), o.a);
+    if (o.wind) S.add(`<g stroke="${o.a}" stroke-width="2" fill="none" opacity=".55" stroke-linecap="round">${[60, 110, 150].map((y, i) => `<path class="wave" style="animation-duration:${4 + i}s" d="M-40 ${y} q40 -16 80 0 t80 0 q20 -20 0 -24 q-16 0 -8 12"/>`).join('')}</g>`);
+    BGP.ground(S, '#3a4a4a', '#1c2424', {y: 212, tuft: '#26302e'});
+    if (o.grass) S.add(`<g fill="#2a3a30">${Array.from({length: 40}, () => { const x = f0(S.r() < .5 ? S.rr(-10, 150) : S.rr(310, 470)), h = f0(S.rr(30, 70)); return `<path class="sway" style="--d:${(3 + S.r() * 3).toFixed(1)}s" d="M${x} 280 Q${x - 4} ${280 - h / 2} ${x + 6} ${280 - h} Q${x + 2} ${280 - h / 2} ${x + 5} 280Z"/>`; }).join('')}</g>`);
+    S.add(`<rect width="460" height="280" fill="${o.a}" opacity="0" class="flash"/>`);
+    BGP.fx(S, 'rain', 40, '#cfe0ff', {a: .5});
+  },
+  ice(S, o) {
+    BGP.sky(S, o.s || (o.cave ? ['#0a1a30', '#163a5a', '#4a8ab0'] : ['#0e2446', '#2a5a8c', '#9fd0ee']));
+    if (o.aurora) S.add(`<g opacity=".7">${[[30, o.a], [60, '#b88aff'], [44, '#7fffd0']].map(([y, c], i) => `<path class="sway" style="--d:${10 + i * 3}s" d="M-20 ${y + 40} Q80 ${y} 160 ${y + 30} T340 ${y + 20} T500 ${y + 30} L500 ${y + 70} Q400 ${y + 50} 300 ${y + 64} T100 ${y + 60} T-20 ${y + 80}Z" fill="${S.lin([[c, .7], [c, 0]])}"/>`).join('')}</g>`);
+    if (!o.cave) BGP.stars(S, 40, 120);
+    if (!o.cave && o.moon) BGP.moon(S, 390, 50, 14);
+    if (o.cave) {
+      S.add(`<path d="M-10 0 H470 V280 H420 Q440 120 340 60 Q230 20 120 60 Q20 120 40 280 H-10Z" fill="${S.lin(['#0a1c30', '#163050'])}"/>`);
+      let ic = '';
+      for (let x = 30; x < 440; x += S.rr(14, 28)) { const h = S.rr(14, 40), yb = 60 - Math.max(0, 1 - Math.abs(x - 230) / 200) * 30; ic += `<polygon points="${f0(x - 5)},${f0(yb)} ${f0(x + 5)},${f0(yb)} ${f0(x)},${f0(yb + h)}"/>`; }
+      S.add(`<g fill="#bfe8ff" opacity=".85">${ic}</g>`);
+    } else BGP.ridge(S, 180, 66, '#3a6a9a', {snow: true, step: 56});
+    if (o.braille) S.add(`<g transform="translate(230 212)"><rect x="-80" y="-120" width="160" height="120" fill="#2a4a6a" opacity=".9"/><rect x="-80" y="-120" width="160" height="8" fill="#4a7aa0"/><g fill="${o.a}" class="pulse">${Array.from({length: 18}, (_, i) => `<circle cx="${-60 + (i % 6) * 24 + (i % 2) * 6}" cy="${-96 + Math.floor(i / 6) * 22 + (i % 3) * 4}" r="3"/>`).join('')}</g></g>`);
+    if (o.temple) S.add(`<g transform="translate(230 210)"><polygon points="-120,0 -100,-16 100,-16 120,0" fill="#8a9ab0"/>${[-88, -52, -16, 20, 56, 92].map(x => `<rect x="${x - 4}" y="-96" width="12" height="80" fill="#a8b8cc"/>`).join('')}<polygon points="-110,-96 110,-96 0,-128" fill="#7a8aa0"/><circle cy="-110" r="7" fill="${o.a}" class="pulse"/></g>`);
+    if (o.grave) S.add(`<g fill="#4a5a7a">${[[60, 224], [110, 230], [350, 226], [400, 232], [440, 222]].map(([x, y]) => `<path d="M${x - 8} ${y} V${y - 18} Q${x} ${y - 28} ${x + 8} ${y - 18} V${y}Z"/>`).join('')}</g><g fill="${o.a}" opacity=".8">${[60, 350, 440].map(x => `<circle class="float" style="--d:7s" cx="${x}" cy="196" r="3"/>`).join('')}</g>`);
+    let cr = '';
+    [[40, 214, 1.2], [80, 216, .8], [390, 214, 1.4], [430, 216, .9], [350, 216, .7]].forEach(([x, y, s]) => { cr += `<g transform="translate(${x} ${y}) scale(${s})"><polygon points="-8,0 -4,-40 2,-46 6,-38 8,0" fill="${S.lin(['#e8f8ff', o.a])}"/><polygon points="6,0 12,-26 18,-22 16,0" fill="${o.a}" opacity=".8"/><polygon points="-6,0 -16,-22 -10,-28 -2,0" fill="#d8f2ff" opacity=".9"/></g>`; });
+    S.add(S.flip(cr));
+    BGP.ground(S, '#eef6fc', '#b8d0e6', {y: 212});
+    S.add(`<ellipse cx="230" cy="236" rx="120" ry="10" fill="#cfe8f8" opacity=".7"/>`);
+    BGP.fx(S, 'snow', 30, '#ffffff');
+  },
+  cave(S, o) {
+    BGP.sky(S, o.s || ['#120a20', '#24163a', '#3a2a50']);
+    S.add(`<path d="M-10 0 H470 V280 H430 Q450 110 330 56 Q230 24 130 56 Q10 110 30 280 H-10Z" fill="${S.lin([o.wall || '#1a1028', '#0c0614'])}"/>`);
+    let st = '';
+    for (let x = 60; x < 400; x += S.rr(20, 36)) { const h = S.rr(10, 30), yb = 50 - Math.max(0, 1 - Math.abs(x - 230) / 200) * 20; st += `<polygon points="${f0(x - 6)},${f0(yb)} ${f0(x + 6)},${f0(yb)} ${f0(x)},${f0(yb + h)}"/>`; }
+    S.add(`<g fill="${o.wall || '#1a1028'}">${st}</g>`);
+    if (o.hex) S.add(`<g fill="none" stroke="${o.a}" stroke-width="1.5" opacity=".5" class="pulse">${Array.from({length: 14}, (_, i) => { const x = 70 + (i % 7) * 50 + (i > 6 ? 25 : 0), y = 90 + (i > 6 ? 40 : 0); return `<polygon points="${[0, 1, 2, 3, 4, 5].map(k => `${f0(x + 16 * Math.cos(k * Math.PI / 3))},${f0(y + 16 * Math.sin(k * Math.PI / 3))}`).join(' ')}"/>`; }).join('')}</g>`);
+    if (o.tera) S.add(`<g opacity=".9">${[[230, 120, 60, '#8fe8ff'], [150, 150, 34, '#ff9fe0'], [320, 150, 38, '#ffe27a'], [90, 190, 26, '#9fffb8'], [380, 190, 30, '#b8a0ff']].map(([x, y, r, c]) => `<polygon class="pulse" points="${[0, 1, 2, 3, 4, 5].map(k => `${f0(x + r * Math.cos(k * Math.PI / 3 + .5))},${f0(y + r * Math.sin(k * Math.PI / 3 + .5))}`).join(' ')}" fill="${c}" opacity=".35" stroke="${c}" stroke-width="2"/>`).join('')}</g>`);
+    if (o.ruin) S.add(S.flip(`<g fill="#3a3040"><rect x="300" y="120" width="70" height="94"/><rect x="292" y="112" width="86" height="10"/></g><g fill="${o.a}" class="pulse">${[[312, 140], [336, 140], [360, 140], [324, 164], [348, 164]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3"/>`).join('')}</g>`));
+    const crys = (x, y, s, c) => `<g transform="translate(${x} ${y}) scale(${s})"><circle cy="-20" r="34" fill="${S.glow(c, .45)}"/><polygon points="-6,0 -10,-30 -2,-44 4,-30 4,0" fill="${c}"/><polygon points="-2,-44 4,-30 4,0 -2,0" fill="#fff" opacity=".35"/><polygon points="4,0 10,-22 18,-26 16,0" fill="${c}" opacity=".85"/><polygon points="-6,0 -18,-18 -14,-24 -4,-6" fill="${c}" opacity=".7"/></g>`;
+    S.add(crys(50, 216, 1.3, o.a), crys(96, 220, .8, o.b || o.a), crys(400, 216, 1.5, o.b || o.a), crys(440, 222, .9, o.a), crys(352, 222, .7, o.a));
+    BGP.ground(S, o.floor || '#2a1e36', '#120a1a', {y: 214});
+    S.add(`<ellipse cx="230" cy="240" rx="130" ry="10" fill="${o.a}" opacity=".12"/>`);
+    BGP.fx(S, 'mote', 18, o.a);
+  },
+  forest(S, o) {
+    BGP.sky(S, o.s || ['#0e2a20', '#2a5a3e', '#8acb7a']);
+    if (o.dead) BGP.sun(S, 230, 70, 22, '#ffb0a0', o.a);
+    BGP.rays(S, o.dead ? '#ffb0a0' : '#fff8c8', .14);
+    let far = '';
+    for (let x = -10; x < 480; x += S.rr(18, 30)) far += o.dead ? `<path d="M${f0(x)} 200 V${f0(S.rr(90, 140))} M${f0(x)} 150 l-10 -14 M${f0(x)} 130 l9 -12" stroke="#2a1416" stroke-width="3" fill="none"/>` : `<g transform="translate(${f0(x)} 200) scale(${S.rr(1.4, 2.2).toFixed(2)})">${pine(0, 0, 1, '#0f3020')}</g>`;
+    S.add(`<g opacity=".8">${far}</g>`);
+    if (o.giant) S.add(`<g transform="translate(230 0)"><path d="M-26 214 Q-20 150 -30 90 L30 90 Q22 150 28 214Z" fill="#4a3424"/><g fill="${o.a}" opacity=".9"><circle cx="-60" cy="70" r="46"/><circle cx="60" cy="68" r="50"/><circle cy="40" r="54"/><circle cx="-110" cy="96" r="30"/><circle cx="110" cy="96" r="32"/></g><g fill="#fff" opacity=".25"><circle cx="-30" cy="30" r="16"/><circle cx="40" cy="44" r="12"/></g></g>`);
+    if (o.shrine) S.add(S.flip(`<g transform="translate(370 214)"><rect x="-22" y="-34" width="44" height="34" fill="#8a5a3a"/><path d="M-32 -32 Q0 -50 32 -32 L26 -40 Q0 -54 -26 -40Z" fill="#4a6a3a"/><rect x="-8" y="-24" width="16" height="24" fill="#3a2414"/><circle cy="-18" r="5" fill="${o.a}" class="pulse"/><path d="M-30 -40 H30" stroke="#d8c8a8" stroke-width="1.5" stroke-dasharray="3 3"/></g>`));
+    if (o.ruins) S.add(S.flip(`<g fill="#5a6a5a">${[[310, 140, 18], [350, 120, 20], [392, 150, 16]].map(([x, y, w]) => `<rect x="${x}" y="${y}" width="${w}" height="${214 - y}"/><rect x="${x - 4}" y="${y - 6}" width="${w + 8}" height="6"/>`).join('')}</g><g fill="#4f8a3a" opacity=".8"><circle cx="318" cy="140" r="8"/><circle cx="360" cy="122" r="10"/><circle cx="398" cy="150" r="7"/></g>`));
+    if (o.jungle) S.add(`<g fill="#1f5a2a">${[[20, 214, -30], [70, 220, 20], [400, 216, 30], [446, 214, -20]].map(([x, y, r]) => `<path transform="translate(${x} ${y}) rotate(${r})" d="M0 0 Q-30 -40 0 -90 Q30 -40 0 0Z"/>`).join('')}</g>`);
+    S.add([[30, 216, 1.3], [80, 220, 1], [380, 218, 1.2], [436, 216, 1.4]].map(([x, y, s]) => o.dead ? `<path d="M${x} ${y} V${y - 60 * s} M${x} ${y - 40 * s} l-14 -12 M${x} ${y - 30 * s} l12 -14" stroke="#3a1a1a" stroke-width="${4 * s}" fill="none"/>` : tree(x, y, s, '#2f6a3a')).join(''));
+    BGP.ground(S, o.dead ? '#4a2a28' : '#3f7a3a', o.dead ? '#1a0c0c' : '#1f4a24', {y: 214, tuft: o.dead ? '#2a1414' : '#2a6030'});
+    if (o.fog) S.add(`<g>${[[80, 176], [330, 168], [200, 206], [420, 220], [20, 226]].map(([x, y], i) => `<ellipse class="sway" style="--d:${12 + i * 3}s" cx="${x}" cy="${y}" rx="${170 + i * 10}" ry="${22 + i * 3}" fill="${S.glow('#e8f0ff', .55)}"/>`).join('')}</g>`);
+    if (o.flowers) S.add(`<g>${Array.from({length: 30}, () => `<circle cx="${f0(S.rr(0, 460))}" cy="${f0(S.rr(226, 276))}" r="2.6" fill="${[o.a, '#fff', '#ffd84d'][f0(S.rr(0, 2))]}"/>`).join('')}</g>`);
+    BGP.fx(S, o.dead ? 'ember' : 'mote', 20, o.a);
+  },
+  meadow(S, o) {
+    BGP.sky(S, o.s || ['#7ec8f8', '#bfe6ff', '#fff4f8']); BGP.sun(S, 70, 50, 14, '#fffbe6', '#fff0c0');
+    if (o.rainbow) S.add(`<g fill="none" stroke-width="7" opacity=".55">${['#ff6b6b', '#ffb36b', '#ffe66b', '#7fe07f', '#6bb8ff', '#a08aff'].map((c, i) => `<path d="M40 ${200} A${190 - i * 7} ${170 - i * 7} 0 0 1 ${420 - i * 14} 200" stroke="${c}" transform="translate(${i * 7} 0)"/>`).join('')}</g>`);
+    S.add(cloud(200, 44, 1.1, '#fff'), cloud(390, 66, .8, '#fff'));
+    BGP.ridge(S, 190, 40, o.hill1 || '#a8dc8a', {smooth: true, step: 100}); BGP.ridge(S, 204, 24, o.hill2 || '#8fd07a', {smooth: true, step: 80});
+    if (o.altar) S.add(S.flip(`<g transform="translate(370 210)"><rect x="-36" y="-10" width="72" height="10" fill="#c8b890"/><rect x="-26" y="-20" width="52" height="10" fill="#d8c8a0"/>${[-30, 22].map(x => `<rect x="${x}" y="-70" width="8" height="50" fill="#e0d4b0"/>`).join('')}<rect x="-34" y="-76" width="68" height="7" fill="#c8b890"/><circle cy="-46" r="9" fill="${o.a}" class="pulse"/></g>`));
+    if (o.lighthouse) S.add(S.flip(`<g transform="translate(380 0)"><path d="M-14 206 L-9 96 H9 L14 206Z" fill="#fff"/>${[120, 150, 180].map(y => `<rect x="-12" y="${y}" width="24" height="10" fill="#e8414a"/>`).join('')}<rect x="-11" y="80" width="22" height="16" fill="#3a3a4a"/><circle cy="88" r="6" fill="#ffe680"/><polygon class="pulse" points="0,88 -120,60 -120,116" fill="#fff6c0" opacity=".25"/><path d="M-13 80 L0 66 L13 80Z" fill="#e8414a"/></g>`));
+    if (o.stage) S.add(`<path d="M-10 0 H74 Q52 70 64 130 Q46 180 58 214 H-10Z M470 0 H386 Q408 70 396 130 Q414 180 402 214 H470Z" fill="${S.lin(['#b03a4a', '#6a1a2a'])}"/><path d="M30 0 Q24 100 34 214 M430 0 Q436 100 426 214" stroke="#000" stroke-opacity=".18" stroke-width="3" fill="none"/><path d="M-10 0 H470 V18${Array.from({length: 12}, (_, i) => ` Q${f0(450 - i * 40)} 40 ${f0(430 - i * 40)} 18`).join('')} H-10Z" fill="#8a2a3a"/><path d="M-10 18 H470" stroke="#e8c45a" stroke-width="2"/><ellipse cx="230" cy="40" rx="90" ry="200" fill="${S.glow('#fff6d0', .25)}"/>`);
+    BGP.ground(S, o.g1 || '#8fd474', o.g2 || '#5aa04e', {y: 212, tuft: '#4f8f45'});
+    const cols = o.flowers || [o.a, '#fff', '#ffd84d', '#ff8fb1'];
+    S.add(`<g>${Array.from({length: 46}, () => { const x = f0(S.rr(0, 460)), y = f0(S.rr(222, 278)), c = cols[f0(S.rr(0, cols.length - 1))]; return `<circle cx="${x}" cy="${y}" r="${S.rr(2, 3.6).toFixed(1)}" fill="${c}"/><circle cx="${x}" cy="${y}" r="1" fill="#fff6c0"/>`; }).join('')}</g>`);
+    BGP.fx(S, o.notes ? 'note' : 'petal', 16, o.notes ? o.a : (o.petal || '#ffc8dc'));
+  },
+  lake(S, o) {
+    BGP.sky(S, o.s || ['#2a3a6a', '#6a8ac0', '#d8e8f8']);
+    if (o.night) BGP.stars(S, 50, 140);
+    if (o.crescent) BGP.crescent(S, 120, 60, 22); else if (o.night) BGP.moon(S, 380, 52, 15); else BGP.sun(S, 380, 56, 13, '#fffbe6', '#fff0c0');
+    if (o.aurora) S.add(`<g opacity=".6">${[[20, o.a], [40, '#7fffd0']].map(([y, c], i) => `<path class="sway" style="--d:${12 + i * 4}s" d="M-20 ${y + 40} Q100 ${y} 220 ${y + 30} T500 ${y + 20} L500 ${y + 70} Q300 ${y + 50} -20 ${y + 80}Z" fill="${S.lin([[c, .7], [c, 0]])}"/>`).join('')}</g>`);
+    BGP.ridge(S, 168, 50, o.m1 || '#4a6a8a', {snow: o.snow, step: 54}); BGP.ridge(S, 176, 26, o.m2 || '#3a5a6a', {smooth: true, step: 70});
+    S.add(`<rect x="0" y="174" width="460" height="46" fill="${S.lin([o.w1 || '#5a8ac0', o.w2 || '#2a5a8a'])}"/>`);
+    S.add(`<g transform="translate(230 182)"><ellipse rx="54" ry="8" fill="${o.isle || '#3a5a4a'}"/><path d="M-40 0 Q-30 -26 -8 -30 Q14 -34 30 -18 Q42 -8 44 0Z" fill="${o.isle || '#3a5a4a'}"/><ellipse cx="2" cy="-8" rx="9" ry="7" fill="#1a2a2a"/><ellipse cx="2" cy="-8" rx="12" ry="10" fill="${S.glow(o.a, .8)}" class="pulse"/><ellipse cy="14" rx="44" ry="5" fill="${o.a}" opacity=".18"/></g>`);
+    S.add(`<g stroke="#fff" opacity=".4" stroke-width="1.2">${[186, 196, 206].map((y, i) => `<path class="wave" style="animation-duration:${8 + i * 3}s" d="M-40 ${y}${' q10 -2 20 0 t20 0'.repeat(14)}" fill="none"/>`).join('')}</g>`);
+    BGP.ground(S, o.g1 || '#5a8a5a', o.g2 || '#2a4a34', {y: 218, tuft: '#2a5a34'});
+    S.add(`<g fill="#5a7a5a">${[20, 34, 420, 440].map(x => `<path d="M${x} 222 q-2 -24 2 -36 q2 12 0 36z"/>`).join('')}</g>`);
+    BGP.fx(S, 'mote', 14, o.a, {top: 120, bottom: 220});
+  },
+  sea(S, o) {
+    BGP.sky(S, o.s || ['#2a8ad8', '#7fc8f4', '#e0f4ff']);
+    if (o.night) { BGP.stars(S, 50, 130); BGP.moon(S, 380, 50, 16); } else BGP.sun(S, 380, 52, 14, '#fffbe6', '#fff0c0');
+    S.add(cloud(100, 52, 1, o.night ? '#4a5a8a' : '#fff', .8), cloud(260, 34, .8, o.night ? '#4a5a8a' : '#fff', .8));
+    BGP.water(S, 150, 70, o.w1 || '#2a8ac8', o.w2 || '#0e4a7a', '#cfefff');
+    if (o.whirl) S.add(`<g transform="translate(${f0(S.rr(100, 360))} 172) scale(1 .22)"><g class="spin" style="--d:16s" fill="none" stroke="#e0f6ff" stroke-width="3" opacity=".7">${[70, 54, 38, 22].map((r, i) => `<path d="M${r} 0 A${r} ${r} 0 1 1 ${-r * .8} ${-r * .6}" stroke-opacity="${.9 - i * .15}"/>`).join('')}</g></g>`);
+    if (o.isle) S.add(S.flip(`<g transform="translate(360 168)"><path d="M-70 4 Q-40 -30 0 -34 Q40 -30 70 4Z" fill="#3f8a4a"/><path d="M-70 4 H70" stroke="#e8d8a0" stroke-width="5"/>${tree(-30, -18, .8, '#2f7a3a')}${tree(10, -26, 1, '#3f8a45')}${tree(42, -14, .7, '#2f7a3a')}</g>`));
+    if (o.rocks) S.add(S.flip(`<g fill="#3a4a5a"><path d="M330 172 L350 120 L372 132 L392 104 L420 172Z"/><path d="M60 170 L74 140 L90 150 L104 170Z"/></g>`));
+    BGP.ground(S, o.g1 || '#d8c89a', o.g2 || '#a89a6a', {y: 216});
+    S.add(`<path class="wave" style="animation-duration:7s" d="M-40 220${' q10 -4 20 0 t20 0'.repeat(14)}" stroke="#fff" stroke-width="3" fill="none" opacity=".75"/>`,
+      `<g fill="#8a7a5a" opacity=".6"><ellipse cx="80" cy="250" rx="14" ry="5"/><ellipse cx="380" cy="258" rx="18" ry="6"/></g>`);
+    BGP.fx(S, 'spark', 10, o.a, {top: 150, bottom: 214});
+  },
+  deep(S, o) {
+    BGP.sky(S, o.s || ['#0e5a8a', '#0a3a6a', '#061a3a']);
+    BGP.rays(S, '#bfeaff', .16);
+    S.add(`<path class="wave" style="animation-duration:12s" d="M-40 8${' q10 -4 20 0 t20 0'.repeat(14)}" stroke="#bfeaff" stroke-width="2" fill="none" opacity=".5"/>`);
+    BGP.ridge(S, 200, 50, '#0a2a4a', {smooth: true, step: 70});
+    if (o.temple) S.add(S.flip(`<g transform="translate(360 212)" opacity=".9"><polygon points="-70,0 -60,-12 60,-12 70,0" fill="#2a5a7a"/>${[-50, -24, 2, 28].map(x => `<rect x="${x}" y="-80" width="14" height="68" fill="#3a6a8a"/>`).join('')}<polygon points="-64,-80 64,-80 0,-110" fill="#2a5a7a"/><circle cy="-92" r="8" fill="${o.a}" class="pulse"/><circle cy="-92" r="24" fill="${S.glow(o.a, .6)}"/></g>`));
+    if (o.cavern) S.add(`<path d="M-10 0 H120 Q60 60 70 140 Q60 200 0 214 H-10Z M470 0 H340 Q400 60 390 140 Q400 200 460 214 H470Z" fill="#06213a"/>`);
+    const weed = (x, h, c) => `<path class="sway" style="--d:${(5 + S.r() * 3).toFixed(1)}s" d="M${x} 216 q-8 ${-h / 3} 0 ${-h / 1.6} q8 ${-h / 4} 0 ${-h / 2.6}" stroke="${c}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+    S.add([[30, 70, '#2a8a6a'], [44, 50, '#3aa07a'], [400, 80, '#2a8a6a'], [418, 56, '#3aa07a'], [440, 66, '#2a7a5a'], [120, 40, '#3aa07a']].map(([x, h, c]) => weed(x, h, c)).join(''));
+    S.add(`<g>${[[80, 214, '#ff7a8a'], [340, 214, '#ffaa6a'], [180, 218, '#ff8ab8']].map(([x, y, c]) => `<path d="M${x} ${y} q-6 -12 -2 -20 M${x} ${y} q2 -14 8 -22 M${x} ${y} q8 -6 14 -14" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/>`).join('')}</g>`);
+    BGP.ground(S, '#c8b88a', '#7a6a4a', {y: 214});
+    BGP.fx(S, 'bubble', 22, '#d8f4ff', {min: 10, max: 18});
+    BGP.fx(S, 'mote', 10, o.a, {top: 40, bottom: 200});
+  },
+  cosmos(S, o) {
+    BGP.sky(S, o.s || ['#03041a', '#120e40', '#2a1658']);
+    S.add(`<ellipse cx="${f0(S.rr(80, 200))}" cy="80" rx="150" ry="60" fill="${S.glow(o.a, .4)}"/><ellipse cx="${f0(S.rr(260, 400))}" cy="130" rx="140" ry="50" fill="${S.glow(o.b || '#ff6bb8', .3)}"/>`);
+    BGP.stars(S, 90, 260);
+    if (o.planet) S.add(S.flip(`<g transform="translate(370 70)"><circle r="34" fill="${S.lin([o.b || '#ffb86b', '#6a2a4a'])}"/><circle cx="-10" cy="-10" r="12" fill="#fff" opacity=".12"/><ellipse rx="58" ry="12" fill="none" stroke="#ffe0c0" stroke-width="3" opacity=".7" transform="rotate(-18)"/></g>`));
+    if (o.comet) S.add(`<g transform="translate(330 50) rotate(24)"><ellipse cx="-50" rx="60" ry="4" fill="${S.lin([['#fff', 0], ['#fff', .8]], true)}"/><circle r="5" fill="#fffbe0"/><circle r="14" fill="${S.glow('#fffbe0', .7)}"/></g>`);
+    if (o.sunb) BGP.sun(S, 380, 70, 22, '#fff2b0', o.a);
+    if (o.city) S.add(`<g fill="#0a0a1a">${[[20, 120, 30], [56, 90, 22], [84, 140, 26], [340, 100, 28], [372, 70, 24], [400, 130, 34], [436, 110, 24]].map(([x, y, w]) => `<rect x="${x}" y="${y}" width="${w}" height="${214 - y}"/>`).join('')}</g><g fill="${o.a}" opacity=".8">${Array.from({length: 40}, () => `<rect x="${f0(S.r() < .5 ? S.rr(22, 108) : S.rr(342, 456))}" y="${f0(S.rr(100, 206))}" width="3" height="3"/>`).join('')}</g>`);
+    if (o.rings) S.add(`<g transform="translate(230 110)"><g class="spin" style="--d:40s" fill="none" stroke="${o.a}" opacity=".55"><circle r="80" stroke-width="2" stroke-dasharray="4 6"/><circle r="100" stroke-width="1"/><polygon points="${star(12, 96, 84)}" stroke-width="1"/></g></g>`);
+    S.add(`<g transform="translate(230 216)"><path d="M-130 0 Q0 -14 130 0 Q90 16 40 40 Q0 58 -40 40 Q-90 16 -130 0Z" fill="${S.lin([o.rock || '#4a3a6a', '#120a24'])}"/><path d="M-130 0 Q0 -14 130 0 Q0 8 -130 0Z" fill="${o.top || '#6a5a8a'}"/></g>`);
+    S.add(`<g fill="${o.rock || '#4a3a6a'}">${[[60, 150, 10], [400, 170, 14], [110, 90, 6], [360, 200, 7]].map(([x, y, r]) => `<g class="bob" style="--d:${6 + r / 3}s"><polygon points="${x - r},${y} ${x},${y - r * .7} ${x + r},${y} ${x},${y + r * 1.2}"/></g>`).join('')}</g>`);
+    BGP.fx(S, 'spark', 10, o.a, {top: 20, bottom: 200});
+  },
+  altar(S, o) {
+    BGP.sky(S, o.s || ['#1a1440', '#4a3a7a', '#c8a0d8']);
+    BGP.stars(S, 40, 110);
+    if (o.sun) BGP.sun(S, 230, 80, 30, '#fff2b0', o.a);
+    if (o.moon) BGP.moon(S, 230, 78, 28, '#f0e8ff');
+    if (o.spear) S.add(`<g transform="translate(230 90)"><circle r="40" fill="${S.glow(o.a, .6)}" class="pulse"/><g class="spin" style="--d:30s" fill="none" stroke="${o.a}" stroke-width="1.5" opacity=".7"><circle r="30"/><polygon points="${star(6, 30, 16)}"/></g></g>`);
+    BGP.ridge(S, 200, 60, o.m || '#2a2a4a', {step: 60});
+    S.add(`<g fill="${o.p || '#c8c0d8'}">${[[40, 90, 16], [86, 120, 14], [374, 110, 14], [416, 80, 16]].map(([x, y, w], i) => `<rect x="${x}" y="${y}" width="${w}" height="${214 - y}"/><rect x="${x - 3}" y="${y}" width="${w + 6}" height="6"/>${i % 2 ? `<polygon points="${x},${y} ${x + w},${y} ${x + w / 2},${y - 10}" />` : ''}`).join('')}</g><g fill="#000" opacity=".2">${[[40, 90, 16], [86, 120, 14], [374, 110, 14], [416, 80, 16]].map(([x, y, w]) => `<rect x="${x + w * .6}" y="${y + 6}" width="${w * .4}" height="${208 - y}"/>`).join('')}</g>`);
+    S.add(`<g transform="translate(230 214)"><rect x="-150" y="-6" width="300" height="10" fill="${o.p || '#c8c0d8'}"/><rect x="-120" y="-14" width="240" height="9" fill="${o.p2 || '#d8d0e8'}"/><ellipse cy="-14" rx="100" ry="6" fill="${o.a}" opacity=".3"/></g>`);
+    BGP.ground(S, o.g1 || '#5a5070', o.g2 || '#2a2440', {y: 216});
+    BGP.fx(S, 'spark', 8, o.a, {top: 30, bottom: 200});
+  },
+  tower(S, o) {
+    BGP.sky(S, o.s || ['#2a6ad8', '#7ab8f0', '#e8f4ff']);
+    if (o.night) BGP.stars(S, 40, 120);
+    if (o.rainbow) S.add(`<g fill="none" stroke-width="6" opacity=".5">${['#ff6b6b', '#ffb36b', '#ffe66b', '#7fe07f', '#6bb8ff', '#a08aff'].map((c, i) => `<path d="M-20 200 A${220 - i * 6} ${180 - i * 6} 0 0 1 ${440 - i * 12} 200" stroke="${c}" transform="translate(${i * 6} 0)"/>`).join('')}</g>`);
+    const st = o.style || 'pagoda';
+    let t = '';
+    if (st === 'pagoda') for (let i = 0; i < 7; i++) { const y = 200 - i * 24, w = 52 - i * 5; t += `<rect x="${-w / 2 + 7}" y="${y - 18}" width="${w - 14}" height="18" fill="${o.c1 || '#b8402c'}"/><path d="M${-w / 2 - 9} ${y - 16} Q0 ${y - 25} ${w / 2 + 9} ${y - 16} L${w / 2 - 2} ${y - 22} L${-w / 2 + 2} ${y - 22}Z" fill="${o.c2 || '#3a2424'}"/>`; }
+    if (st === 'spire') t = `<path d="M-30 214 L-20 0 H20 L30 214Z" fill="${S.lin([o.c1 || '#4a7a6a', o.c2 || '#2a4a40'])}"/>${[30, 80, 130, 180].map(y => `<path d="M-28 ${y} H28" stroke="#1a3a30" stroke-width="3"/><rect x="-10" y="${y + 10}" width="20" height="20" rx="3" fill="#1a3a30"/>`).join('')}`;
+    if (st === 'dojo') t = [0, 1, 2, 3].map(i => `<rect x="${-34 + i * 4}" y="${168 - i * 40}" width="${68 - i * 8}" height="40" fill="${o.c1 || '#e8dcc0'}"/><rect x="${-8}" y="${178 - i * 40}" width="16" height="22" fill="#3a2a2a"/><path d="M${-48 + i * 4} ${170 - i * 40} Q0 ${156 - i * 40} ${48 - i * 4} ${170 - i * 40} L${40 - i * 4} ${162 - i * 40} H${-40 + i * 4}Z" fill="${o.c2 || '#4a4a6a'}"/>`).join('');
+    if (st === 'power') t = `<path d="M-26 214 L-16 20 H16 L26 214Z" fill="${S.lin(['#e8e0f0', '#a8a0c0'])}"/><circle cy="20" r="26" fill="${o.a}" opacity=".9"/><circle cy="20" r="60" fill="${S.glow(o.a, .6)}" class="pulse"/>${[60, 110, 160].map(y => `<path d="M-22 ${y} H22" stroke="${o.a}" stroke-width="4"/>`).join('')}`;
+    if (st === 'helix') t = `<path d="M-24 214 L-18 20 H18 L24 214Z" fill="${o.c1 || '#d8d0c0'}"/>${[40, 80, 120, 160, 200].map((y, i) => `<path d="M-30 ${y} Q0 ${y - 22} 30 ${y - 4}" stroke="${o.c2 || '#8a8070'}" stroke-width="4" fill="none" transform="${i % 2 ? `scale(-1 1)` : ''}"/>`).join('')}<path d="M-18 20 L0 -6 L18 20Z" fill="${o.c2 || '#8a8070'}"/>`;
+    S.add(cloud(80, 50, 1, '#fff', .8));
+    S.add(S.flip(`${o.twin ? `<g transform="translate(436 40) scale(.8)" opacity=".85">${t}</g>` : ''}<g transform="translate(372 0)">${t}${st === 'pagoda' ? `<rect x="-1.5" y="18" width="3" height="18" fill="#d8b04a"/><circle cy="14" r="5" fill="#ffd84d"/>` : ''}</g>`));
+    BGP.bank(S, 196, o.cloud || '#ffffff', .9);
+    S.add(`<g transform="translate(230 214)"><path d="M-110 0 L-96 -10 H96 L110 0 V14 H-110Z" fill="${o.floor || '#b0a890'}"/><path d="M-96 -10 H96" stroke="#fff" stroke-opacity=".4" stroke-width="2"/></g>`);
+    BGP.fx(S, o.night ? 'spark' : 'mote', 10, o.a, {top: 40, bottom: 200});
+  },
+  void(S, o) {
+    BGP.sky(S, o.s || ['#14081e', '#2a0e36', '#4a1a3a']);
+    S.add(`<g opacity=".25" stroke="${o.a}" fill="none">${Array.from({length: 8}, (_, i) => `<path class="sway" style="--d:${8 + i}s" d="M-20 ${30 + i * 26} Q120 ${10 + i * 30} 240 ${40 + i * 22} T500 ${20 + i * 28}"/>`).join('')}</g>`);
+    if (o.eye) S.add(`<g transform="translate(230 70)"><ellipse rx="70" ry="22" fill="#000" opacity=".5"/><ellipse rx="70" ry="22" fill="none" stroke="${o.a}" stroke-width="2"/><circle r="14" fill="${o.a}" class="pulse"/><circle r="5" fill="#000"/></g>`);
+    if (o.ring) S.add(`<g transform="translate(${f0(S.rr(120, 340))} 90)"><circle r="40" fill="#000" opacity=".7"/><circle r="40" fill="none" stroke="${o.a}" stroke-width="7"/><g class="spin" style="--d:12s"><circle r="48" fill="none" stroke="${o.b || o.a}" stroke-width="1.5" stroke-dasharray="6 6"/></g></g>`);
+    const isl = (x, y, s, flip) => `<g class="bob" style="--d:${(6 + S.r() * 4).toFixed(1)}s"><g transform="translate(${x} ${y}) scale(${s} ${flip ? -s : s})"><path d="M-40 0 H40 L22 18 L6 34 L-10 22 L-28 16Z" fill="#2a1a2a"/><rect x="-40" y="-4" width="80" height="5" fill="#4a3a4a"/><path d="M-20 -4 V-26 M-20 -16 l-8 -6 M20 -4 V-20" stroke="#3a2a3a" stroke-width="3"/></g></g>`;
+    S.add(isl(70, 70, .8, true), isl(390, 50, 1, true), isl(120, 160, .6, false), isl(380, 150, .7, false));
+    if (o.shadow) S.add(`<g fill="#000" opacity=".5">${[40, 120, 340, 420].map(x => `<path class="sway" style="--d:${7 + x / 100}s" d="M${x} 280 Q${x - 20} 220 ${x + 4} 180 Q${x + 24} 220 ${x + 12} 280Z"/>`).join('')}</g>`);
+    S.add(`<g transform="translate(230 214)"><path d="M-140 0 Q0 -10 140 0 L110 20 L60 40 L0 52 L-60 40 L-110 20Z" fill="#1a0e1e"/><path d="M-140 0 Q0 -10 140 0 Q0 6 -140 0Z" fill="#3a2a3e"/><path d="M-60 0 l10 30 M40 0 l-6 36" stroke="${o.a}" stroke-width="1.5" opacity=".6"/></g>`);
+    BGP.fx(S, 'mote', 18, o.a);
+  },
+  tech(S, o) {
+    BGP.sky(S, o.s || ['#0a1028', '#1a2450', '#3a4a8a']);
+    if (o.neon) { BGP.sun(S, 230, 120, 40, '#ff6bd0', '#ff3aa0'); S.add(`<g fill="${o.s ? o.s[0] : '#0a1028'}">${[96, 106, 114, 120, 126].map((y, i) => `<rect x="180" y="${y + i * 2}" width="100" height="${2 + i}"/>`).join('')}</g>`); }
+    if (o.stars) BGP.stars(S, 40, 110);
+    if (o.sea) { BGP.water(S, 150, 70, '#3a9ad8', '#1a5a9a', '#e0f4ff'); S.add(`<g transform="translate(360 150)"><rect x="-80" y="-10" width="160" height="12" fill="#f4f8ff"/><rect x="-60" y="-50" width="120" height="40" fill="#e8f0ff"/><rect x="-60" y="-50" width="120" height="6" fill="${o.a}"/>${[-44, -20, 4, 28].map(x => `<rect x="${x}" y="-36" width="16" height="14" fill="#a8d0f0"/>`).join('')}<path d="M0 -50 V-74" stroke="#fff" stroke-width="3"/><circle cy="-76" r="5" fill="${o.a}"/></g>`); }
+    if (o.city) S.add(S.flip(`<g fill="#141a36">${[[0, 90, 34], [38, 60, 26], [68, 120, 30], [310, 70, 30], [344, 110, 22], [370, 40, 36], [410, 100, 50]].map(([x, y, w]) => `<rect x="${x}" y="${y}" width="${w}" height="${214 - y}"/>`).join('')}</g><g fill="${o.a}">${Array.from({length: 50}, () => `<rect class="twinkle" style="animation-delay:${(S.r() * 3).toFixed(1)}s" x="${f0(S.r() < .5 ? S.rr(2, 96) : S.rr(312, 458))}" y="${f0(S.rr(50, 206))}" width="3" height="2"/>`).join('')}</g>`));
+    if (o.gears) S.add(S.flip(`<g fill="${o.b || '#8a7a5a'}" opacity=".85">${[[80, 100, 34, 16], [130, 150, 22, 24], [380, 120, 40, 20]].map(([x, y, r, d]) => `<g transform="translate(${x} ${y})"><g class="spin" style="--d:${d}s"><polygon points="${star(10, r, r * .82)}"/><circle r="${r * .35}" fill="${o.s ? o.s[0] : '#0a1028'}"/></g></g>`).join('')}</g>`));
+    if (o.lab) S.add(S.flip(`<g transform="translate(360 214)"><rect x="-70" y="-110" width="140" height="110" fill="#1a2040"/><rect x="-60" y="-96" width="50" height="34" fill="${o.a}" opacity=".35" class="pulse"/><rect x="0" y="-96" width="56" height="34" fill="${o.a}" opacity=".2"/><path d="M-60 -50 H56 M-60 -36 H56" stroke="${o.a}" stroke-width="2" opacity=".6"/><rect x="-20" y="-28" width="40" height="28" fill="#0a0e20"/></g><g stroke="#3a4060" stroke-width="6" fill="none"><path d="M20 214 V140 H120 V100"/><path d="M60 214 V170 H90"/></g>`));
+    S.add(`<rect x="0" y="212" width="460" height="68" fill="${S.lin([o.floor || '#1a1e3a', '#06081a'])}"/>`,
+      `<g stroke="${o.a}" stroke-width="1" opacity=".5">${Array.from({length: 13}, (_, i) => `<path d="M230 212 L${-260 + i * 82} 280"/>`).join('')}${[216, 224, 236, 252, 274].map(y => `<path d="M0 ${y} H460"/>`).join('')}</g>`);
+    BGP.fx(S, 'mote', 12, o.a, {top: 30, bottom: 210});
+  },
+  desert(S, o) {
+    BGP.sky(S, o.s || ['#e88a4a', '#ffc080', '#fff0c8']);
+    if (o.night) { BGP.stars(S, 50, 130); BGP.moon(S, 380, 52, 15, '#fff6d8'); } else BGP.sun(S, 380, 54, 18, '#fffbe0', '#ffd890');
+    BGP.ridge(S, 186, 40, o.d1 || '#e0a868', {smooth: true, step: 120}); BGP.ridge(S, 204, 24, o.d2 || '#d09050', {smooth: true, step: 90});
+    if (o.ruins) S.add(S.flip(`<g transform="translate(360 212)"><path d="M-70 0 V-60 Q0 -110 70 -60 V0Z" fill="${o.stone || '#b8865a'}"/><path d="M-22 0 V-40 Q0 -62 22 -40 V0Z" fill="#3a2414"/>${[[-50, -70], [-30, -84], [-10, -90], [10, -90], [30, -84], [50, -70]].map(([x, y]) => `<circle cx="${x}" cy="${y + 10}" r="3" fill="${o.a}" class="pulse"/>`).join('')}</g>`));
+    if (o.ring) S.add(`<g transform="translate(${f0(S.rr(120, 340))} 100)"><g class="bob" style="--d:6s"><circle r="34" fill="none" stroke="#d8a838" stroke-width="7"/><circle r="34" fill="none" stroke="#fff3b0" stroke-width="2" opacity=".6"/><circle r="28" fill="#3a1a4a" opacity=".7"/>${[0, 120, 240].map(a => `<circle cx="${f0(34 * Math.cos(a * Math.PI / 180))}" cy="${f0(34 * Math.sin(a * Math.PI / 180))}" r="5" fill="${o.a}"/>`).join('')}</g></g>`);
+    if (o.bones) S.add(S.flip(`<g fill="#e8dcc0" opacity=".9"><path d="M300 214 Q320 150 380 130 Q350 160 340 214Z"/><path d="M360 214 Q380 170 430 160 Q400 180 396 214Z"/></g>`));
+    if (o.rocks) S.add(S.flip(`<g fill="${o.stone || '#8a6a4a'}"><path d="M20 214 L40 120 L80 110 L100 214Z"/><path d="M330 214 L350 140 L400 130 L420 214Z"/></g><g fill="#000" opacity=".15"><path d="M60 214 L80 110 L100 214Z"/><path d="M380 214 L400 130 L420 214Z"/></g>`));
+    BGP.ground(S, o.g1 || '#f0c888', o.g2 || '#c8945a', {y: 212});
+    S.add(`<g stroke="#b88050" stroke-width="1.5" fill="none" opacity=".4">${[228, 244, 262].map(y => `<path d="M-20 ${y} Q120 ${y - 6} 240 ${y} T500 ${y}"/>`).join('')}</g>`);
+    BGP.fx(S, 'mote', 14, o.night ? o.a : '#fff2d0', {top: 120, bottom: 240});
+  },
+  lantern(S, o) {
+    BGP.sky(S, o.s || ['#120a2a', '#3a1a4a', '#8a3a5a']);
+    BGP.stars(S, 40, 110);
+    if (o.moon !== false) BGP.moon(S, 90, 50, 14, '#fff3d8');
+    BGP.ridge(S, 180, 56, o.m || '#2a1430', {step: 66, snow: o.snow});
+    if (o.shrine) S.add((o.statue ? x => x : S.flip)(`<g transform="translate(372 214)"><rect x="-50" y="-50" width="100" height="50" fill="#5a2a2a"/><path d="M-66 -48 Q0 -76 66 -48 L56 -58 Q0 -84 -56 -58Z" fill="#2a1a2a"/><rect x="-14" y="-38" width="28" height="38" fill="#1a0a0a"/><rect x="-40" y="-40" width="18" height="12" fill="#ffd8a0" opacity=".7"/><rect x="22" y="-40" width="18" height="12" fill="#ffd8a0" opacity=".7"/></g>`));
+    if (o.stakes) S.add(S.flip(`<g>${[300, 336, 372, 408, 444].map((x, i) => `<rect x="${x - 4}" y="${150 + (i % 2) * 12}" width="8" height="${64 - (i % 2) * 12}" fill="#5a3a2a"/><polygon points="${x - 4},${150 + (i % 2) * 12} ${x + 4},${150 + (i % 2) * 12} ${x},${140 + (i % 2) * 12}" fill="#5a3a2a"/><rect x="${x - 3}" y="${162 + (i % 2) * 12}" width="6" height="18" fill="#f0e8d0"/><path d="M${x - 2} ${166 + (i % 2) * 12} h4 M${x - 2} ${172 + (i % 2) * 12} h4" stroke="${o.a}" stroke-width="1.5"/>`).join('')}</g>`));
+    if (o.torii !== false) S.add(`<g transform="translate(${o.shrine || o.stakes ? 90 : 360} 214)"><rect x="-30" y="-74" width="7" height="74" fill="#c8302c"/><rect x="23" y="-74" width="7" height="74" fill="#c8302c"/><path d="M-44 -80 Q0 -88 44 -80 L42 -72 L-42 -72Z" fill="#2a1414"/><rect x="-36" y="-62" width="72" height="6" fill="#c8302c"/></g>`);
+    if (o.peach) S.add(S.flip(`<g transform="translate(370 214)"><path d="M-40 0 V-40 L0 -66 L40 -40 V0Z" fill="#6a4a3a"/><path d="M-50 -38 L0 -74 L50 -38" stroke="#3a2a2a" stroke-width="7" fill="none"/><circle cy="-30" r="10" fill="#ff8ab8"/><path d="M0 -40 q4 -6 8 -4" stroke="#4a8a3a" stroke-width="3" fill="none"/></g>`));
+    if (o.lanterns !== false) S.add(`<path d="M-10 70 Q120 100 230 84 T480 78" stroke="#3a2a2a" stroke-width="1.2" fill="none"/>`,
+      [40, 100, 160, 300, 360, 420].map((x, i) => `<g class="bob" style="--d:${4 + i % 3}s"><g transform="translate(${x} ${f0(84 + Math.sin(x / 70) * 10)})"><path d="M0 0 v4" stroke="#3a2a2a"/><ellipse cy="12" rx="7" ry="9" fill="${i % 2 ? o.a : '#ff6a4a'}"/><ellipse cy="12" rx="16" ry="18" fill="${S.glow(i % 2 ? o.a : '#ff6a4a', .5)}"/><rect x="-3" y="2" width="6" height="2" fill="#2a1a1a"/></g></g>`).join(''));
+    else S.add(`<path d="M-10 36 Q230 66 470 36" stroke="#c8b890" stroke-width="5" fill="none"/>`, `<g fill="#f4efe0">${[60, 130, 200, 270, 340, 410].map(x => `<path class="sway" style="--d:${4 + x % 3}s" d="M${x} ${f0(40 + Math.sin(x / 146) * 26)} h6 l-4 8 h5 l-4 9 h5 l-3 8"/>`).join('')}</g>`);
+    const PROP = {   // 재앙의 사당마다 다른 제물
+      vines: `<path d="M0 0 Q-6 -40 4 -70 Q12 -96 -2 -120" stroke="#3a2a1a" stroke-width="10" fill="none"/><path d="M2 -60 Q30 -70 34 -96 M-2 -90 Q-30 -96 -36 -120" stroke="#3a2a1a" stroke-width="5" fill="none"/><g fill="${o.a}" opacity=".85">${[[-8, -40], [10, -66], [30, -92], [-30, -112], [4, -110]].map(([x, y]) => `<path d="M${x} ${y} q8 -8 14 0 q-8 6 -14 0z"/>`).join('')}</g>`,
+      icicle: `<g fill="#cfeaff">${[[-30, 52], [-12, 78], [6, 96], [22, 70], [38, 46]].map(([x, h]) => `<polygon points="${x - 9},0 ${x + 9},0 ${x},${-h}"/>`).join('')}</g><g fill="#fff" opacity=".5">${[[-12, 78], [6, 96]].map(([x, h]) => `<polygon points="${x},0 ${x + 4},0 ${x},${-h}"/>`).join('')}</g>`,
+      vessel: `<path d="M-40 -60 H40 Q42 -14 20 0 H-20 Q-42 -14 -40 -60Z" fill="#7a6a3a"/><rect x="-44" y="-66" width="88" height="8" rx="3" fill="#a8904a"/><path d="M-30 -66 V-80 M30 -66 V-80" stroke="#7a6a3a" stroke-width="6"/><path d="M-30 -40 H30" stroke="${o.a}" stroke-width="3"/><path d="M-20 0 V12 M20 0 V12" stroke="#5a4a2a" stroke-width="6"/>`,
+      flame: [-34, 0, 34].map(x => `<rect x="${x - 3}" y="-50" width="6" height="50" fill="#4a2a1a"/><path class="pulse" d="M${x} -82 Q${x + 12} -64 ${x + 6} -52 Q${x} -46 ${x - 6} -52 Q${x - 12} -64 ${x} -82Z" fill="${o.a}"/><circle cx="${x}" cy="-60" r="18" fill="${S.glow(o.a, .5)}"/>`).join(''),
+    };
+    if (o.prop) S.add(`<g transform="translate(96 214)">${PROP[o.prop]}</g>`);
+    const STATUE = {   // 키타카미 세 충신 석상
+      dog: `<ellipse cy="-14" rx="16" ry="9"/><circle cx="12" cy="-28" r="8"/><polygon points="8,-34 10,-44 15,-35"/><polygon points="15,-34 20,-42 20,-31"/><path d="M-14 -16 Q-24 -30 -18 -36" stroke="#8a8a92" stroke-width="5" fill="none"/>`,
+      monkey: `<ellipse cy="-16" rx="11" ry="14"/><circle cy="-36" r="9"/><circle cx="-10" cy="-37" r="4"/><circle cx="10" cy="-37" r="4"/><path d="M-10 -20 Q-20 -10 -12 -4 M10 -20 Q20 -10 12 -4" stroke="#8a8a92" stroke-width="5" fill="none"/>`,
+      bird: `<ellipse cy="-16" rx="13" ry="10"/><circle cx="9" cy="-30" r="7"/><polygon points="15,-31 23,-29 15,-27"/><path d="M-12 -16 Q-30 -20 -40 -8" stroke="#8a8a92" stroke-width="5" fill="none"/>`,
+    };
+    if (o.statue) S.add(`<g transform="translate(120 222)"><rect x="-20" y="-10" width="40" height="10" fill="#6a6a72"/><g transform="translate(0 -10)" fill="#8a8a92">${STATUE[o.statue]}</g><circle cx="${o.statue === 'monkey' ? -3 : o.statue === 'dog' ? 14 : 10}" cy="${o.statue === 'monkey' ? -48 : o.statue === 'dog' ? -40 : -42}" r="2" fill="${o.a}" class="pulse"/></g>`);
+    if (o.masks) S.add(`<path d="M150 52 Q230 70 310 52" stroke="#5a3a2a" stroke-width="2" fill="none"/>`, [['#3ab8a0', 170], ['#3a7ad8', 210], ['#d84a3a', 250], ['#8a8a8a', 290]].map(([c, x]) => `<g class="bob" style="--d:5s"><g transform="translate(${x} ${f0(60 + Math.sin((x - 150) / 51) * 8)})"><ellipse cy="12" rx="12" ry="14" fill="${c}"/><ellipse cx="-4" cy="9" rx="2.5" ry="3.5" fill="#1a1a1a"/><ellipse cx="4" cy="9" rx="2.5" ry="3.5" fill="#1a1a1a"/><path d="M-5 18 Q0 22 5 18" stroke="#1a1a1a" stroke-width="1.5" fill="none"/><polygon points="-8,-1 -4,-8 -2,0" fill="#f4efe0"/><polygon points="8,-1 4,-8 2,0" fill="#f4efe0"/></g></g>`).join(''));
+    BGP.ground(S, o.g1 || '#3a2a3a', o.g2 || '#140a14', {y: 214});
+    S.add((o.statue ? [[310, 236]] : [[150, 234], [310, 236]]).map(([x, y]) => `<g transform="translate(${x} ${y})"><rect x="-7" y="-30" width="14" height="4" fill="#7a7a8a"/><rect x="-5" y="-26" width="10" height="12" fill="#9a9aaa"/><rect x="-2" y="-24" width="4" height="7" fill="#ffd56b"/><circle cy="-20" r="12" fill="${S.glow('#ffd56b', .5)}"/><polygon points="-10,-30 10,-30 0,-38" fill="#6a6a7a"/><rect x="-3" y="-14" width="6" height="14" fill="#8a8a9a"/></g>`).join(''));
+    BGP.fx(S, o.snow ? 'snow' : o.fire ? 'ember' : 'mote', 18, o.snow ? '#ffffff' : o.a);
+  },
+};
+// 전설·환상별 성지: [장소 이름, 테마, 옵션(a=기운 색 · s=하늘 3색 · 나머지는 테마 소품)]
+const SANCTA = {
+  144: ['쌍둥이섬 얼음 동굴', 'ice', {a: '#8fd8ff', cave: true}],
+  145: ['무인발전소', 'storm', {a: '#ffe14a', pylon: true}],
+  146: ['불꽃 봉우리', 'fire', {a: '#ff8a2a', s: ['#2a0a0a', '#8a2a14', '#ffaa4a']}],
+  150: ['미지의 동굴', 'cave', {a: '#c38bff', b: '#7f6bff'}],
+  151: ['정글 깊은 곳의 신전', 'forest', {a: '#ff9fd0', ruins: true, s: ['#1a3a3a', '#3a7a5a', '#c8f0c0']}],
+  243: ['방울탑의 번개', 'storm', {a: '#ffd23f', s: ['#1a1030', '#4a3a6a', '#8a7aa0'], tower: true}],
+  244: ['불탄 탑', 'fire', {a: '#ff8a3d', tower: true, s: ['#1a0e0e', '#5a2a1a', '#d8743a']}],
+  245: ['북풍의 호수', 'lake', {a: '#7fe3ff', aurora: true, night: true, s: ['#0a1a3a', '#1a3a6a', '#4a7ab0'], snow: true}],
+  249: ['소용돌이섬', 'sea', {a: '#c8d8ff', whirl: true, night: true, s: ['#0a1030', '#1a2a5a', '#3a5a8a'], w1: '#1a4a7a', w2: '#0a1a3a', rocks: true}],
+  250: ['방울탑 위 무지개', 'tower', {a: '#ffb347', rainbow: true, style: 'pagoda', s: ['#ff9a5a', '#ffd08a', '#fff4d8'], cloud: '#fff4e8'}],
+  251: ['너도밤나무 숲 사당', 'forest', {a: '#8fe36b', shrine: true}],
+  377: ['사막 유적', 'desert', {a: '#ffb050', ruins: true}],
+  378: ['얼음 고분', 'ice', {a: '#a8e8ff', cave: true, braille: true, s: ['#0a2a3a', '#1a4a6a', '#6ab0d0']}],
+  379: ['고대 무덤', 'desert', {a: '#9fd8ff', ruins: true, night: true, s: ['#0e1430', '#2a3a6a', '#7a8ab0'], stone: '#7a8aa0', g1: '#c8b090', g2: '#7a6a5a', d1: '#8a7a6a', d2: '#a08a6a'}],
+  380: ['남쪽 외딴섬 정원', 'sea', {a: '#ff8a9a', isle: true, s: ['#ff9aa8', '#ffd0d0', '#fff4f0']}],
+  381: ['남쪽 외딴섬 하늘', 'tower', {a: '#6b8bff', style: 'spire', c1: '#7a9ac8', c2: '#3a4a7a', s: ['#3a5ad8', '#7aa0f0', '#d8e8ff']}],
+  382: ['해저 동굴', 'deep', {a: '#4f8fff', cavern: true, s: ['#0a3a7a', '#06205a', '#020a2a']}],
+  383: ['마그마 동굴', 'fire', {a: '#ff4a2a', s: ['#1a0404', '#5a0a0a', '#c82a14']}],
+  384: ['하늘기둥', 'tower', {a: '#4fe08a', style: 'spire', night: true, s: ['#06102a', '#1a3a5a', '#3a8a8a'], cloud: '#c8d8e8', floor: '#5a7a6a'}],
+  385: ['천 년 혜성의 밤', 'cosmos', {a: '#ffe27a', comet: true, b: '#6b8bff'}],
+  386: ['우주 저편', 'cosmos', {a: '#ff6b4a', planet: true, b: '#4ad8c8', s: ['#020210', '#0a1a3a', '#1a2a5a']}],
+  480: ['입지호수', 'lake', {a: '#ffe08a', s: ['#5a8ad8', '#9ac0f0', '#f0f4ff'], w1: '#6a9ad0', w2: '#3a6aa0', g1: '#7ab06a', g2: '#3a6a3a'}],
+  481: ['진실호수', 'lake', {a: '#ff9fd0', s: ['#c06a8a', '#f0a8b8', '#ffe8e0'], w1: '#c890b0', w2: '#7a5a8a', m1: '#8a6a8a', m2: '#6a4a6a', g1: '#8ab07a', g2: '#4a6a4a'}],
+  482: ['엄격호수', 'lake', {a: '#7fb8ff', snow: true, s: ['#8aa8d0', '#c0d4ec', '#f4f8ff'], w1: '#a8c8e8', w2: '#6a8ab0', m1: '#8aa0c0', m2: '#7a8aa8', g1: '#eef4fa', g2: '#b8c8da', isle: '#7a8a9a'}],
+  483: ['창기둥 · 시간', 'altar', {a: '#6b9bff', spear: true, s: ['#0a1440', '#2a3a8a', '#7a9ad8'], p: '#b0b8d0', p2: '#c8d0e8', m: '#1a2450'}],
+  484: ['창기둥 · 공간', 'altar', {a: '#ff9fe0', spear: true, s: ['#2a0a30', '#6a2a6a', '#e8a0d0'], p: '#d0b8d0', p2: '#e8d0e8', m: '#3a1a3a'}],
+  485: ['하드마운틴 화구', 'fire', {a: '#ffb23f', metal: true}],
+  486: ['엄동 신전', 'ice', {a: '#ffffff', temple: true, moon: true}],
+  487: ['반전세계', 'void', {a: '#ff4a6b', eye: true}],
+  488: ['초승달섬', 'lake', {a: '#ffd6f0', crescent: true, night: true, s: ['#140a30', '#3a2a6a', '#8a6ab0'], w1: '#4a3a7a', w2: '#1a1440', m1: '#2a2050', m2: '#1a1840', g1: '#3a4a6a', g2: '#1a2034', isle: '#2a2a4a'}],
+  489: ['바닷속 아이들', 'deep', {a: '#7fd8ff', s: ['#1a8ac8', '#0e5a9a', '#06305a']}],
+  490: ['바다의 신전', 'deep', {a: '#3fb8ff', temple: true}],
+  491: ['그믐달섬의 악몽', 'void', {a: '#b04aff', shadow: true, s: ['#06020e', '#140820', '#2a1036']}],
+  492: ['꽃의 낙원', 'meadow', {a: '#7fe36b', flowers: ['#ffb8d8', '#fff', '#ff8ab8', '#ffd0e8'], petal: '#ffd0e8'}],
+  493: ['시작의 공간', 'cosmos', {a: '#ffe9a0', rings: true, b: '#ffd8a0', s: ['#1a1408', '#3a2a14', '#6a5a3a'], rock: '#e8dcc0', top: '#fffaf0'}],
+  494: ['리버티 가든 등대', 'meadow', {a: '#ff8a3d', lighthouse: true, s: ['#5ab8f0', '#a8dcff', '#fff8e8']}],
+  638: ['바위산 협곡', 'desert', {a: '#5f9fd8', rocks: true, stone: '#6a7a8a', s: ['#6a9ad0', '#a8c8e8', '#e8f0f8'], g1: '#a8a090', g2: '#6a6458', d1: '#8a8a8a', d2: '#7a7a72'}],
+  639: ['바위 동굴', 'cave', {a: '#e0b070', b: '#c08a50', wall: '#3a2a1a', floor: '#4a3a28', s: ['#1a1008', '#2a1a10', '#3a2a18']}],
+  640: ['비밀의 숲', 'forest', {a: '#6be08a', fog: true}],
+  641: ['회오리 하늘', 'storm', {a: '#7fe3a0', wind: true, s: ['#1a3a3a', '#3a6a6a', '#8ab0a8']}],
+  642: ['번개 구름', 'storm', {a: '#6bb8ff', s: ['#10142a', '#2a3060', '#5a6898']}],
+  643: ['용나선탑 · 진실', 'tower', {a: '#ff8a5a', style: 'helix', c1: '#f0ece4', c2: '#c8b8a0', s: ['#ffb08a', '#ffd8c0', '#fff4ec']}],
+  644: ['용나선탑 · 이상', 'tower', {a: '#4ab8ff', style: 'helix', night: true, c1: '#4a4a5a', c2: '#2a2a3a', s: ['#06081a', '#1a2040', '#3a4a7a'], cloud: '#5a6a8a', floor: '#4a4a5a'}],
+  645: ['풍요의 사당', 'meadow', {a: '#ffb85a', altar: true, s: ['#ffb060', '#ffd890', '#fff4d8'], hill1: '#d8c060', hill2: '#c0a848', g1: '#e0c860', g2: '#a88a3a', flowers: ['#fff0a0', '#ffd060', '#fff']}],
+  646: ['자이언트홀', 'ice', {a: '#9fd8ff', cave: true, s: ['#06121e', '#10283e', '#2a5a7a']}],
+  647: ['맑은 물의 숲', 'forest', {a: '#4fd8ff', flowers: true, s: ['#0e3a3a', '#2a6a6a', '#a0e0d8']}],
+  648: ['노래하는 무대', 'meadow', {a: '#5ad8b0', notes: true, stage: true, s: ['#3a2a5a', '#8a5a8a', '#f0b0a0']}],
+  649: ['P2 연구소', 'tech', {a: '#c06bff', lab: true}],
+  716: ['생명의 나무', 'forest', {a: '#4fb8ff', giant: true, s: ['#0e2a3a', '#2a5a6a', '#a8e0e8']}],
+  717: ['시들어 가는 숲', 'forest', {a: '#ff4a5a', dead: true, s: ['#1a0408', '#4a0e14', '#a83a3a']}],
+  718: ['종착의 동굴', 'cave', {a: '#4fe07a', hex: true, wall: '#0e2014', floor: '#1a2a1a', s: ['#060e08', '#0e1a10', '#1a2a1a']}],
+  719: ['다이아 광산', 'cave', {a: '#ff9fd8', b: '#bfe8ff', wall: '#2a1a2a'}],
+  720: ['사막의 고리', 'desert', {a: '#ff6bd0', ring: true}],
+  721: ['증기 계곡', 'fire', {a: '#ff6b4a', steam: true, s: ['#2a1a1a', '#6a3a2a', '#d88a6a']}],
+  772: ['에테르 파라다이스', 'tech', {a: '#7fd8ff', sea: true, s: ['#5ab0e8', '#a8d8f8', '#f0f8ff'], floor: '#d8e4f0'}],
+  773: ['에테르 파라다이스 옥상', 'tech', {a: '#c8d8ff', sea: true, stars: true, s: ['#2a1a4a', '#7a4a8a', '#f0a8a0'], floor: '#c0cce0'}],
+  785: ['멜레멜레 수호 유적', 'storm', {a: '#ffd84d', ruins: true, s: ['#2a1a0a', '#6a4a2a', '#c09060']}],
+  786: ['아칼라 수호 유적', 'meadow', {a: '#ff9fd0', altar: true, s: ['#ffa8c8', '#ffd0e0', '#fff4f8'], hill1: '#c0e0a0', petal: '#ffb8d8'}],
+  787: ['울라울라 수호 유적', 'forest', {a: '#d8c05a', ruins: true, jungle: true}],
+  788: ['포니 수호 유적', 'sea', {a: '#b8a0ff', rocks: true, s: ['#5a6ac8', '#9aa8e8', '#e8e8ff']}],
+  789: ['별빛 제단', 'cosmos', {a: '#7f9fff', b: '#c06bff'}],
+  790: ['별의 고치', 'cosmos', {a: '#ffd86b', rings: true, b: '#6b8bff'}],
+  791: ['해의 제단', 'altar', {a: '#ffb83f', sun: true, s: ['#ff8a3a', '#ffc070', '#fff0c0'], p: '#e8d8b0', p2: '#f4e8c8', m: '#b86a3a', g1: '#c8a070', g2: '#8a6a40'}],
+  792: ['달의 제단', 'altar', {a: '#c8a0ff', moon: true, s: ['#0a0a2a', '#2a2a6a', '#6a5aa8'], p: '#a8a8c8', p2: '#c0c0dc', m: '#1a1a40'}],
+  800: ['울트라 메갈로폴리스', 'cosmos', {a: '#ffe14a', city: true, s: ['#0a0a0a', '#1a1a10', '#3a3a1a'], rock: '#2a2a2a', top: '#4a4a3a', b: '#ffd84d'}],
+  801: ['500년 전의 기계 저택', 'tech', {a: '#ff6b8a', gears: true, lab: true, b: '#d8b06b', s: ['#1a1014', '#3a2028', '#6a3a40'], floor: '#3a2a20'}],
+  802: ['그림자 속 수련장', 'void', {a: '#6bffb8', shadow: true, s: ['#040a08', '#0a1a14', '#1a2a24']}],
+  807: ['번개 평원', 'storm', {a: '#4ab8ff', grass: true, s: ['#0e1a2a', '#2a4060', '#6a8aa8']}],
+  808: ['너트 공장', 'tech', {a: '#d8b86b', gears: true, b: '#a89060', s: ['#1a1a1a', '#3a3a34', '#6a6a5a'], floor: '#3a3a34'}],
+  809: ['금속 용광로', 'fire', {a: '#ffcf6b', metal: true, s: ['#1a1414', '#4a3a2a', '#c8904a']}],
+  888: ['잠든 숲', 'forest', {a: '#4f9fff', fog: true, s: ['#0a1a3a', '#2a4a6a', '#8ab0d0']}],
+  889: ['잠든 숲 안쪽', 'forest', {a: '#ff5a6b', fog: true, s: ['#2a0a1a', '#5a2a3a', '#c88a9a']}],
+  890: ['파워스폿 탑', 'tower', {a: '#ff3a5a', style: 'power', night: true, s: ['#1a0410', '#4a0a20', '#8a1a3a'], cloud: '#5a1a2a', floor: '#3a2030'}],
+  891: ['도장의 섬', 'meadow', {a: '#c8b08a', altar: true, s: ['#6ab0e8', '#a8d8f8', '#f0f8ff'], hill1: '#9ac08a', petal: '#ffffff'}],
+  892: ['두 개의 탑', 'tower', {a: '#5a7aff', style: 'dojo', twin: true, c2: '#3a3a8a', s: ['#4a6ad8', '#8aa8f0', '#e8f0ff']}],
+  893: ['정글 깊은 곳', 'forest', {a: '#4fe07a', jungle: true, s: ['#0a2a14', '#1a5a2a', '#7ac87a']}],
+  894: ['번개 유적', 'storm', {a: '#ffe14a', ruins: true, s: ['#14102a', '#3a2a5a', '#7a6aa0']}],
+  895: ['용의 유적', 'desert', {a: '#ff6b4a', bones: true, ruins: true, stone: '#8a5a4a'}],
+  896: ['왕관 설원', 'ice', {a: '#9fe8ff', aurora: true}],
+  897: ['왕관 설원 묘지', 'ice', {a: '#c06bff', grave: true, moon: true, s: ['#0a0a1a', '#1a1a3a', '#4a4a7a']}],
+  898: ['왕관의 신전', 'ice', {a: '#7fe3c8', temple: true, aurora: true}],
+  905: ['봄바람 구름 위', 'tower', {a: '#ff8fb8', style: 'dojo', c1: '#ffe8f0', c2: '#e86a9a', s: ['#ff9ac0', '#ffd0e0', '#fff4f8'], cloud: '#fff0f6', floor: '#f0d0dc'}],
+  1001: ['재앙의 사당 · 나무', 'lantern', {a: '#8fd85a', stakes: true, lanterns: false, torii: false, prop: 'vines', m: '#142a14', g1: '#2a3a24', g2: '#0e140a'}],
+  1002: ['재앙의 사당 · 얼음', 'lantern', {a: '#9fd8ff', stakes: true, lanterns: false, torii: false, prop: 'icicle', snow: true, s: ['#0a1430', '#1a2a5a', '#5a7aa8'], m: '#2a3a5a', g1: '#d8e4f0', g2: '#8a9ab0'}],
+  1003: ['재앙의 사당 · 땅', 'lantern', {a: '#d8a05a', stakes: true, lanterns: false, torii: false, prop: 'vessel', moon: false, s: ['#1a1008', '#3a2a14', '#8a6a3a'], m: '#2a1a0a', g1: '#4a3a24', g2: '#1a1208'}],
+  1004: ['재앙의 사당 · 불', 'lantern', {a: '#ff6b3a', stakes: true, lanterns: false, torii: false, prop: 'flame', fire: true, s: ['#1a0408', '#4a0e14', '#c83a2a'], m: '#2a0a0a'}],
+  1007: ['고대의 제로 에리어', 'forest', {a: '#ff5a3a', jungle: true, s: ['#3a1a0a', '#8a4a1a', '#f0b060'], flowers: true}],
+  1008: ['미래의 제로 에리어', 'tech', {a: '#8a6bff', neon: true, city: true, s: ['#08041a', '#1a0a3a', '#4a1a6a']}],
+  1014: ['키타카미 · 충신의 사당', 'lantern', {a: '#7fd85a', shrine: true, statue: 'dog', torii: false, s: ['#1a1030', '#5a2a3a', '#e08a5a']}],
+  1015: ['키타카미 · 충신의 길', 'lantern', {a: '#c86bff', statue: 'monkey', s: ['#1a0a30', '#4a2060', '#a05a8a']}],
+  1016: ['키타카미 · 충신의 언덕', 'lantern', {a: '#ffd84d', statue: 'bird', lanterns: false, s: ['#0e1430', '#2a2a5a', '#8a6a6a']}],
+  1017: ['오니산 가면 축제', 'lantern', {a: '#4fd8a0', fire: true, masks: true, shrine: true, s: ['#0a1a20', '#1a3a3a', '#5a8a6a'], m: '#0e2a20'}],
+  1024: ['제로의 대공동', 'cave', {a: '#8fe8ff', b: '#ff9fe0', tera: true, wall: '#141a2a', floor: '#2a3040', s: ['#0a0e1a', '#141a2e', '#24304a']}],
+  1025: ['복숭아 오두막', 'lantern', {a: '#ff6bb8', peach: true, torii: false, s: ['#14081e', '#3a1438', '#8a3a6a']}],
+};
+// 표에 없는 전설·환상(앞으로 데이터가 늘어날 때)을 위한 타입별 기본 성지
+const TYPE_SANCT = {fire: 'fire', water: 'deep', grass: 'forest', bug: 'forest', electric: 'storm', ice: 'ice', rock: 'cave', ground: 'desert', steel: 'tech', psychic: 'cosmos', dragon: 'tower', flying: 'tower', ghost: 'void', dark: 'void', fairy: 'meadow', poison: 'cave', fighting: 'altar', normal: 'meadow'};
+function sanctumOf(p) {
+  if (!p || !p.rarity) return null;
+  const ids = [p.species && p.species[0], p.stages && p.stages[0] && p.stages[0][0]].filter(Boolean);
+  for (const id of ids) if (SANCTA[id]) return {id, place: SANCTA[id][0], theme: SANCTA[id][1], o: SANCTA[id][2], myth: p.rarity === 'mythical'};
+  return {id: ids[0] || 0, place: '전설의 성지', theme: TYPE_SANCT[p.type] || 'cosmos', o: {a: TYPE[p.type] || '#ffd84d'}, myth: p.rarity === 'mythical'};
+}
+// 장면 키: 'g3'(3세대 지방) 또는 'L249'(루기아 성지) → 완성된 SVG 문자열
+const sceneCache = {};
+function sceneSVG(key, sanct) {
+  if (sceneCache[key]) return sceneCache[key];
+  const S = sceneCanvas(sanct ? sanct.id : +key.slice(1) * 131, key);   // 그라디언트 id에 키를 붙여 다른 장면과 안 겹치게
+  if (sanct) { SANCT_THEMES[sanct.theme](S, sanct.o); BGP.aura(S, sanct.o.a, sanct.myth); }
+  else REGIONS[+key.slice(1)].draw(S);
+  return sceneCache[key] = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice"><defs>${S.defs}</defs>${S.out}</svg>`;
+}
 const DAYPARTS = {
   morning: {name: '아침', icon: '🌅', lines: ['좋은 아침! ☀️ 오늘도 같이 크자', '아침 공기 좋다~ 시작해볼까?']},
   noon: {name: '점심', icon: '☀️', lines: ['점심은 먹었어? 🍚', '오후도 힘내자!']},
@@ -663,20 +1233,21 @@ const DAYPARTS = {
   night: {name: '새벽', icon: '🌙', lines: ['새벽이야… 무리하지 마 🌙', '졸리면 자도 돼, 내일 또 크자']},
 };
 const daypart = (h = new Date().getHours()) => h >= 6 && h < 11 ? 'morning' : h < 17 && h >= 11 ? 'noon' : h >= 17 && h < 21 ? 'evening' : 'night';
-let regionGen = null;
+let sceneKey = null, sceneInfo = null;
 function updateTag() {
-  const d = DAYPARTS[daypart()];
-  $('#regionTag').textContent = `${regionGen}세대 · ${REGIONS[regionGen].name} 지방 · ${d.icon} ${d.name}`;
+  const d = DAYPARTS[daypart()], i = sceneInfo;
+  $('#regionTag').textContent = i.sanct ? `${i.sanct.myth ? '✧ 환상' : '✦ 전설'} · ${i.sanct.place} · ${d.icon} ${d.name}` : `${i.gen}세대 · ${REGIONS[i.gen].name} 지방 · ${d.icon} ${d.name}`;
 }
-function setRegion(gen) {
+function setScene(gen, p) {
   gen = gen || 1;
-  if (gen === regionGen) return;
-  regionGen = gen;
-  const r = REGIONS[gen], sc = $('#scene');
-  sc.style.setProperty('--sky1', r.sky[0]); sc.style.setProperty('--sky2', r.sky[1]); sc.style.setProperty('--ground', r.ground);
-  $('#region').innerHTML = `<svg viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice">${r.svg}</svg>`;
+  const sanct = sanctumOf(p), key = sanct ? 'L' + sanct.id : 'g' + gen;
+  if (key === sceneKey) return;
+  sceneKey = key; sceneInfo = {gen, sanct};
+  const sc = $('#scene');
+  $('#region').innerHTML = sceneSVG(key, sanct);
+  sc.classList.toggle('legend', !!sanct && !sanct.myth); sc.classList.toggle('myth', !!sanct && sanct.myth);
   updateTag();
-  sc.setAttribute('aria-label', `${r.name} 지방 배경에서 포켓몬이 노는 화면`);
+  sc.setAttribute('aria-label', sanct ? `${sanct.place}에서 ${sanct.myth ? '환상' : '전설'}의 포켓몬이 노는 화면` : `${REGIONS[gen].name} 지방 배경에서 포켓몬이 노는 화면`);
 }
 
 /* ---------- 말풍선 ---------- */
@@ -778,9 +1349,9 @@ function render() {
   const p = S.pet, live = S.live, cfg = S.config;
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b');
   const dp = daypart();
-  $('#scene').className = `scene ${live.mode} t-${dp}`;
-  if (dp !== render.dp) { render.dp = dp; if (regionGen) updateTag(); }
-  setRegion(p ? p.gen : pickGen);
+  setScene(p ? p.gen : pickGen, p);
+  $('#scene').className = `scene ${live.mode} t-${dp}${sceneInfo.sanct ? (sceneInfo.sanct.myth ? ' myth' : ' legend') : ''}`;
+  if (dp !== render.dp) { render.dp = dp; updateTag(); }
 
   const chipTxt = {work:`🎨 작업 중 · ${live.label}`, break:`🍿 휴식 중 · ${live.label}`, warning:`⚠️ 경고 · ${live.label}`,
     penalty:`💢 페널티 · ${live.label}`, paused:`⏸ 일시정지 · ${clockTo(S.paused_until)}까지`, ai:`🧠 AI · ${live.label}`, idle:'💤 자리비움', neutral: live.label ? `· ${live.label}` : '대기 중'}[live.mode];
@@ -1323,7 +1894,15 @@ async function makeCard() {
   const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
   const bg = g.createLinearGradient(0, 0, 0, 1350); bg.addColorStop(0, '#12141c'); bg.addColorStop(1, col);
   g.fillStyle = bg; g.fillRect(0, 0, 1080, 1350);
-  g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.arc(540, 620, 400, 0, 7); g.fill();
+  const sanct = sanctumOf(p);
+  try {   // 위쪽은 키운 곳(지방·성지) 풍경, 아래로 갈수록 타입 색으로 이어짐
+    const svg = sceneSVG(sanct ? 'L' + sanct.id : 'g' + p.gen, sanct);
+    const scn = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+    g.drawImage(scn, -166, 0, 1413, 860);
+    const fade = g.createLinearGradient(0, 0, 0, 1350);
+    fade.addColorStop(0, 'rgba(10,12,20,.55)'); fade.addColorStop(.2, 'rgba(10,12,20,0)'); fade.addColorStop(.5, 'rgba(10,12,20,0)'); fade.addColorStop(.66, col);
+    g.fillStyle = fade; g.fillRect(0, 0, 1080, 1350);
+  } catch { g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.arc(540, 620, 400, 0, 7); g.fill(); }
   g.textAlign = 'center'; g.fillStyle = '#fff';
   g.font = '56px Jua'; g.fillText('FIGMON', 540, 120);
   try { const art = await loadImg(ART(p.species[0])); g.drawImage(art, 190, 230, 700, 700); } catch {}
@@ -1335,7 +1914,7 @@ async function makeCard() {
   g.font = '42px Jua'; g.fillStyle = 'rgba(255,255,255,.85)';
   g.fillText(`${dur(p.work_sec)} 작업 · Lv.${p.level}`, 540, 1230);
   g.font = '30px Jua'; g.fillStyle = 'rgba(255,255,255,.6)';
-  g.fillText(`${REGIONS[p.gen].name} 지방에서 함께 자란 포켓몬 · #Figmon`, 540, 1295);
+  g.fillText(`${sanct ? sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬 · #Figmon`, 540, 1295);
   return c;
 }
 async function openShare() {
