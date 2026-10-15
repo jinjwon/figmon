@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.16.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.17.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -64,8 +64,39 @@ def xp_mult(line_key):
     return LINES[line_key].get("xp_mult", 1.0)
 
 
+TYPE_KO = {"normal": "노말", "fire": "불꽃", "water": "물", "grass": "풀", "electric": "전기", "ice": "얼음",
+           "fighting": "격투", "poison": "독", "ground": "땅", "flying": "비행", "psychic": "에스퍼", "bug": "벌레",
+           "rock": "바위", "ghost": "고스트", "dragon": "드래곤", "dark": "악", "steel": "강철", "fairy": "페어리"}
+
+
+def grad_stats():
+    """졸업한 포켓몬을 세대별·(세대, 타입)별로 센 것 — 전설·환상 해금 조건에 씀"""
+    by_gen, by_type = {}, {}
+    for d in STATE.get("dex", []):
+        l = LINES.get(str(d.get("line")))
+        if not l:
+            continue
+        typ = EEVEE_BY_ID[d["branch"]]["type"] if d.get("branch") in EEVEE_BY_ID else l["type"]
+        by_gen[l["gen"]] = by_gen.get(l["gen"], 0) + 1
+        by_type[f"{l['gen']}:{typ}"] = by_type.get(f"{l['gen']}:{typ}", 0) + 1
+    return by_gen, by_type
+
+
+def unlock_status(line_key):
+    """전설·환상 해금: 같은 세대 졸업 N마리 + (있으면) 같은 타입 1마리"""
+    l = LINES[line_key]
+    if not l.get("unlock_need"):
+        return {"open": True}
+    by_gen, by_type = grad_stats()
+    have = by_gen.get(l["gen"], 0)
+    t = l.get("unlock_type")
+    t_have = by_type.get(f"{l['gen']}:{t}", 0) if t else 0
+    return {"open": have >= l["unlock_need"] and (not t or t_have >= 1), "need": l["unlock_need"], "have": have,
+            "type": t, "type_have": t_have, "gen": l["gen"]}
+
+
 def is_unlocked(line_key):
-    return len(STATE.get("dex", [])) >= LINES[line_key].get("unlock_need", 0)
+    return unlock_status(line_key)["open"]
 EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 단계 수별 진화 레벨
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
@@ -274,6 +305,11 @@ for _k in ("133-water", "133-electric", "133-fire"):
     LINES[_k]["hidden"] = True
 for _l in LINES.values():
     _difficulty(_l)
+# 전설·환상마다 같은 타입 조건: 그 세대에 그 타입의 일반 포켓몬이 있을 때만 (못 여는 전설이 없게)
+_COMMON_TYPES = {(l["gen"], l["type"]) for l in LINES.values() if not l.get("rarity") and not l.get("hidden")}
+for _l in LINES.values():
+    if _l.get("unlock_need"):
+        _l["unlock_type"] = _l["type"] if (_l["gen"], _l["type"]) in _COMMON_TYPES else None
 
 # 이브이: 이브이로 일한 시간을 시간대별로 모아서, Lv.20에 많이 일한 시간대의 진화형 중에서 직접 고른다
 EEVEE_LV = 20
@@ -854,7 +890,7 @@ def view():
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
            "recent": LIVE["recent"],
-           "unlock": {"graduated": len(s["dex"])}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
+           "unlock": {"graduated": len(s["dex"]), "by_gen": grad_stats()[0], "by_type": grad_stats()[1]}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -957,7 +993,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "이미 키우는 포켓몬이 있어요"})
                 if not is_unlocked(str(body["line"])):
                     l = LINES[str(body["line"])]
-                    return self._send(400, {"error": f"{RARITY[l['rarity']]['name']} 포켓몬 {l['stages'][0][1]}은(는) {l['unlock_need']}마리를 졸업시키면 열려요"})
+                    u = unlock_status(str(body["line"]))
+                    return self._send(400, {"error": f"{l['stages'][0][1]}은(는) {u['gen']}세대 포켓몬 {u['need']}마리를 졸업시키면 열려요"
+                                                     + (f" (그중 {TYPE_KO.get(u['type'], u['type'])} 타입 1마리)" if u.get("type") else "")})
                 old = s["pet"]
                 s["pet"] = {"line": str(body["line"]), "xp": 0.0, "work_sec": 0.0,
                             "nickname": "", "born": time.time()}

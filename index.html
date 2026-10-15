@@ -1029,11 +1029,15 @@ function openPicker() {
   renderStarters();
 }
 // 전설·환상: 졸업한 수로 열리고 경험치가 덜 쌓임
+// 전설·환상 해금: 같은 세대 졸업 N마리 + (있으면) 같은 타입 1마리
 function rarityOf(l) {
   if (!l.rarity) return null;
-  const have = (S && S.unlock && S.unlock.graduated) || 0;
+  const u = (S && S.unlock) || {}, have = (u.by_gen || {})[l.gen] || 0;
+  const t = l.unlock_type, tHave = t ? ((u.by_type || {})[`${l.gen}:${t}`] || 0) : 1;
+  const open = have >= l.unlock_need && tHave >= 1;
+  const cond = `${l.gen}세대 포켓몬 ${l.unlock_need}마리 졸업${t ? ` (그중 ${TYPE_KO[t] || t} 타입 1마리)` : ''}`;
   return {name: l.rarity === 'mythical' ? '환상' : '전설', key: l.rarity, mark: l.rarity === 'mythical' ? '🌟' : '✨',
-    have, need: l.unlock_need, open: have >= l.unlock_need, xpText: `${+(+l.xp_mult).toFixed(2)}배`, hours: l.hours};
+    have, need: l.unlock_need, t, tHave, open, cond, hours: l.hours};
 }
 // 초성 검색: "ㅍㅋㅊ" → 피카츄
 const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
@@ -1058,12 +1062,12 @@ function renderStarters() {
   const card = ([k, l]) => {
     const rr = rarityOf(l), lock = rr && !rr.open;
     return `<button class="starter ${lock ? 'locked' : ''}" data-k="${k}" style="--c:${TYPE[l.type]}"
-      aria-label="${l.stages.map(s => s[1]).join(', ')}${rr ? `, ${rr.name}` : ''}${lock ? `, 잠김: ${rr.need}마리 졸업 필요` : ''}">
+      aria-label="${l.stages.map(s => s[1]).join(', ')}${rr ? `, ${rr.name}` : ''}${lock ? `, 잠김: ${rr.cond} 필요` : ''}">
     ${rr ? `<span class="legend-mark" aria-hidden="true">${lock ? '🔒' : rr.mark}</span>` : ''}
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
     <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
     <span class="badge">${TYPE_KO[l.type] || l.type}</span>
-    ${lock ? `<span class="lock">🔒 졸업 ${rr.have}/${rr.need}마리</span>` : `<span class="rare" style="color:var(--mute)">${rr ? rr.mark + ' ' : ''}성장 ${l.growth_name} · 약 ${l.hours}시간</span>`}</button>`;
+    ${lock ? `<span class="lock">🔒 ${l.gen}세대 ${Math.min(rr.have, rr.need)}/${rr.need}${rr.t ? ` · ${TYPE_KO[rr.t] || rr.t} ${Math.min(rr.tHave, 1)}/1` : ''}</span>` : `<span class="rare" style="color:var(--mute)">${rr ? rr.mark + ' ' : ''}성장 ${l.growth_name} · 약 ${l.hours}시간</span>`}</button>`;
   };
   const shown = all.slice(0, pickLimit);
   const more = all.length > pickLimit ? `<button type="button" class="b more-btn" id="pickMore">더 보기 (${all.length - pickLimit}마리 더)</button>` : '';
@@ -1109,7 +1113,7 @@ $('#starters').onclick = async e => {
   const b = e.target.closest('.starter'); if (!b) return;
   const l = META.lines[b.dataset.k];
   const rr = rarityOf(l);
-  if (rr && !rr.open) return toast(`🔒 ${rr.name} ${l.stages[0][1]}은(는) ${rr.need}마리를 졸업시키면 열려요 (지금 ${rr.have}마리)`);
+  if (rr && !rr.open) return toast(`🔒 ${l.stages[0][1]}은(는) ${l.gen}세대 포켓몬 ${rr.need}마리를 졸업시키면 열려요${rr.t ? ` (그중 ${TYPE_KO[rr.t] || rr.t} 타입 1마리)` : ''} · 지금 ${rr.have}마리${rr.t ? `, ${TYPE_KO[rr.t] || rr.t} ${rr.tHave}마리` : ''}`);
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
   if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장까지 작업 약 <b>${l.hours}시간</b> (성장 ${l.growth_name})${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬이라 키우기 어려워요!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
