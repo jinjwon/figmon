@@ -261,10 +261,18 @@ function reportRect() {
 }
 
 /* ---------- 스프라이트 (진화 단계 + 레벨에 따라 크기가 자람) ---------- */
+// 펫 크기: 슬라이더를 움직이는 동안은 그 값(liveSize)을 바로 쓰고, 저장이 끝날 때까지 서버 값으로 되돌리지 않음
+let liveSize = null, liveUntil = 0;
+function curSize() { return Date.now() < liveUntil ? liveSize : ((S && +S.config.pet_size) || 1); }
+function setSizeLive(ps) {   // Swift가 슬라이더 값을 바로 넘겨줌
+  liveSize = +ps; liveUntil = Date.now() + 2500; lastSize = liveSize;
+  const img = $('#body img'); if (img && img.complete) sizeImg(img);
+  reportRect();
+}
 function scaleFor(p) {
-  if (!p || !p.species) return (S && S.config.pet_size) || 1;
+  if (!p || !p.species) return curSize();
   // 레벨에 따라 조금씩 커짐 (Lv.0 1.25배 → Lv.40 이상 2.1배). 진화 단계 수와 상관없이 같은 규칙
-  return (1.25 + 0.85 * Math.min(p.level, 40) / 40) * ((S && S.config.pet_size) || 1);
+  return (1.25 + 0.85 * Math.min(p.level, 40) / 40) * curSize();
 }
 function draw() {
   const p = S && S.pet, body = $('#body');
@@ -337,7 +345,7 @@ async function poll() {
   if (!evolving) draw();
   const emoji = {work: '🎨', break: '🍿', warning: '⚠️', penalty: '💢', idle: '💤', ai: '🧠', paused: '⏸'}[m] || '⭐';
   const STATE_KO = {work: '작업 중', break: '휴식 중', warning: '경고', penalty: '페널티', idle: '자리비움', ai: 'AI 사용 중', paused: '일시정지', neutral: '대기 중'};
-  const ps = +S.config.pet_size || 1;
+  const ps = curSize();
   if (ps !== lastSize) { lastSize = ps; post({type: 'size', size: ps}); }   // Swift가 창 크기를 맞춤
   post({type: 'title', text: p ? `${emoji} Lv.${p.level}` : '🥚',
         label: p ? `${p.name} 레벨 ${p.level}, ${STATE_KO[m] || ''}` : '파트너 없음'});

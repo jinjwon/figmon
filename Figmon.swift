@@ -159,6 +159,8 @@ final class Dashboard: NSObject, NSWindowDelegate, WKScriptMessageHandler, WKUID
         case "copy":
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(d["text"] as? String ?? "", forType: .string)
+        case "petSize":   // 대시보드 슬라이더 (저장은 대시보드가 함)
+            delegate.pet?.applyLiveSize(d["size"] as? Double ?? 1, save: false)
         case "checkUpdate":
             delegate.updater.check(manual: true)
         case "openURL":
@@ -278,6 +280,20 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         x -= (newW - W) / 2
         W = newW; H = newH
         panel.setFrame(NSRect(x: x, y: y, width: W, height: H), display: true)
+    }
+
+    /// 슬라이더로 바꾸는 중: 창과 펫을 바로 바꾸고, 저장은 잠깐 멈췄을 때 한 번만
+    var saveSizeWork: DispatchWorkItem?
+    func applyLiveSize(_ size: Double, save: Bool) {
+        let v = min(1.6, max(0.6, size))
+        resize(to: v)
+        js("setSizeLive(\(v))")
+        if save {
+            saveSizeWork?.cancel()
+            let w = DispatchWorkItem { post("/api/config", ["pet_size": v]) }
+            saveSizeWork = w
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: w)
+        }
     }
 
     /// 작업 앱을 켜서 불려 나옴: 숨어 있었으면 커서와 가까운 화면 가장자리에서 걸어 나온다
@@ -413,7 +429,9 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             let minX = vf.minX - petRect.minX, maxX = vf.maxX - petRect.maxX
             if x < minX { x = minX; vxAir = abs(vxAir) * 0.5 }
             if x > maxX { x = maxX; vxAir = -abs(vxAir) * 0.5 }
-            if y > vf.maxY - H { y = vf.maxY - H; vy = -abs(vy) * 0.3 }
+            // 화면 위쪽은 창이 아니라 펫 몸 윗부분 기준 (창이 커져도 던지는 범위가 줄지 않게)
+            let top = vf.maxY - petRect.maxY
+            if y > top { y = top; vy = -abs(vy) * 0.3 }
             if y <= ground {
                 let impact = -vy
                 y = ground
@@ -834,15 +852,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(m, "대시보드 열기", #selector(openDashboard), "d")
         add(m, "펫을 내 쪽으로 부르기", #selector(callPet), "")
         add(m, pet?.hidden == true ? "펫 보이기" : "펫 숨기기", #selector(toggleHidden), "")
-        let sizeItem = NSMenuItem(title: "펫 크기", action: nil, keyEquivalent: "")
-        let sizes = NSMenu()
-        for (t, v) in [("아주 작게", 0.6), ("작게", 0.8), ("보통", 1.0), ("크게", 1.3), ("아주 크게", 1.6)] {
-            let i = add(sizes, t, #selector(setPetSize(_:)), "")
-            i.representedObject = v
-            i.state = abs((pet?.petSize ?? 1) - v) < 0.05 ? .on : .off
-        }
-        sizeItem.submenu = sizes
-        m.addItem(sizeItem)
+        m.addItem(sizeSliderItem())
         m.addItem(.separator())
 
         let pause = NSMenuItem(title: "추적 일시정지 (회의·외출)", action: nil, keyEquivalent: "")
@@ -880,7 +890,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openDashboard() { dashboard.show() }
     @objc func callPet() { pet?.callPet() }
     @objc func toggleHidden() { pet?.toggleHidden() }
-    @objc func setPetSize(_ s: NSMenuItem) { post("/api/config", ["pet_size": s.representedObject as? Double ?? 1]) }
+    /// 메뉴 안의 펫 크기 슬라이더 (끄는 동안 실시간으로 바뀜)
+    var sizeLabel: NSTextField?
+    func sizeSliderItem() -> NSMenuItem {
+        let item = NSMenuItem()
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 46))
+        let cur = pet?.petSize ?? 1
+        let label = NSTextField(labelWithString: "🐾 펫 크기  \(Int((cur * 100).rounded()))%")
+        label.frame = NSRect(x: 18, y: 25, width: 210, height: 17)
+        label.font = .menuFont(ofSize: 13)
+        let slider = NSSlider(value: cur, minValue: 0.6, maxValue: 1.6, target: self, action: #selector(sizeSlid(_:)))
+        slider.frame = NSRect(x: 16, y: 4, width: 210, height: 20)
+        slider.isContinuous = true
+        slider.setAccessibilityLabel("펫 크기")
+        v.addSubview(label); v.addSubview(slider)
+        sizeLabel = label
+        item.view = v
+        return item
+    }
+    @objc func sizeSlid(_ s: NSSlider) {
+        let v = (s.doubleValue * 20).rounded() / 20   // 5% 단위
+        sizeLabel?.stringValue = "🐾 펫 크기  \(Int((v * 100).rounded()))%"
+        pet?.applyLiveSize(v, save: true)
+    }
     @objc func pauseFor(_ s: NSMenuItem) { post("/api/pause", ["minutes": s.tag]) }
     @objc func quit() { NSApp.terminate(nil) }
 

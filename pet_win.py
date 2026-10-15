@@ -143,6 +143,7 @@ class Pet:
         self.dpi = max(1.0, root.winfo_fpixels("1i") / 96)
         self.W, self.H = int(300 * self.dpi), int(320 * self.dpi)
         self.size = 1.0
+        self.live_size, self.live_until, self.size_win = None, 0.0, None
         self.cv = tk.Canvas(root, width=self.W, height=self.H, bg=KEY, highlightthickness=0, bd=0)
         self.cv.pack()
         self.area = work_area(root)
@@ -202,7 +203,7 @@ class Pet:
                     self.online = True
             except Exception:
                 self.online = False
-            time.sleep(1.5)
+            time.sleep(0.5)   # 대시보드에서 크기·설정을 바꾸면 바로 따라오게
 
     def post(self, path, body):
         def run():
@@ -223,7 +224,7 @@ class Pet:
         elif s:
             self.state = s
             p, m = s["pet"], s["live"]["mode"]
-            ps = float(s["config"].get("pet_size", 1) or 1)
+            ps = self.live_size if time.time() < self.live_until else float(s["config"].get("pet_size", 1) or 1)
             if ps != self.size:
                 self.resize(ps)
             if s["live"].get("summon", 0) > self.last_summon:   # 작업 앱을 켜서 불려 나옴
@@ -270,7 +271,7 @@ class Pet:
 
     def zoom_for(self, p, s):
         # 레벨에 따라 조금씩 커짐 (진화 단계 수와 상관없이 같은 규칙)
-        scale = (1.25 + 0.85 * min(p["level"], 40) / 40) * float(s["config"].get("pet_size", 1)) * self.dpi
+        scale = (1.25 + 0.85 * min(p["level"], 40) / 40) * self.size * self.dpi   # 슬라이더 값이 바로 반영되게
         return max(1, round(scale * 1.4))
 
     def mode_line(self, m):
@@ -529,12 +530,7 @@ class Pet:
         pm.add_separator()
         pm.add_command(label="다시 시작", command=lambda: self.post("/api/pause", {"minutes": 0}))
         m.add_cascade(label="추적 일시정지 (회의·외출)", menu=pm)
-        sm = tk.Menu(m, tearoff=0, font=("Malgun Gothic", 10))
-        self.size_var = tk.DoubleVar(value=self.size)
-        for label, v in (("아주 작게", 0.6), ("작게", 0.8), ("보통", 1.0), ("크게", 1.3), ("아주 크게", 1.6)):
-            sm.add_radiobutton(label=label, value=v, variable=self.size_var,
-                               command=lambda v=v: self.post("/api/config", {"pet_size": v}))
-        m.add_cascade(label="펫 크기", menu=sm)
+        m.add_command(label=f"펫 크기 조절… (지금 {round(self.size * 100)}%)", command=self.open_size_window)
         m.add_command(label="펫 숨기기 (작업 앱을 켜면 다시 나와요)", command=self.hide)
         if IS_WIN:
             self.auto_var = tk.BooleanVar(value=startup_file().exists())
@@ -585,6 +581,36 @@ class Pet:
         self.frames.clear()          # 새 크기에 맞춰 다시 만듦
         self.cur_key = None
 
+    def open_size_window(self):
+        """작은 슬라이더 창: 끄는 동안 펫이 바로 커지고 작아짐"""
+        if self.size_win and self.size_win.winfo_exists():
+            self.size_win.lift()
+            return
+        w = self.size_win = tk.Toplevel(self.root)
+        w.title("펫 크기")
+        w.attributes("-topmost", True)
+        w.resizable(False, False)
+        w.geometry(f"+{max(0, int(self.x))}+{max(0, int(self.y) - 120)}")
+        label = tk.Label(w, text=f"🐾 펫 크기  {round(self.size * 100)}%", font=("Malgun Gothic", 11, "bold"))
+        label.pack(padx=16, pady=(12, 0))
+        save_job = [None]
+
+        def changed(v):
+            v = round(float(v) * 20) / 20   # 5% 단위
+            label.config(text=f"🐾 펫 크기  {round(v * 100)}%")
+            self.live_size, self.live_until = v, time.time() + 2.5
+            self.resize(v)
+            if save_job[0]:
+                self.root.after_cancel(save_job[0])
+            save_job[0] = self.root.after(400, lambda: self.post("/api/config", {"pet_size": v}))
+
+        scale = tk.Scale(w, from_=0.6, to=1.6, resolution=0.05, orient="horizontal", length=260, showvalue=False,
+                         command=changed)
+        scale.set(self.size)
+        scale.pack(padx=16, pady=6)
+        scale.focus_set()   # ← → 키로도 조절
+        tk.Button(w, text="닫기", command=w.destroy, font=("Malgun Gothic", 10)).pack(pady=(0, 12))
+
     def hide(self):
         self.hidden = True
         self.root.withdraw()
@@ -634,8 +660,9 @@ class Pet:
                 self.x, self.vx_air = lo, abs(self.vx_air) * 0.5
             if self.x > hi:
                 self.x, self.vx_air = hi, -abs(self.vx_air) * 0.5
-            if self.y < self.area[1]:
-                self.y, self.vy = self.area[1], abs(self.vy) * 0.3
+            top = self.area[1] - self.sprite_top()   # 창이 아니라 펫 몸 윗부분 기준 (크게 해도 던지는 범위가 그대로)
+            if self.y < top:
+                self.y, self.vy = top, abs(self.vy) * 0.3
             if self.y >= ground:
                 impact = self.vy
                 self.y = ground

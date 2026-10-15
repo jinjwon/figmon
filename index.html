@@ -184,6 +184,10 @@ button.b:disabled{opacity:.35;cursor:default}
 .recent .seg{display:flex;gap:3px;flex:none}
 .recent .seg button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:8px;padding:4px 7px;font:12px Jua,sans-serif;cursor:pointer}
 .recent .seg button[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.size-ctl{display:flex;align-items:center;gap:10px}
+.size-ctl label{flex:none;font-size:14px}
+.size-range{flex:1;accent-color:var(--type);height:28px;cursor:pointer}
+.size-val{flex:none;min-width:48px;text-align:right;font:15px Jua,sans-serif}
 .pick-group{grid-column:1/-1;font:13px Jua,sans-serif;color:var(--mute);margin:6px 2px 0}
 .starter{background:var(--card2);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;cursor:pointer;color:var(--text)}
 .starter:hover{border-color:var(--c)}
@@ -356,6 +360,11 @@ label.f textarea{height:64px;resize:vertical}
     </div>
   </div>
 
+  <div class="card size-ctl">
+    <label for="sizeRange" class="jua">🐾 펫 크기</label>
+    <input type="range" class="size-range" id="sizeRange" min="0.6" max="1.6" step="0.05" aria-describedby="sizeVal">
+    <output class="size-val" id="sizeVal">100%</output>
+  </div>
   <div class="btns quick">
     <button class="b" id="pauseBtn">⏸ 1시간 일시정지</button>
     <button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button>
@@ -453,10 +462,11 @@ label.f textarea{height:64px;resize:vertical}
     <div class="taglist" data-key="distract_domains" data-label="📺 딴짓 사이트" data-ph="예: youtube.com"></div>
     <div class="card" style="background:var(--card2);margin-top:14px">
       <div class="jua">♿ 편의 · 접근성</div>
-      <label class="f">펫 크기
-        <select name="pet_size" style="display:block;width:100%;margin-top:4px;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px;font:13px -apple-system,sans-serif">
-          <option value="0.6">아주 작게</option><option value="0.8">작게</option><option value="1">보통</option><option value="1.3">크게</option><option value="1.6">아주 크게</option>
-        </select></label>
+      <div class="size-ctl" style="margin-top:10px">
+        <label for="sizeRange2" class="muted">🐾 펫 크기</label>
+        <input type="range" class="size-range" id="sizeRange2" min="0.6" max="1.6" step="0.05" aria-describedby="sizeVal2">
+        <output class="size-val" id="sizeVal2">100%</output>
+      </div>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="alert_dialog" style="width:18px;height:18px"> 휴식 잔고가 없을 때 경고 팝업 띄우기 (끄면 알림만)
       </label>
@@ -824,6 +834,7 @@ function render() {
 
   $('#verTag').textContent = S.version ? `Figmon v${S.version} · ` : '';
   renderUpdate();
+  if (Date.now() > sizeDragUntil) showSize(+cfg.pet_size || 1);
   $('#tWork').textContent = dur(S.today.work_sec);
   $('#tDis').textContent = dur(S.today.distract_sec);
   $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled || S.today.ai_sec > 30 ? '' : 'none';
@@ -1172,6 +1183,23 @@ $('#presets').onclick = async e => {
   await saveLists({work_apps: pr.work_apps, work_domains: pr.work_domains});
   toast(`작업 목록을 ${label}용으로 바꿨어요`);
 };
+
+/* ---------- 펫 크기 슬라이더: 끄는 동안 펫이 바로 바뀜 ---------- */
+let sizeSaveT = null, sizeDragUntil = 0;
+function showSize(v) {
+  for (const id of ['sizeRange', 'sizeRange2']) { const r = $('#' + id); if (r && document.activeElement !== r) r.value = v; }
+  for (const id of ['sizeVal', 'sizeVal2']) { const o = $('#' + id); if (o) o.textContent = `${Math.round(v * 100)}%`; }
+  for (const id of ['sizeRange', 'sizeRange2']) { const r = $('#' + id); if (r) r.setAttribute('aria-valuetext', `${Math.round(v * 100)}%`); }
+}
+function onSizeInput(e) {
+  const v = +e.target.value;
+  sizeDragUntil = Date.now() + 2500;
+  S.config.pet_size = v; showSize(v);
+  if (native) callNative({type: 'petSize', size: v});            // 맥: 펫 창이 바로 바뀜
+  clearTimeout(sizeSaveT);
+  sizeSaveT = setTimeout(() => api('/api/config', {pet_size: v}).then(x => { S = x; }), native ? 400 : 120);   // 윈도우·브라우저는 저장되면 펫이 따라옴
+}
+['sizeRange', 'sizeRange2'].forEach(id => { const r = $('#' + id); if (r) r.addEventListener('input', onSizeInput); });
 
 /* ---------- 앱·사이트 목록: 태그로 지우고 Enter로 추가 (바로 저장) ---------- */
 const LIST_LABEL = {work: '작업', distract: '딴짓', ai: 'AI'};
