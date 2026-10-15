@@ -76,16 +76,34 @@ def main(folder=None):
         for p in ps:   # 예전 버전에서 갈래별로 고른 저장 데이터용 (선택 창에는 안 보임)
             lines[f"{sid}-{p[-1]}"] = {"gen": gen, "type": first_type.get(p[-1], "normal"), "stages": st(p),
                                        **flags, "hidden": True}
+    # 메가진화·원시회귀: {종 id: [[모습 id, 이름, 첫 타입], ...]} (이미지가 실제로 있는 것만)
+    mega = defaultdict(list)
+    for r in rows("pokemon", folder):
+        ident, pid, sid = r["identifier"], int(r["id"]), int(r["species_id"])
+        tail = next((t for t in ("-mega-x", "-mega-y", "-mega", "-primal") if ident.endswith(t)), None)
+        if not tail:
+            continue
+        art = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/{pid}.png"
+        try:
+            urllib.request.urlopen(urllib.request.Request(art, method="HEAD"), timeout=20)
+        except Exception:
+            continue
+        if any(m[1].endswith(tail[-2:]) and tail in ("-mega-x", "-mega-y") for m in mega[str(sid)]) or (tail == "-mega" and mega[str(sid)]):
+            continue   # 같은 메가의 다른 무늬(마기아나·싸리용 등)는 하나만
+        nm = names.get(sid, species[sid]["identifier"])
+        label = {"-mega-x": f"메가 {nm} X", "-mega-y": f"메가 {nm} Y", "-mega": f"메가 {nm}", "-primal": f"원시 {nm}"}[tail]
+        mega[str(sid)].append([pid, label, first_type.get(pid, "normal")])
     # 포켓몬별 [성장 그룹, 능력치 합계] — 1세대 포함 전부 (성장 속도·전설 해금 난이도에 씀)
     info = {sid: [growth_name.get(r["growth_rate_id"], "medium"), bst.get(sid, 0)] for sid, r in species.items()}
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",
-                               "lines": lines, "legendary": legendary, "mythical": mythical, "info": info},
+                               "lines": lines, "legendary": legendary, "mythical": mythical, "info": info,
+                               "mega": dict(sorted(mega.items(), key=lambda kv: int(kv[0])))},
                               ensure_ascii=False, separators=(",", ":")),
                    encoding="utf-8")
     by_gen = defaultdict(int)
     for l in lines.values():
         by_gen[l["gen"]] += 1
-    print(f"{OUT.name}: 계열 {len(lines)}개 (세대별 {dict(sorted(by_gen.items()))}), 전설 {len(legendary)} · 환상 {len(mythical)}마리")
+    print(f"{OUT.name}: 계열 {len(lines)}개 (세대별 {dict(sorted(by_gen.items()))}), 전설 {len(legendary)} · 환상 {len(mythical)}마리, 메가진화 {sum(map(len, mega.values()))}종")
 
 
 if __name__ == "__main__":

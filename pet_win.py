@@ -245,6 +245,10 @@ class Pet:
                     self.say("…어라? 몸이 빛나고 있어!", 2.6)
                     name = p["species"][1]
                     self.root.after(2700, lambda: (self.say(f"✨ {name}(으)로 진화했다!", 6), self.burst()))
+                elif p["species"][0] != self.prev["species"]:   # 메가진화·아르세우스 타입처럼 모습만 바뀜
+                    mega = (p.get("mega_info") or {}).get("active") and not self.prev.get("mega")
+                    self.say(f"💎 {p['species'][1]}(으)로 메가진화!" if mega else f"✨ {p['species'][1]}!", 5)
+                    self.burst()
                 elif p["level"] > self.prev["level"]:
                     self.say(f"레벨 업! Lv.{p['level']} 🎉", 3)
                     self.float_text(f"Lv.{p['level']}!", "#e0a800")
@@ -252,7 +256,8 @@ class Pet:
                     self.say(f"Lv.{p['level']}로 떨어졌어… 😢", 4, True)
                 if self.prev["xp"] - p["xp"] > 0.05:
                     self.float_text(f"-{self.prev['xp'] - p['xp']:.1f} XP", "#e5484d")
-            self.prev = {"line": p["line"], "stage": p["stage"], "level": p["level"], "xp": p["xp"]} if p else None
+            self.prev = {"line": p["line"], "stage": p["stage"], "level": p["level"], "xp": p["xp"], "species": p["species"][0],
+                         "mega": (p.get("mega_info") or {}).get("active")} if p else None
 
             key = (p["species"][0], self.zoom_for(p, s)) if p else None
             if key != self.cur_key and key != self.loading and time.time() > self.evolving_until:

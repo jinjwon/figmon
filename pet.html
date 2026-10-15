@@ -351,6 +351,11 @@ async function poll() {
         say(prev && prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `✨ ${p.species[1]}(으)로 진화했다!`, 6000);
         for (let i = 0; i < 8; i++) setTimeout(() => floatText(pick(['✨', '⭐', '🎉']), '#ffe066'), i * 120);
       }, 3000);
+    } else if (p.species && prev.species && p.species[0] !== prev.species[0] && p.stage === prev.stage) {   // 메가진화·아르세우스 타입처럼 모습만 바뀜
+      const mega = p.mega_info && p.mega_info.active && !(prev.mega_info && prev.mega_info.active);
+      shownKey = null; draw(); jump();
+      say(mega ? `💎 ${p.species[1]}(으)로 메가진화!` : `✨ ${p.species[1]}!`, 5000);
+      if (mega) for (let i = 0; i < 8; i++) setTimeout(() => floatText(pick(['💎', '✨', '⭐']), '#9fe8ff'), i * 120);
     } else if (p.level > prev.level) { floatText(`Lv.${p.level}!`, '#ffe066'); jump(); say(`레벨 업! Lv.${p.level} 🎉`, 3000); }
     else if (p.level < prev.level) say(`Lv.${p.level}로 떨어졌어… 😢`, 4000, true);
     if (prev.xp - p.xp > 0.05) floatText(`-${(prev.xp - p.xp).toFixed(1)} XP`, '#ff6b7a');

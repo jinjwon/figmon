@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.19.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.20.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -76,17 +76,45 @@ def grad_stats():
         l = LINES.get(str(d.get("line")))
         if not l:
             continue
-        typ = EEVEE_BY_ID[d["branch"]]["type"] if d.get("branch") in EEVEE_BY_ID else l["type"]
-        if l.get("fork") and d.get("fork_choice") is not None:
-            typ = l["fork"]["options"][d["fork_choice"]]["type"]
+        typ = dex_type(d, l)
         by_gen[l["gen"]] = by_gen.get(l["gen"], 0) + 1
         by_type[f"{l['gen']}:{typ}"] = by_type.get(f"{l['gen']}:{typ}", 0) + 1
     return by_gen, by_type
 
 
+def dex_type(d, l):
+    """졸업한 포켓몬의 타입 (이브이·갈래 진화는 고른 진화형의 타입)"""
+    if d.get("branch") in EEVEE_BY_ID:
+        return EEVEE_BY_ID[d["branch"]]["type"]
+    if l.get("fork") and d.get("fork_choice") is not None:
+        return l["fork"]["options"][d["fork_choice"]]["type"]
+    return l["type"]
+
+
+def arceus_unlock():
+    """아르세우스 해금: 여러 조건을 모두 채워야 함 (모든 타입의 신이라 가장 어려움)"""
+    dex = STATE.get("dex", [])
+    types, gen4, trio = set(), 0, 0
+    for d in dex:
+        l = LINES.get(str(d.get("line")))
+        if not l:
+            continue
+        types.add(dex_type(d, l))
+        gen4 += l["gen"] == 4
+        trio += str(d.get("line")) in CREATION_TRIO
+    conds = [{"label": "졸업한 포켓몬", "have": len(dex), "need": 12},
+             {"label": "졸업시킨 타입 종류", "have": len(types), "need": 10},
+             {"label": "4세대 포켓몬 졸업", "have": gen4, "need": 4},
+             {"label": "창조의 신(디아루가·펄기아·기라티나) 졸업", "have": trio, "need": 1}]
+    return {"open": all(c["have"] >= c["need"] for c in conds), "conds": conds, "gen": 4,
+            "need": 12, "have": len(dex), "type": None, "type_have": 0}
+
+
 def unlock_status(line_key):
     """전설·환상 해금: 같은 세대 졸업 N마리 + (있으면) 같은 타입 1마리"""
     l = LINES[line_key]
+    if l.get("unlock_special"):
+        return arceus_unlock()
     if not l.get("unlock_need"):
         return {"open": True}
     by_gen, by_type = grad_stats()
@@ -272,6 +300,7 @@ _GEN1 = [
 ]
 LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "starter": True} for g, t, st in _RAW}
 LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
+MEGA = {}
 # 2~9세대: tools/build_pokedex.py가 PokeAPI 데이터로 만든 pokedex.json (스타팅처럼 이미 있는 계열은 그대로 둠)
 try:
     _DEX = json.loads((HERE / "pokedex.json").read_text(encoding="utf-8"))
@@ -284,6 +313,7 @@ try:
         _l["rarity"] = "mythical" if any(i in _MYTH for i in _ids) else "legendary" if any(i in _LEGEND for i in _ids) else None
         _l["legendary"] = bool(_l["rarity"])
     _DEX_INFO = _DEX.get("info", {})
+    MEGA = {int(k): v for k, v in _DEX.get("mega", {}).items()}   # 종 id → [[모습 id, 이름, 타입], ...]
 except Exception as _e:
     print("pokedex.json을 읽지 못했어요:", _e)
 for _l in LINES.values():
@@ -312,6 +342,55 @@ _COMMON_TYPES = {(l["gen"], l["type"]) for l in LINES.values() if not l.get("rar
 for _l in LINES.values():
     if _l.get("unlock_need"):
         _l["unlock_type"] = _l["type"] if (_l["gen"], _l["type"]) in _COMMON_TYPES else None
+
+# 아르세우스: 모든 타입의 신. 따로 아주 어렵게 열리고 아주 느리게 자람. 함께 일한 시간만큼 타입(플레이트)이 늘어남
+ARCEUS = "493"
+ARCEUS_XP = 0.25      # 경험치 배율 (보통 포켓몬의 1/4 → 완전 성장까지 약 120시간)
+ARC_STEP_H = 6        # 아르세우스와 6시간 일할 때마다 새 타입 하나
+ARC_TYPES = ["fire", "water", "grass", "electric", "ice", "fighting", "poison", "ground", "flying",
+             "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
+CREATION_TRIO = {"483", "484", "487"}
+if ARCEUS in LINES:
+    LINES[ARCEUS].update(xp_mult=ARCEUS_XP, unlock_special=True, unlock_need=12, unlock_type=None,
+                         hours=round(MASTER_LV * XP_PER_LEVEL / (XP_PER_MIN * ARCEUS_XP) / 60))
+
+
+def arceus_forms(pet):
+    n = min(len(ARC_TYPES), int(pet.get("work_sec", 0) // (ARC_STEP_H * 3600)))
+    return ["normal"] + ARC_TYPES[:n]
+
+
+def arceus_cur(pet):
+    forms = arceus_forms(pet)
+    return pet.get("arc_form") if pet.get("arc_form") in forms else forms[-1]
+
+
+# 메가진화: 마지막 모습에서 Lv.60까지 키우면 (X/Y가 있으면 열심히 → X, 딴짓 줄이기 → Y)
+MEGA_LV = 60
+
+
+def mega_options(line, st):
+    return MEGA.get(line["stages"][st - 1][0], []) if st == len(line["stages"]) else []
+
+
+def mega_pick(pet, opts):
+    if len(opts) < 2:
+        return 0
+    sc = habit_scores(pet)
+    return 0 if sc["hustle"] >= sc["focus"] else 1
+
+
+def appearance(pet, lv, line, st):
+    """지금 보이는 모습: (모습 id, 이름, 타입, 메가진화 중인지)"""
+    sid, name = line["stages"][st - 1]
+    if pet["line"] == ARCEUS:
+        t = arceus_cur(pet)
+        return (f"493-{t}", f"아르세우스 ({TYPE_KO[t]})", t, False) if t != "normal" else (sid, name, "normal", False)
+    opts = mega_options(line, st)
+    if opts and pet.get("mega") is not None and pet.get("mega_on", True) and lv >= MEGA_LV:
+        mid, mname, mtype = opts[min(pet["mega"], len(opts) - 1)]
+        return mid, mname, mtype, True
+    return sid, name, line["type"], False
 
 # 이브이: 이브이로 일한 시간을 시간대별로 모아서, Lv.20에 많이 일한 시간대의 진화형 중에서 직접 고른다
 EEVEE_LV = 20
@@ -964,6 +1043,19 @@ def step(app, url, idle, dt, title=""):
                 log("lvup", f"Lv.{after} 달성!")
             else:
                 log("lvdown", f"Lv.{after}로 떨어졌어요…")
+        line_now = pet_line(pet)
+        st_now = stage_of(after, line_now)
+        opts = mega_options(line_now, st_now)
+        if opts and after >= MEGA_LV and pet.get("mega") is None:
+            pet["mega"], pet["mega_on"] = mega_pick(pet, opts), True
+            msg = f"{line_now['stages'][st_now - 1][1]} → {opts[pet['mega']][1]} 메가진화!"
+            log("evo", msg)
+            notify("💎 메가진화!", msg)
+        if pet["line"] == ARCEUS and len(arceus_forms(pet)) > pet.get("arc_seen", 1):
+            pet["arc_seen"] = len(arceus_forms(pet))
+            t = arceus_forms(pet)[-1]
+            log("evo", f"아르세우스가 {TYPE_KO[t]} 타입의 힘을 얻었어요! ({pet['arc_seen']}/18)")
+            notify("✨ 새 타입", f"아르세우스가 {TYPE_KO[t]} 타입의 힘을 얻었어요!")
     save()
 
 
@@ -993,7 +1085,8 @@ def view():
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
            "recent": LIVE["recent"],
-           "unlock": {"graduated": len(s["dex"]), "by_gen": grad_stats()[0], "by_type": grad_stats()[1]}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
+           "unlock": {"graduated": len(s["dex"]), "by_gen": grad_stats()[0], "by_type": grad_stats()[1],
+                      "special": {ARCEUS: arceus_unlock()} if ARCEUS in LINES else {}}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -1003,9 +1096,10 @@ def view():
         lv_list = line["evo_levels"]
         nxt = lv_list[st] if st < len(lv_list) else None
         rate = max(XP_PER_MIN * xp_mult(pet["line"]), 0.01)
-        out["pet"] = {**pet, "level": lv, "stage": st, "type": line["type"], "gen": line["gen"],
-                      "stages": line["stages"], "species": line["stages"][st - 1],
-                      "name": pet.get("nickname") or species_name(pet, st),
+        aid, aname, atype, is_mega = appearance(pet, lv, line, st)
+        out["pet"] = {**pet, "level": lv, "stage": st, "type": atype, "gen": line["gen"],
+                      "stages": line["stages"], "species": [aid, aname],
+                      "name": pet.get("nickname") or aname,
                       "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
                       "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]),
@@ -1014,6 +1108,18 @@ def view():
                       "next_evo_lv": nxt,
                       "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
                       "min_to_master": max(0.0, (MASTER_LV * XP_PER_LEVEL - xp) / rate)}
+        mo = MEGA.get(line["stages"][-1][0], []) if not (LINES[pet["line"]].get("fork") and pet.get("fork_choice") is None) else []
+        if mo:   # 메가진화할 수 있는 계열
+            out["pet"]["mega_info"] = {"lv": MEGA_LV, "options": [{"id": i, "name": n, "type": t} for i, n, t in mo],
+                                       "choice": pet.get("mega"), "lean": mega_pick(pet, mo), "on": pet.get("mega_on", True),
+                                       "active": is_mega, "ready": st == len(line["stages"]) and lv >= MEGA_LV,
+                                       "min_to": max(0.0, (MEGA_LV * XP_PER_LEVEL - xp) / rate)}
+        if pet["line"] == ARCEUS:
+            forms, done = arceus_forms(pet), pet.get("work_sec", 0) / 3600
+            out["pet"]["arceus"] = {"forms": [{"type": t, "id": f"493-{t}" if t != "normal" else 493, "open": t in forms}
+                                              for t in ["normal"] + ARC_TYPES],
+                                    "cur": arceus_cur(pet), "auto": pet.get("arc_form") is None, "step_h": ARC_STEP_H,
+                                    "next_min": None if len(forms) > len(ARC_TYPES) else (ARC_STEP_H * len(forms) - done) * 60}
         fl = LINES[pet["line"]]
         if fl.get("fork"):   # 갈래 진화: 진화 예측
             sc = habit_scores(pet)
@@ -1111,6 +1217,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not is_unlocked(str(body["line"])):
                     l = LINES[str(body["line"])]
                     u = unlock_status(str(body["line"]))
+                    if u.get("conds"):
+                        return self._send(400, {"error": f"{l['stages'][0][1]}은(는) 조건을 모두 채우면 열려요: "
+                                                         + ", ".join(f"{c['label']} {c['have']}/{c['need']}" for c in u["conds"])})
                     return self._send(400, {"error": f"{l['stages'][0][1]}은(는) {u['gen']}세대 포켓몬 {u['need']}마리를 졸업시키면 열려요"
                                                      + (f" (그중 {TYPE_KO.get(u['type'], u['type'])} 타입 1마리)" if u.get("type") else "")})
                 old = s["pet"]
@@ -1121,6 +1230,17 @@ class Handler(BaseHTTPRequestHandler):
                     log("hatch", f"{species_name(old, stage_of(level_of(old['xp']), pet_line(old)))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
                 else:
                     log("hatch", f"{new}와(과) 함께 시작! 작업할수록 같이 자라요")
+            elif self.path == "/api/mega":   # 메가진화 모습 ↔ 원래 모습
+                pet = s["pet"]
+                if not pet or pet.get("mega") is None:
+                    return self._send(400, {"error": f"Lv.{MEGA_LV}에 메가진화한 뒤에 바꿀 수 있어요"})
+                pet["mega_on"] = bool(body.get("on"))
+            elif self.path == "/api/arceus":   # 아르세우스: 열린 타입 중 하나 고르기 (null이면 가장 최근 타입)
+                pet = s["pet"]
+                t = body.get("type")
+                if not pet or pet["line"] != ARCEUS or (t is not None and t not in arceus_forms(pet)):
+                    return self._send(400, {"error": "아직 열리지 않은 타입이에요"})
+                pet["arc_form"] = t
             elif self.path == "/api/nickname" and s["pet"]:
                 s["pet"]["nickname"] = str(body.get("nickname", ""))[:12]
             elif self.path == "/api/graduate":
@@ -1129,7 +1249,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": f"Lv.{MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
                 lv = level_of(pet["xp"])
                 st = stage_of(lv, pet_line(pet))
-                s["dex"].append({**pet, "level": lv, "species": pet_line(pet)["stages"][st - 1],
+                aid, aname, _, _ = appearance(pet, lv, pet_line(pet), st)
+                s["dex"].append({**pet, "level": lv, "species": [aid, aname],
                                  "finished": time.time()})
                 log("grad", f"{species_name(pet, st)} Lv.{lv} 도감에 등록! 새 파트너를 골라주세요")
                 s["pet"] = None

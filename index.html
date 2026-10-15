@@ -123,7 +123,7 @@ header h1 span{color:var(--type)}
 /* ---------- cards ---------- */
 .card{background:var(--card);border-radius:16px;padding:14px;margin-top:12px}
 .name-row{display:flex;align-items:baseline;gap:8px}
-.name-row .name{font:24px Jua,sans-serif;cursor:pointer}
+.name-row .name{font:24px Jua,sans-serif;cursor:pointer;white-space:nowrap}
 .name-row .lv{font:18px Jua,sans-serif;color:var(--type)}
 .name-row .sub{margin-left:auto;color:var(--mute);font-size:12px}
 .bar{height:10px;background:var(--card2);border-radius:99px;overflow:hidden;margin:8px 0 4px}
@@ -174,6 +174,17 @@ button.b:disabled{opacity:.35;cursor:default}
 .dp-row{display:grid;grid-template-columns:72px 1fr 44px 70px;align-items:center;gap:8px;margin-top:8px;font-size:12px}
 .dp-row .bar{margin:0;height:8px}
 .dp-row .bar>div{background:var(--c)}
+.arc-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px}
+.arc{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 6px;border-radius:10px;border:2px solid transparent;background:var(--card);color:inherit;font:11px Jua,sans-serif;cursor:pointer}
+.arc img{width:40px;height:40px;image-rendering:pixelated}
+.arc .q{width:40px;height:40px;display:grid;place-items:center;color:var(--mute);font-size:16px}
+.arc.on{border-color:var(--c);box-shadow:0 0 10px var(--c)}
+.arc.off{opacity:.35;cursor:default}
+.mega-row{display:flex;gap:8px;margin-top:10px}
+.mega{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px;border-radius:12px;background:var(--card);border:2px solid transparent;font:13px Jua,sans-serif}
+.mega img{width:56px;height:56px;image-rendering:pixelated}
+.mega.on{border-color:var(--c);box-shadow:0 0 12px var(--c)}
+.mega.off{opacity:.35}
 .dp-row .mons{display:flex;gap:2px;justify-content:flex-end}
 .dp-row .mons img{width:32px;height:32px;image-rendering:pixelated}
 .dp-row.off .mons img{filter:grayscale(1);opacity:.45}
@@ -1370,6 +1381,10 @@ function render() {
       const from = prev.stage === 0 ? EGG_SVG : ART(prev.species[0]);
       const text = prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `${prev.species[1]} → ${p.species[1]} 진화!`;
       evolveFx(from, p.species[0], text, null);
+    } else if (p.species && prev.species && p.species[0] !== prev.species[0] && p.stage === prev.stage) {
+      const megaNow = p.mega_info && p.mega_info.active && !(prev.mega_info && prev.mega_info.active);
+      if (megaNow) evolveFx(ART(prev.species[0]), p.species[0], `${prev.species[1]} → ${p.species[1]} 메가진화! 💎`, null);
+      else { toast(`✨ ${p.species[1]}`); floatText('✨', '#ffe066'); }
     } else if (p.level > prev.level) { toast(`⬆️ Lv.${p.level} 달성!`); floatText(`Lv.${p.level}!`, '#ffe066'); }
     if (prev.level < p.master_lv && p.mastered) setTimeout(openShare, 6500);   // 완전 성장 → 자랑 카드
     else if (p.level < prev.level) toast(`⬇️ Lv.${p.level}로 떨어졌어…`);
@@ -1394,7 +1409,8 @@ function render() {
       return (i ? '<span class="arrow">›</span>' : '') +
         `<div class="slot ${reached ? '' : 'locked'} ${now ? 'now' : ''}">${pixTag(s[0])}${reached ? s[1] : '???'}<br>Lv.${p.evo_levels[i]}</div>`;
     }).join('') + (p.eevee && !p.branch ? `<span class="arrow">›</span><div class="slot locked"><div class="qslot">?</div>8가지 중<br>Lv.${p.branch_lv}</div>` : '')
-      + (p.fork && p.fork.choice == null ? `<span class="arrow">›</span><div class="slot locked"><div class="qslot">🔮</div>${p.fork.options.map(o => o.first).join('/')}<br>Lv.${p.fork.lv}</div>` : ''));
+      + (p.fork && p.fork.choice == null ? `<span class="arrow">›</span><div class="slot locked"><div class="qslot">🔮</div>${p.fork.options.map(o => o.first).join('/')}<br>Lv.${p.fork.lv}</div>` : '')
+      + (p.mega_info ? (m => `<span class="arrow">›</span><div class="slot ${m.ready ? '' : 'locked'} ${m.active ? 'now' : ''}">${m.ready ? pixTag(m.options[m.choice ?? m.lean].id) : '<div class="qslot">💎</div>'}${m.ready ? '메가' : '메가진화'}<br>Lv.${m.lv}</div>`)(p.mega_info) : ''));
     renderEevee(p);
   } else {
     $('#name').textContent = '파트너 없음'; $('#lv').textContent = ''; $('#species').textContent = '';
@@ -1563,8 +1579,33 @@ function renderFork(p) {
         <div class="bar" role="progressbar" aria-label="${esc(o.name)} 조건 점수" aria-valuenow="${Math.round(o.score * 100)}" aria-valuemin="0" aria-valuemax="100"><div style="width:${o.score * 100}%"></div></div></div>
       <span>${Math.round(o.score * 100)}</span></div>`).join('')}</div>`;
 }
+// 아르세우스: 함께 일한 시간만큼 열리는 18가지 타입
+function renderArceus(p) {
+  const a = p.arceus, open = a.forms.filter(f => f.open).length;
+  return `<div class="eevee"><h3>🌟 아르세우스의 플레이트 — ${open}/18 타입</h3>
+    <div class="muted">함께 ${a.step_h}시간 일할 때마다 새 타입의 힘을 얻어요. ${a.next_min != null ? `다음 타입까지 작업 약 <b>${dur(a.next_min * 60)}</b>` : '모든 타입을 얻었어요! 👑'}<br>열린 타입을 누르면 그 모습으로 바뀌어요.</div>
+    <div class="arc-grid">${a.forms.map(f => `<button type="button" class="arc ${f.open ? '' : 'off'} ${f.type === a.cur ? 'on' : ''}" data-arc="${f.type}" style="--c:${TYPE[f.type]}"
+      ${f.open ? '' : 'aria-disabled="true"'} aria-pressed="${f.type === a.cur}" aria-label="${TYPE_KO[f.type]} 타입${f.open ? '' : ', 잠김'}">${f.open ? pixTag(f.id) : '<span class="q">?</span>'}<span>${TYPE_KO[f.type]}</span></button>`).join('')}</div>
+    ${a.auto ? '' : '<div class="btns"><button type="button" class="b" data-arc="auto">가장 최근 타입 따라가기</button></div>'}</div>`;
+}
+// 메가진화: 마지막 모습에서 Lv.60
+function renderMega(p) {
+  const m = p.mega_info, pick = m.options[m.choice ?? m.lean], two = m.options.length > 1;
+  return `<div class="eevee"><h3>💎 메가진화 — Lv.${m.lv}</h3>
+    <div class="muted">${m.ready ? (m.active ? `<b>${esc(pick.name)}</b>(으)로 메가진화했어요! 경험치가 Lv.${m.lv} 아래로 떨어지면 원래 모습으로 돌아가요.` : `메가진화할 수 있어요. 지금은 원래 모습이에요.`)
+      : `엄청 열심히 키우면 Lv.${m.lv}에 메가진화해요. 작업 약 <b>${dur(m.min_to * 60)}</b> 남음.`}
+      ${two && m.choice == null ? `<br>X·Y 두 가지예요. 하루에 오래 일하면(🔥 열심히) <b>X</b>, 딴짓을 줄이면(🎯 집중) <b>Y</b> — 지금은 <b>${esc(pick.name)}</b> 쪽이에요.` : ''}</div>
+    <div class="mega-row">${m.options.map((o, i) => `<div class="mega ${i === (m.choice ?? m.lean) ? 'on' : ''} ${m.choice != null && i !== m.choice ? 'off' : ''}" style="--c:${TYPE[o.type]}">${pixTag(o.id)}<span>${esc(o.name)}</span></div>`).join('')}</div>
+    ${m.ready ? `<div class="btns"><button type="button" class="b ${m.active ? '' : 'primary'}" data-mega="${m.active ? 0 : 1}">${m.active ? '원래 모습으로' : '💎 메가진화하기'}</button></div>` : ''}</div>`;
+}
+$('#eeveeBox').addEventListener('click', async e => {
+  const a = e.target.closest('[data-arc]'), m = e.target.closest('[data-mega]');
+  if (a && !a.classList.contains('off')) { S = await api('/api/arceus', {type: a.dataset.arc === 'auto' ? null : a.dataset.arc}); render(); }
+  if (m) { S = await api('/api/mega', {on: m.dataset.mega === '1'}); render(); }
+});
 function renderEevee(p) {
   const box = $('#eeveeBox');
+  if (p.arceus || (p.mega_info && p.final && !(p.fork && p.fork.choice == null))) { const h = p.arceus ? renderArceus(p) : renderMega(p); if (box._h !== h) { box.innerHTML = h; box._h = h; } return; }
   if (p.fork && p.fork.choice == null) { const h = renderFork(p); if (box._h !== h) { box.innerHTML = h; box._h = h; } return; }
   if (!p.eevee || p.branch) { box.innerHTML = ''; box._h = ''; return; }
   const sh = p.eevee.share, mins = p.eevee.minutes, top = Object.keys(sh).reduce((a, b) => sh[a] >= sh[b] ? a : b);
@@ -1625,6 +1666,12 @@ function openPicker() {
 // 전설·환상 해금: 같은 세대 졸업 N마리 + (있으면) 같은 타입 1마리
 function rarityOf(l) {
   if (!l.rarity) return null;
+  if (l.unlock_special) {   // 아르세우스: 여러 조건을 모두 채워야 함
+    const sp = ((S && S.unlock && S.unlock.special) || {})[String(l.stages[0][0])] || {conds: [], open: false};
+    const done = sp.conds.filter(c => c.have >= c.need).length;
+    return {name: '환상', key: l.rarity, mark: '🌟', special: true, conds: sp.conds, open: sp.open, done,
+      cond: sp.conds.map(c => `${c.label} ${c.need}`).join(', '), hours: l.hours};
+  }
   const u = (S && S.unlock) || {}, have = (u.by_gen || {})[l.gen] || 0;
   const t = l.unlock_type, tHave = t ? ((u.by_type || {})[`${l.gen}:${t}`] || 0) : 1;
   const open = have >= l.unlock_need && tHave >= 1;
@@ -1662,7 +1709,7 @@ function renderStarters() {
     <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.fork ? [...l.stages.slice(1).map(s => s[1]), forkOpts(l).map(o => o.stages[o.stages.length - 1][1]).join('/')].join(' → ') + ' 🔮'
       : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
     <span class="badge">${TYPE_KO[l.type] || l.type}</span>
-    ${lock ? `<span class="lock">🔒 ${l.gen}세대 ${Math.min(rr.have, rr.need)}/${rr.need}${rr.t ? ` · ${TYPE_KO[rr.t] || rr.t} ${Math.min(rr.tHave, 1)}/1` : ''}</span>` : `<span class="rare" style="color:var(--mute)">${rr ? rr.mark + ' ' : ''}성장 ${l.growth_name} · 약 ${l.hours}시간</span>`}</button>`;
+    ${lock && rr.special ? `<span class="lock">🔒 신의 시련 ${rr.done}/${rr.conds.length}</span>` : lock ? `<span class="lock">🔒 ${l.gen}세대 ${Math.min(rr.have, rr.need)}/${rr.need}${rr.t ? ` · ${TYPE_KO[rr.t] || rr.t} ${Math.min(rr.tHave, 1)}/1` : ''}</span>` : `<span class="rare" style="color:var(--mute)">${rr ? rr.mark + ' ' : ''}성장 ${l.growth_name} · 약 ${l.hours}시간</span>`}</button>`;
   };
   const shown = all.slice(0, pickLimit);
   const more = all.length > pickLimit ? `<button type="button" class="b more-btn" id="pickMore">더 보기 (${all.length - pickLimit}마리 더)</button>` : '';
@@ -1708,6 +1755,7 @@ $('#starters').onclick = async e => {
   const b = e.target.closest('.starter'); if (!b) return;
   const l = META.lines[b.dataset.k];
   const rr = rarityOf(l);
+  if (rr && !rr.open && rr.special) return ask(`🔒 ${l.stages[0][1]} — 신의 시련`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}모든 타입의 신이라 아래 조건을 <b>모두</b> 채워야 열려요.<br>${rr.conds.map(c => `${c.have >= c.need ? '✅' : '⬜'} ${esc(c.label)} <b>${Math.min(c.have, c.need)}/${c.need}</b>`).join('<br>')}<br><br>열린 뒤에도 성장이 아주 느려요 (완전 성장까지 약 ${l.hours}시간). 함께 일할수록 18가지 타입의 모습을 얻어요.`, {yes: '도전해볼게', no: '닫기'});
   if (rr && !rr.open) return toast(`🔒 ${l.stages[0][1]}은(는) ${l.gen}세대 포켓몬 ${rr.need}마리를 졸업시키면 열려요${rr.t ? ` (그중 ${TYPE_KO[rr.t] || rr.t} 타입 1마리)` : ''} · 지금 ${rr.have}마리${rr.t ? `, ${TYPE_KO[rr.t] || rr.t} ${rr.tHave}마리` : ''}`);
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';

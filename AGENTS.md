@@ -8,7 +8,7 @@ Figmon은 작업 시간으로 포켓몬을 키우는 데스크톱 펫이에요 (
 - `pet.html` — macOS 데스크톱 펫 화면 (WKWebView 안에서 실행).
 - `Figmon.swift` — macOS 앱 본체: server.py 실행, 펫 창, 메뉴 막대, 자동 업데이트, 응용 프로그램 폴더로 옮기기.
 - `pet_win.py` — Windows 펫(tkinter). Windows에서는 server.py가 이걸 메인 스레드로 실행.
-- `pokedex.json` — 2~9세대 데이터. `python3 tools/build_pokedex.py`로 다시 만듦. 1세대는 server.py에 직접 있음(기존 저장 호환).
+- `pokedex.json` — 2~9세대 데이터와 메가진화 목록(mega). `python3 tools/build_pokedex.py`로 다시 만듦. 1세대는 server.py에 직접 있음(기존 저장 호환).
 - 사용자 데이터: `~/.figmon/state.json` (UTF-8로 읽고 쓸 것 — Windows 기본 인코딩은 한글을 못 담음).
 
 ## 빌드 · 확인
