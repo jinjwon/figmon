@@ -98,7 +98,7 @@ const ART = id => `${RAW}/other/official-artwork/${id}.png`;
 const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0'};
 const post = m => { try { webkit.messageHandlers.pet.postMessage(m); } catch (e) {} };
 
-let lastSummon = 0;
+let lastSummon = 0, lastSize = null;
 let S = null, prev = null, shownKey = null, mode = 'neutral', walking = false, evolving = false, offline = false;
 
 /* ---------- Swift가 부르는 함수 ---------- */
@@ -250,7 +250,10 @@ function particle() {
   document.body.appendChild(p); setTimeout(() => p.remove(), 1900);
 }
 function petRect() { return $('#body').getBoundingClientRect(); }
-function placeBubble() { $('#bubble').style.bottom = (innerHeight - petRect().top + 8) + 'px'; }
+function placeBubble() {   // 펫 머리 위, 창 위로 넘치지 않게
+  const b = $('#bubble'), want = innerHeight - petRect().top + 8;
+  b.style.bottom = Math.min(want, innerHeight - b.offsetHeight - 6) + 'px';
+}
 function reportRect() {
   const r = petRect();
   post({type: 'rect', x: r.left - 8, y: r.top - 8, w: r.width + 16, h: r.height + 20});
@@ -287,9 +290,13 @@ function draw() {
 }
 function sizeImg(img, sc = scaleFor(S && S.pet)) {
   // 애니메이션 GIF는 픽셀 그대로 키우고, 일러스트(대체 이미지)는 높이를 맞춘다
-  if (img.classList.contains('art')) { img.style.height = Math.round(48 * sc) + 'px'; img.style.width = 'auto'; }
-  else { img.style.width = Math.round(img.naturalWidth * sc) + 'px'; img.style.height = Math.round(img.naturalHeight * sc) + 'px'; }
+  let w = img.classList.contains('art') ? 48 * sc * (img.naturalWidth / (img.naturalHeight || 1)) : img.naturalWidth * sc;
+  let h = img.classList.contains('art') ? 48 * sc : img.naturalHeight * sc;
+  // 창 안에 들어가게: 말풍선·점프·회전할 자리를 남기고 줄인다 (크게 해도 잘리지 않게)
+  const fit = Math.min(1, (innerWidth - 40) / (w || 1), (innerHeight - 110) / (h || 1));
+  img.style.width = Math.round(w * fit) + 'px'; img.style.height = Math.round(h * fit) + 'px';
 }
+addEventListener('resize', () => { const img = $('#body img'); if (img && img.complete) sizeImg(img); reportRect(); });
 
 /* ---------- 상태 폴링 ---------- */
 async function poll() {
@@ -330,6 +337,8 @@ async function poll() {
   if (!evolving) draw();
   const emoji = {work: '🎨', break: '🍿', warning: '⚠️', penalty: '💢', idle: '💤', ai: '🧠', paused: '⏸'}[m] || '⭐';
   const STATE_KO = {work: '작업 중', break: '휴식 중', warning: '경고', penalty: '페널티', idle: '자리비움', ai: 'AI 사용 중', paused: '일시정지', neutral: '대기 중'};
+  const ps = +S.config.pet_size || 1;
+  if (ps !== lastSize) { lastSize = ps; post({type: 'size', size: ps}); }   // Swift가 창 크기를 맞춤
   post({type: 'title', text: p ? `${emoji} Lv.${p.level}` : '🥚',
         label: p ? `${p.name} 레벨 ${p.level}, ${STATE_KO[m] || ''}` : '파트너 없음'});
   if (!p && !$('#bubble').classList.contains('show')) say('대시보드에서 파트너를 골라줘! (나를 클릭)', 0);

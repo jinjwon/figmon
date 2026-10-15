@@ -455,7 +455,7 @@ label.f textarea{height:64px;resize:vertical}
       <div class="jua">♿ 편의 · 접근성</div>
       <label class="f">펫 크기
         <select name="pet_size" style="display:block;width:100%;margin-top:4px;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px;font:13px -apple-system,sans-serif">
-          <option value="0.75">작게</option><option value="1">보통</option><option value="1.3">크게</option><option value="1.6">아주 크게</option>
+          <option value="0.6">아주 작게</option><option value="0.8">작게</option><option value="1">보통</option><option value="1.3">크게</option><option value="1.6">아주 크게</option>
         </select></label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="alert_dialog" style="width:18px;height:18px"> 휴식 잔고가 없을 때 경고 팝업 띄우기 (끄면 알림만)
@@ -471,17 +471,16 @@ label.f textarea{height:64px;resize:vertical}
         <input type="checkbox" name="ai_limit_enabled" style="width:18px;height:18px"> 🧠 AI 절제 모드
       </label>
       <div class="muted" style="margin-top:4px">켜면 ChatGPT·Claude 같은 AI는 하루 무료 시간만큼만 쓸 수 있어요. 넘기면 딴짓으로 쳐서 휴식 잔고를 쓰고, 잔고가 없으면 경험치가 깎여요.</div>
-      <label class="f">하루 무료 AI 시간 (분)<input name="ai_daily_free_min" type="number"></label>
+      <label class="f">하루 무료 AI 시간 (분)<input name="ai_daily_free_min" type="number" min="0" max="240"></label>
       <div class="taglist" data-key="ai_apps" data-label="🧠 AI 앱" data-ph="예: ChatGPT"></div>
       <div class="taglist" data-key="ai_domains" data-label="🧠 AI 사이트" data-ph="예: claude.ai"></div>
     </div>
     <div class="grid2" style="margin-top:0">
-      <label class="f">작업 1분당 경험치<input name="xp_per_work_min" type="number" step="0.1"></label>
-      <label class="f">작업 N분 = 휴식 1분<input name="break_earn_ratio" type="number" step="0.5"></label>
-      <label class="f">페널티 (분당 -XP)<input name="penalty_xp_per_min" type="number" step="0.5"></label>
-      <label class="f">경고 유예 (초)<input name="grace_sec" type="number"></label>
-      <label class="f">휴식 잔고 최대 (분)<input name="bank_max_min" type="number"></label>
-      <label class="f">자리비움 판정 (초)<input name="idle_limit_sec" type="number"></label>
+      <label class="f">작업 N분 = 휴식 1분<input name="break_earn_ratio" type="number" step="0.5" min="3" max="30"></label>
+      <label class="f">페널티 (분당 -XP)<input name="penalty_xp_per_min" type="number" step="0.5" min="1" max="10"></label>
+      <label class="f">경고 유예 (초)<input name="grace_sec" type="number" min="5" max="120"></label>
+      <label class="f">휴식 잔고 최대 (분)<input name="bank_max_min" type="number" min="10" max="180"></label>
+      <label class="f">자리비움 판정 (초)<input name="idle_limit_sec" type="number" min="30" max="600"></label>
     </div>
     <div class="btns"><button type="button" class="b" id="setCancel">닫기</button><button class="b primary">저장</button></div>
   </form>
@@ -793,7 +792,7 @@ function render() {
   if (p) {
     $('#name').textContent = p.name;
     $('#lv').textContent = `Lv.${p.level}`;
-    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type] || p.type} · ${p.species[1]}${p.rarity ? ` · ${p.rarity === 'mythical' ? '🌟 환상' : '✨ 전설'} (경험치 ${p.xp_mult === 0.5 ? '½' : p.xp_mult + '배'})` : ''}`;
+    $('#species').textContent = `${p.gen}세대 · ${TYPE_KO[p.type] || p.type} · ${p.species[1]} · 성장 ${p.growth_name}${p.rarity ? ` · ${p.rarity === 'mythical' ? '🌟 환상' : '✨ 전설'}` : ''}`;
     $('#xpBar').style.width = (p.lv_progress * 100) + '%';
     $('#xpWrap').setAttribute('aria-valuenow', Math.round(p.lv_progress * 100));
     $('#monBox').setAttribute('aria-label', `${p.name} 쓰다듬기`);
@@ -820,7 +819,7 @@ function render() {
   $('#pauseBtn').textContent = paused ? '▶ 다시 시작' : '⏸ 1시간 일시정지';
   $('#bankHint').textContent = `작업 ${cfg.break_earn_ratio}분 = 휴식 1분`;
   $('#activity').textContent = live.label || '-';
-  $('#activityHint').textContent = {work:`+${cfg.xp_per_work_min} XP/분`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
+  $('#activityHint').textContent = {work:`+${p ? +(p.xp_mult).toFixed(2) : 1} XP/분${p && p.xp_mult < 1 ? ` (성장 ${p.growth_name})` : ''}`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
     penalty:`-${cfg.penalty_xp_per_min} XP/분`, paused:'경험치·페널티 멈춤', ai:`무료 AI ${Math.max(0, Math.ceil(cfg.ai_daily_free_min - S.today.ai_sec / 60))}분 남음`, idle:`${live.idle}초 동안 입력 없음`, neutral:'경험치 변화 없음'}[live.mode];
 
   $('#verTag').textContent = S.version ? `Figmon v${S.version} · ` : '';
@@ -1020,10 +1019,10 @@ function openPicker() {
 }
 // 전설·환상: 졸업한 수로 열리고 경험치가 덜 쌓임
 function rarityOf(l) {
-  if (!l.rarity || !META.rarity) return null;
-  const r = META.rarity[l.rarity], have = (S && S.unlock && S.unlock.graduated) || 0;
-  return {...r, key: l.rarity, mark: l.rarity === 'mythical' ? '🌟' : '✨', have, open: have >= r.need,
-    xpText: r.xp === 0.5 ? '½' : `${r.xp}배`, hours: Math.round((META.master_lv * META.xp_per_level) / r.xp / 60)};
+  if (!l.rarity) return null;
+  const have = (S && S.unlock && S.unlock.graduated) || 0;
+  return {name: l.rarity === 'mythical' ? '환상' : '전설', key: l.rarity, mark: l.rarity === 'mythical' ? '🌟' : '✨',
+    have, need: l.unlock_need, open: have >= l.unlock_need, xpText: `${+(+l.xp_mult).toFixed(2)}배`, hours: l.hours};
 }
 // 초성 검색: "ㅍㅋㅊ" → 피카츄
 const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
@@ -1053,7 +1052,7 @@ function renderStarters() {
     ${pixTag(l.stages[0][0])}<div class="jua" style="font-size:16px">${l.stages[0][1]}</div>
     <div class="evos">${l.branches ? '시간대에 따라 8가지 진화' : l.stages.length > 1 ? l.stages.slice(1).map(s => s[1]).join(' → ') : '진화 없음'}</div>
     <span class="badge">${TYPE_KO[l.type] || l.type}</span>
-    ${rr ? (lock ? `<span class="lock">🔒 졸업 ${rr.have}/${rr.need}마리</span>` : `<span class="rare">${rr.mark} ${rr.name} · 경험치 ${rr.xpText}</span>`) : ''}</button>`;
+    ${lock ? `<span class="lock">🔒 졸업 ${rr.have}/${rr.need}마리</span>` : `<span class="rare" style="color:var(--mute)">${rr ? rr.mark + ' ' : ''}성장 ${l.growth_name} · 약 ${l.hours}시간</span>`}</button>`;
   };
   const shown = all.slice(0, pickLimit);
   const more = all.length > pickLimit ? `<button type="button" class="b more-btn" id="pickMore">더 보기 (${all.length - pickLimit}마리 더)</button>` : '';
@@ -1099,10 +1098,10 @@ $('#starters').onclick = async e => {
   const b = e.target.closest('.starter'); if (!b) return;
   const l = META.lines[b.dataset.k];
   const rr = rarityOf(l);
-  if (rr && !rr.open) return toast(`🔒 ${rr.name} 포켓몬은 ${rr.need}마리를 졸업시키면 열려요 (지금 ${rr.have}마리)`);
+  if (rr && !rr.open) return toast(`🔒 ${rr.name} ${l.stages[0][1]}은(는) ${rr.need}마리를 졸업시키면 열려요 (지금 ${rr.have}마리)`);
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
-  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬은 경험치가 ${rr.xpText}만 쌓여요. 완전 성장까지 작업 약 ${rr.hours}시간!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
+  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장까지 작업 약 <b>${l.hours}시간</b> (성장 ${l.growth_name})${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬이라 키우기 어려워요!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
   S = await api('/api/choose', {line: b.dataset.k, replace});
   $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); speak(true); toast(`${l.stages[0][1]}와(과) 함께 Lv.0부터 출발!`);
 };
@@ -1163,7 +1162,7 @@ const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domai
 $('#openSettings').onclick = () => {
   renderTagLists(); renderRecent();
   const f = $('#setForm');
-  for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else if (el.tagName === 'SELECT') el.value = String(+v); else el.value = Array.isArray(v) ? v.join(', ') : v; }
+  for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else if (el.tagName === 'SELECT') el.value = [...el.options].reduce((a, o) => Math.abs(+o.value - v) < Math.abs(+a.value - v) ? o : a).value; else el.value = Array.isArray(v) ? v.join(', ') : v; }
   $('#setModal').classList.add('open');
 };
 $('#presets').onclick = async e => {

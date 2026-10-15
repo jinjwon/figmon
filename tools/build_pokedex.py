@@ -32,6 +32,10 @@ def main(folder=None):
              if r["local_language_id"] == KO}
     type_name = {r["id"]: r["identifier"] for r in rows("types", folder)}
     first_type = {int(r["pokemon_id"]): type_name[r["type_id"]] for r in rows("pokemon_types", folder) if r["slot"] == "1"}
+    growth_name = {r["id"]: r["identifier"] for r in rows("growth_rates", folder)}
+    bst = defaultdict(int)   # 능력치 합계 (기본 폼: pokemon_id == species_id)
+    for r in rows("pokemon_stats", folder):
+        bst[int(r["pokemon_id"])] += int(r["base_stat"])
 
     children = defaultdict(list)
     for sid, r in species.items():
@@ -67,8 +71,10 @@ def main(folder=None):
                 "legendary": r["is_legendary"] == "1",
                 "mythical": r["is_mythical"] == "1",
             }
+    # 포켓몬별 [성장 그룹, 능력치 합계] — 1세대 포함 전부 (성장 속도·전설 해금 난이도에 씀)
+    info = {sid: [growth_name.get(r["growth_rate_id"], "medium"), bst.get(sid, 0)] for sid, r in species.items()}
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",
-                               "lines": lines, "legendary": legendary, "mythical": mythical},
+                               "lines": lines, "legendary": legendary, "mythical": mythical, "info": info},
                               ensure_ascii=False, separators=(",", ":")),
                    encoding="utf-8")
     by_gen = defaultdict(int)

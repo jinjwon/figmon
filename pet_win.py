@@ -141,7 +141,8 @@ class Pet:
             ex = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
             ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x08000000 | 0x80)  # WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
         self.dpi = max(1.0, root.winfo_fpixels("1i") / 96)
-        self.W, self.H = int(300 * self.dpi), int(300 * self.dpi)
+        self.W, self.H = int(300 * self.dpi), int(320 * self.dpi)
+        self.size = 1.0
         self.cv = tk.Canvas(root, width=self.W, height=self.H, bg=KEY, highlightthickness=0, bd=0)
         self.cv.pack()
         self.area = work_area(root)
@@ -222,6 +223,9 @@ class Pet:
         elif s:
             self.state = s
             p, m = s["pet"], s["live"]["mode"]
+            ps = float(s["config"].get("pet_size", 1) or 1)
+            if ps != self.size:
+                self.resize(ps)
             if s["live"].get("summon", 0) > self.last_summon:   # 작업 앱을 켜서 불려 나옴
                 self.last_summon = s["live"]["summon"]
                 self.summon(s["live"].get("summon_label", ""))
@@ -330,6 +334,8 @@ class Pet:
             frames = frames or []
         if not frames:
             return
+        fw, fh = frames[0].width(), frames[0].height()
+        z = max(1, min(z, int((self.H - 110) / max(fh, 1)), int((self.W - 40) / max(fw, 1))))   # 말풍선·점프 자리 남기기
         left = [f.zoom(z) if z > 1 else f for f in frames]
         right = []
         for f in left:
@@ -523,6 +529,12 @@ class Pet:
         pm.add_separator()
         pm.add_command(label="다시 시작", command=lambda: self.post("/api/pause", {"minutes": 0}))
         m.add_cascade(label="추적 일시정지 (회의·외출)", menu=pm)
+        sm = tk.Menu(m, tearoff=0, font=("Malgun Gothic", 10))
+        self.size_var = tk.DoubleVar(value=self.size)
+        for label, v in (("아주 작게", 0.6), ("작게", 0.8), ("보통", 1.0), ("크게", 1.3), ("아주 크게", 1.6)):
+            sm.add_radiobutton(label=label, value=v, variable=self.size_var,
+                               command=lambda v=v: self.post("/api/config", {"pet_size": v}))
+        m.add_cascade(label="펫 크기", menu=sm)
         m.add_command(label="펫 숨기기 (작업 앱을 켜면 다시 나와요)", command=self.hide)
         if IS_WIN:
             self.auto_var = tk.BooleanVar(value=startup_file().exists())
@@ -558,6 +570,20 @@ class Pet:
         if r == 6:
             self.toggle_startup()
             self.say("좋아! 작업 앱을 켜면 바로 나올게 🎨", 4)
+
+    def resize(self, size):
+        """펫 크기에 맞춰 창도 키움 (크게 해도 잘리지 않게). 가운데·바닥 위치는 그대로"""
+        self.size = size
+        f = max(1.0, size * 1.15)
+        nw, nh = int(300 * self.dpi * f), int(320 * self.dpi * f)
+        if (nw, nh) == (self.W, self.H):
+            return
+        self.x -= (nw - self.W) / 2
+        self.y -= nh - self.H
+        self.W, self.H = nw, nh
+        self.cv.config(width=nw, height=nh)
+        self.frames.clear()          # 새 크기에 맞춰 다시 만듦
+        self.cur_key = None
 
     def hide(self):
         self.hidden = True

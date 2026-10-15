@@ -14,7 +14,7 @@ let env = ProcessInfo.processInfo.environment
 let port = env["FIGMON_PORT"] ?? "7777"
 let base = "http://127.0.0.1:\(port)"
 let parentPID = env["FIGMON_PARENT"].flatMap { Int32($0) }
-let W: CGFloat = 300, H: CGFloat = 320
+var W: CGFloat = 300, H: CGFloat = 320   // 펫 창 크기 (펫 크기 설정에 따라 바뀜)
 let args = CommandLine.arguments
 let launchedInBackground = args.contains("--background")   // 로그인 자동 실행: 작업을 시작하면 펫이 걸어 나옴
 let justUpdated = args.contains("--updated")
@@ -240,6 +240,8 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         web.setValue(false, forKey: "drawsBackground")
         web.navigationDelegate = self
         web.setAccessibilityElement(false)
+        web.autoresizingMask = [.width, .height]
+        grab.autoresizingMask = [.width, .height]
         let root = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
         root.addSubview(web)
         grab.frame = root.bounds
@@ -263,6 +265,19 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         hidden.toggle()
         UserDefaults.standard.set(hidden, forKey: "petHidden")
         hidden ? panel.orderOut(nil) : panel.orderFrontRegardless()
+    }
+
+    var petSize: Double = 1
+
+    /// 펫 크기에 맞춰 창도 키움 (크게 하거나 점프·회전해도 잘리지 않게). 가운데·바닥 위치는 그대로
+    func resize(to size: Double) {
+        petSize = size
+        let f = CGFloat(max(1, size * 1.15))
+        let newW = (300 * f).rounded(), newH = (320 * f).rounded()
+        guard newW != W || newH != H else { return }
+        x -= (newW - W) / 2
+        W = newW; H = newH
+        panel.setFrame(NSRect(x: x, y: y, width: W, height: H), display: true)
     }
 
     /// 작업 앱을 켜서 불려 나옴: 숨어 있었으면 커서와 가까운 화면 가장자리에서 걸어 나온다
@@ -306,6 +321,8 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             mode = m
         case "summon":
             summon()
+        case "size":
+            resize(to: d["size"] as? Double ?? 1)
         case "title":
             app?.setStatus(title: d["text"] as? String ?? "🥚", label: d["label"] as? String)
             if let l = d["label"] as? String { grab.setAccessibilityLabel("\(l). 누르면 대시보드가 열려요") }
@@ -817,6 +834,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(m, "대시보드 열기", #selector(openDashboard), "d")
         add(m, "펫을 내 쪽으로 부르기", #selector(callPet), "")
         add(m, pet?.hidden == true ? "펫 보이기" : "펫 숨기기", #selector(toggleHidden), "")
+        let sizeItem = NSMenuItem(title: "펫 크기", action: nil, keyEquivalent: "")
+        let sizes = NSMenu()
+        for (t, v) in [("아주 작게", 0.6), ("작게", 0.8), ("보통", 1.0), ("크게", 1.3), ("아주 크게", 1.6)] {
+            let i = add(sizes, t, #selector(setPetSize(_:)), "")
+            i.representedObject = v
+            i.state = abs((pet?.petSize ?? 1) - v) < 0.05 ? .on : .off
+        }
+        sizeItem.submenu = sizes
+        m.addItem(sizeItem)
         m.addItem(.separator())
 
         let pause = NSMenuItem(title: "추적 일시정지 (회의·외출)", action: nil, keyEquivalent: "")
@@ -854,6 +880,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openDashboard() { dashboard.show() }
     @objc func callPet() { pet?.callPet() }
     @objc func toggleHidden() { pet?.toggleHidden() }
+    @objc func setPetSize(_ s: NSMenuItem) { post("/api/config", ["pet_size": s.representedObject as? Double ?? 1]) }
     @objc func pauseFor(_ s: NSMenuItem) { post("/api/pause", ["minutes": s.tag]) }
     @objc func quit() { NSApp.terminate(nil) }
 

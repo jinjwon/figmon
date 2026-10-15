@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.14.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.15.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -52,18 +52,20 @@ if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로�
 
 XP_PER_LEVEL = 50
 MASTER_LV, MAX_LV = 36, 100   # Lv.36 = 완전 성장 (자랑 카드·졸업)
-# 전설·환상: 졸업한 포켓몬 수로 열리고, 경험치가 덜 쌓여서 키우기 어렵다 (도전 요소)
-RARITY = {"legendary": {"name": "전설", "need": 1, "xp": 0.5}, "mythical": {"name": "환상", "need": 3, "xp": 0.4}}
+XP_PER_MIN = 1.0   # 작업 1분당 기본 경험치 (설정으로 못 바꿈 — 성장 꼼수 방지)
+# 포켓몬마다 다른 성장 속도 (실제 게임의 성장 그룹을 그대로 씀)
+GROWTH = {"fast": (1.0, "빠름"), "medium": (0.85, "보통"), "medium-slow": (0.75, "조금 느림"),
+          "slow": (0.6, "느림"), "slow-then-very-fast": (0.8, "변덕 (빠른 편)"), "fast-then-very-slow": (0.55, "변덕 (느린 편)")}
+# 전설·환상: 졸업한 포켓몬 수로 열리고(능력치가 셀수록 더 많이 필요), 성장도 더 느림
+RARITY = {"legendary": {"name": "전설", "xp": 0.7}, "mythical": {"name": "환상", "xp": 0.6}}
 
 
 def xp_mult(line_key):
-    r = LINES[line_key].get("rarity")
-    return RARITY[r]["xp"] if r else 1.0
+    return LINES[line_key].get("xp_mult", 1.0)
 
 
 def is_unlocked(line_key):
-    r = LINES[line_key].get("rarity")
-    return not r or len(STATE.get("dex", [])) >= RARITY[r]["need"]
+    return len(STATE.get("dex", [])) >= LINES[line_key].get("unlock_need", 0)
 EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 단계 수별 진화 레벨
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
@@ -248,12 +250,30 @@ try:
         _ids = [i for i, _ in _l["stages"]]
         _l["rarity"] = "mythical" if any(i in _MYTH for i in _ids) else "legendary" if any(i in _LEGEND for i in _ids) else None
         _l["legendary"] = bool(_l["rarity"])
+    _DEX_INFO = _DEX.get("info", {})
 except Exception as _e:
     print("pokedex.json을 읽지 못했어요:", _e)
 for _l in LINES.values():
     _l["evo_levels"] = [0] + EVO_LEVELS[len(_l["stages"])]   # 각 단계가 시작되는 레벨
+
+
+def _difficulty(l):
+    """성장 그룹·전설 여부로 경험치 배율, 해금에 필요한 졸업 수, 완전 성장까지 시간"""
+    info = (_DEX_INFO if "_DEX_INFO" in globals() else {})
+    growth, bst = (info.get(str(l["stages"][0][0])) or ["medium", 0])[0], max(
+        [(info.get(str(i)) or ["", 0])[1] for i, _ in l["stages"]] + [0])
+    mult = GROWTH.get(growth, (0.85,))[0]
+    need = 0
+    if l.get("rarity"):
+        mult *= RARITY[l["rarity"]]["xp"]
+        need = 1 if bst < 600 else 2 if bst < 680 else 3      # 능력치 합계가 높을수록 더 많이 졸업해야
+        need += 1 if l["rarity"] == "mythical" else 0
+    l.update(growth=growth, growth_name=GROWTH.get(growth, (0, "보통"))[1], xp_mult=round(mult, 3),
+             unlock_need=need, bst=bst, hours=round(MASTER_LV * XP_PER_LEVEL / (XP_PER_MIN * mult) / 60))
 for _k in ("133-water", "133-electric", "133-fire"):
     LINES[_k]["hidden"] = True
+for _l in LINES.values():
+    _difficulty(_l)
 
 # 이브이: 이브이로 일한 시간을 시간대별로 모아서, Lv.20에 많이 일한 시간대의 진화형 중에서 직접 고른다
 EEVEE_LV = 20
@@ -720,7 +740,7 @@ def step(app, url, idle, dt, title=""):
         track(label, "work", dt)
         s["bank_sec"] = min(cfg["bank_max_min"] * 60, s["bank_sec"] + dt / max(cfg["break_earn_ratio"], 0.1))
         if pet:
-            pet["xp"] += dt / 60 * cfg["xp_per_work_min"] * xp_mult(pet["line"])
+            pet["xp"] += dt / 60 * XP_PER_MIN * xp_mult(pet["line"])
             pet["work_sec"] += dt
             if LINES[pet["line"]].get("branches") and not pet.get("branch"):
                 ev = pet.setdefault("eevee", {})
@@ -834,7 +854,7 @@ def view():
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
            "recent": LIVE["recent"],
-           "unlock": {"graduated": len(s["dex"]), **{k: v["need"] for k, v in RARITY.items()}}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
+           "unlock": {"graduated": len(s["dex"])}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
@@ -843,13 +863,14 @@ def view():
         st = stage_of(lv, line)
         lv_list = line["evo_levels"]
         nxt = lv_list[st] if st < len(lv_list) else None
-        rate = max(cfg["xp_per_work_min"] * xp_mult(pet["line"]), 0.01)
+        rate = max(XP_PER_MIN * xp_mult(pet["line"]), 0.01)
         out["pet"] = {**pet, "level": lv, "stage": st, "type": line["type"], "gen": line["gen"],
                       "stages": line["stages"], "species": line["stages"][st - 1],
                       "name": pet.get("nickname") or species_name(pet, st),
                       "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
                       "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]),
+                      "growth_name": LINES[pet["line"]].get("growth_name", "보통"),
                       "mastered": lv >= MASTER_LV, "master_lv": MASTER_LV,
                       "next_evo_lv": nxt,
                       "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
@@ -865,10 +886,22 @@ def view():
     return out
 
 
+# 바꿀 수 있는 숫자 설정의 범위 (꼼수 방지: 경험치 배율은 아예 못 바꾸고, 자리비움 판정도 너무 길게 못 함)
+LIMITS = {"break_earn_ratio": (3, 30), "bank_max_min": (10, 180), "penalty_xp_per_min": (1, 10),
+          "grace_sec": (5, 120), "idle_limit_sec": (30, 600), "pet_size": (0.6, 1.6), "ai_daily_free_min": (0, 240)}
+
+
 def apply_config(body):
     cfg = STATE["config"]
     for k, v in body.items():
-        if k not in DEFAULT_CONFIG:
+        if k not in DEFAULT_CONFIG or k == "xp_per_work_min":
+            continue
+        if k in LIMITS:
+            lo, hi = LIMITS[k]
+            try:
+                cfg[k] = min(hi, max(lo, float(v)))
+            except (TypeError, ValueError):
+                pass
             continue
         if isinstance(DEFAULT_CONFIG[k], bool):
             cfg[k] = bool(v)
@@ -903,7 +936,7 @@ class Handler(BaseHTTPRequestHandler):
                                  "now": time.time()})
         elif self.path == "/api/meta":
             self._send(200, {"lines": LINES, "master_lv": MASTER_LV, "rarity": RARITY,
-                             "xp_per_level": XP_PER_LEVEL, "presets": PRESETS,
+                             "xp_per_level": XP_PER_LEVEL, "presets": PRESETS, "limits": LIMITS, "growth": GROWTH,
                              "platform": "windows" if IS_WIN else "mac"})
         elif self.path == "/pet":
             self._send(200, (HERE / "pet.html").read_bytes(), "text/html; charset=utf-8")
@@ -923,8 +956,8 @@ class Handler(BaseHTTPRequestHandler):
                 if s["pet"] is not None and not body.get("replace"):
                     return self._send(400, {"error": "이미 키우는 포켓몬이 있어요"})
                 if not is_unlocked(str(body["line"])):
-                    r = RARITY[LINES[str(body["line"])]["rarity"]]
-                    return self._send(400, {"error": f"{r['name']} 포켓몬은 {r['need']}마리를 졸업시키면 열려요"})
+                    l = LINES[str(body["line"])]
+                    return self._send(400, {"error": f"{RARITY[l['rarity']]['name']} 포켓몬 {l['stages'][0][1]}은(는) {l['unlock_need']}마리를 졸업시키면 열려요"})
                 old = s["pet"]
                 s["pet"] = {"line": str(body["line"]), "xp": 0.0, "work_sec": 0.0,
                             "nickname": "", "born": time.time()}
