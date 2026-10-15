@@ -180,6 +180,9 @@ final class Dashboard: NSObject, NSWindowDelegate, WKScriptMessageHandler, WKUID
 final class PetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+    // macOS는 창이 화면 위로 못 넘어가게 위치를 고치는데, 펫 창은 크면 투명한 윗부분이 넘어가야
+    // 펫 몸이 화면 맨 위까지 갈 수 있다. 화면 안에 머무는 건 PetController가 펫 몸 기준으로 직접 맞춘다.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
 
 /// 웹뷰 위에 덮어서 마우스를 직접 받는 뷰. 포커스를 뺏지 않고 첫 클릭부터 반응하며, VoiceOver에는 버튼으로 보인다.
