@@ -35,11 +35,13 @@ body{font-family:Jua,-apple-system,sans-serif}
 .turn #body{animation:turn .2s ease-out !important}
 .land #body{animation:landing .4s ease-out !important}
 .petting #body{animation:petting .7s ease-in-out !important}
-.flying #body{animation:spin .45s linear infinite !important}
+.flying #body{animation:spin .45s linear infinite !important;transform-origin:50% 50%}
 .surprised #body{animation:surprised .9s ease-out !important}
 .evolving #body{animation:evoflash 3s steps(1) forwards !important}
 @keyframes petting{0%,100%{transform:scale(1,1) rotate(0)}20%{transform:scale(1.08,.92) rotate(-5deg)}45%{transform:scale(.97,1.03) rotate(4deg)}70%{transform:scale(1.06,.94) rotate(-3deg)}}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* 날아가며 돌 때: 회전하면 모서리가 튀어나오니 --lift만큼 띄우고 --fs만큼 줄여서 창 안에서 돌게 */
+@keyframes spin{from{transform:translateY(calc(-1 * var(--lift, 0px))) scale(var(--fs, 1)) rotate(0)}
+  to{transform:translateY(calc(-1 * var(--lift, 0px))) scale(var(--fs, 1)) rotate(360deg)}}
 @keyframes surprised{0%{transform:scale(1.25,.7)}20%{transform:translateY(-18px) scale(.9,1.12)}40%{transform:translateY(0) scale(1.1,.9)}55%{transform:translateX(-4px) rotate(-6deg)}70%{transform:translateX(4px) rotate(6deg)}85%{transform:translateX(-2px) rotate(-3deg)}100%{transform:none}}
 @keyframes breathe{50%{transform:scale(1.025,.975)}}
 @keyframes sleep{50%{transform:scale(1.04,.95)}}
@@ -140,7 +142,18 @@ function petEvent(k) {
     petEvent.petting = true; clearTimeout(petEvent.pt); petEvent.pt = setTimeout(() => petEvent.petting = false, 2600);
   }
   // 세게 던지기 → 날아갔다가 깜짝 놀람
-  if (k === 'fly') { b.classList.remove('grabbed'); if (!calm()) b.classList.add('flying'); say(pick(['으아아아~!', '날 수 있다…?!', '살려줘어~']), 0, true); }
+  if (k === 'fly') {
+    b.classList.remove('grabbed');
+    if (!calm()) {
+      const r = petRect(), diag = Math.hypot(r.width, r.height);
+      const fs = Math.min(1, (innerWidth - 12) / diag, (innerHeight - 12) / diag);   // 돌아도 창보다 커지지 않게
+      const body = $('#body');
+      body.style.setProperty('--fs', fs);
+      body.style.setProperty('--lift', `${Math.max(0, (diag * fs - r.height) / 2) + 6}px`);   // 아래로 튀어나오는 만큼 띄움
+      b.classList.add('flying');
+    }
+    say(pick(['으아아아~!', '날 수 있다…?!', '살려줘어~']), 0, true);
+  }
   if (k === 'surprised') {
     b.classList.remove('flying', 'grabbed'); play('surprised', 900); dust(5); mark('!?');
     setTimeout(() => { if (!calm()) floatText('💫', '#ffd84d'); }, 300);
