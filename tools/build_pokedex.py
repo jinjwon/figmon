@@ -60,17 +60,22 @@ def main(folder=None):
         gen = int(r["generation_id"])
         if gen < 2:                            # 1세대는 server.py에 있음
             continue
-        ps = paths(sid)
-        for p in ps:
-            p = p[:3]                          # 진화는 최대 3단계
-            key = str(sid) if len(ps) == 1 else f"{sid}-{p[-1]}"
-            lines[key] = {
-                "gen": gen,
-                "type": first_type.get(p[-1], "normal"),
-                "stages": [[i, names.get(i, species[i]["identifier"])] for i in p],
-                "legendary": r["is_legendary"] == "1",
-                "mythical": r["is_mythical"] == "1",
-            }
+        ps = [p[:3] for p in paths(sid)]       # 진화는 최대 3단계
+        st = lambda p: [[i, names.get(i, species[i]["identifier"])] for i in p]
+        flags = {"legendary": r["is_legendary"] == "1", "mythical": r["is_mythical"] == "1"}
+        if len(ps) == 1:
+            lines[str(sid)] = {"gen": gen, "type": first_type.get(ps[0][-1], "normal"), "stages": st(ps[0]), **flags}
+            continue
+        # 진화가 갈라짐: 공통 앞부분 + 갈래들 하나의 계열로 (어느 갈래로 갈지는 키우는 방식으로 정해짐)
+        pre = 0
+        while all(len(p) > pre for p in ps) and len({p[pre] for p in ps}) == 1:
+            pre += 1
+        lines[str(sid)] = {"gen": gen, "type": first_type.get(sid, "normal"), "stages": st(ps[0][:pre]), **flags,
+                           "fork": {"options": [{"stages": st(p[pre:]), "type": first_type.get(p[-1], "normal"),
+                                                 "final": p[-1]} for p in ps]}}
+        for p in ps:   # 예전 버전에서 갈래별로 고른 저장 데이터용 (선택 창에는 안 보임)
+            lines[f"{sid}-{p[-1]}"] = {"gen": gen, "type": first_type.get(p[-1], "normal"), "stages": st(p),
+                                       **flags, "hidden": True}
     # 포켓몬별 [성장 그룹, 능력치 합계] — 1세대 포함 전부 (성장 속도·전설 해금 난이도에 씀)
     info = {sid: [growth_name.get(r["growth_rate_id"], "medium"), bst.get(sid, 0)] for sid, r in species.items()}
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",

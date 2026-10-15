@@ -198,7 +198,7 @@ class Pet:
     def poll_loop(self):
         while True:
             try:
-                with urllib.request.urlopen(self.base + "/api/state", timeout=3) as r:
+                with urllib.request.urlopen(self.base + "/api/state?lite=1", timeout=3) as r:   # 가벼운 응답
                     self.new_state = json.loads(r.read())
                     self.online = True
             except Exception:

@@ -322,7 +322,7 @@ addEventListener('resize', () => { const img = $('#body img'); if (img && img.co
 /* ---------- 상태 폴링 ---------- */
 async function poll() {
   try {
-    S = await (await fetch('/api/state', {cache: 'no-store'})).json();
+    S = await (await fetch('/api/state?lite=1', {cache: 'no-store'})).json();
     if (offline) { offline = false; say('다시 연결됐어!', 2000); }
   } catch (e) {
     if (!offline) { offline = true; say('Figmon 서버가 꺼져 있어… 💤', 0); }

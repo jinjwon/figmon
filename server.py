@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.17.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.18.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -77,6 +77,8 @@ def grad_stats():
         if not l:
             continue
         typ = EEVEE_BY_ID[d["branch"]]["type"] if d.get("branch") in EEVEE_BY_ID else l["type"]
+        if l.get("fork") and d.get("fork_choice") is not None:
+            typ = l["fork"]["options"][d["fork_choice"]]["type"]
         by_gen[l["gen"]] = by_gen.get(l["gen"], 0) + 1
         by_type[f"{l['gen']}:{typ}"] = by_type.get(f"{l['gen']}:{typ}", 0) + 1
     return by_gen, by_type
@@ -334,9 +336,65 @@ def daypart_now(t=None):
     return "morning" if 6 <= h < 11 else "noon" if 11 <= h < 17 else "evening" if 17 <= h < 21 else "night"
 
 
+# 진화가 갈라지는 포켓몬: 키우는 습관으로 정해짐 (실제 게임 조건을 작업 습관으로 바꿈)
+FORK_COND = {
+    195: "day", 980: "night",                 # 우파 → 누오(낮) / 토오(밤)
+    903: "day", 461: "night",                 # 포푸니 → 포푸니크(낮) / 포푸니라(밤, 실제로도 밤에 진화)
+    106: "hustle", 107: "focus", 237: "balance",   # 배루키 → 시라소몬(공격) / 홍수몬(방어) / 카포에라(균형)
+    267: "day", 269: "night",                 # 개무소 → 뷰티플라이(나비, 낮) / 독케일(나방, 밤)
+    282: "focus", 475: "hustle",              # 랄토스 → 가디안 / 엘레이드
+    291: "hustle", 292: "night",              # 토중몬 → 아이스크(빠름) / 껍질몬(유령)
+    362: "day", 478: "night",                 # 눈꼬마 → 얼음귀신 / 눈여아
+    367: "hustle", 368: "focus",              # 진주몽 → 헌테일(공격) / 분홍장이(방어)
+    414: "hustle", 413: "focus",              # 도롱충이 → 나메일(날아다님) / 도롱마담(머무름)
+    563: "day", 867: "night",                 # 데스마스 → 데스니칸 / 데스판
+    791: "day", 792: "night",                 # 코스모그 → 솔가레오(해) / 루나아라(달)
+    841: "hustle", 842: "balance", 1019: "focus",  # 과사삭벌레 → 애프룡 / 단지래플 / 과미드라
+    936: "day", 937: "night",                 # 카르본 → 카디나르마 / 파라블레이즈
+}
+FORK_LABEL = {"day": "☀️ 낮(6~18시)에 많이 작업", "night": "🌙 밤(18~6시)에 많이 작업",
+              "hustle": "🔥 하루에 오래 작업 (평균 4시간이면 만점)", "focus": "🎯 딴짓 줄이기 (딴짓 비율이 낮을수록)",
+              "balance": "🍿 휴식 잔고는 잘 쓰고 페널티는 적게"}
+for _l in LINES.values():
+    if _l.get("fork"):
+        _opts = _l["fork"]["options"]
+        _maxlen = len(_l["stages"]) + max(len(o["stages"]) for o in _opts)
+        _l["evo_levels"] = [0] + EVO_LEVELS[_maxlen]
+        _l["fork_lv"] = _l["evo_levels"][len(_l["stages"])]
+        _default = ["day", "night"] if len(_opts) == 2 else ["hustle", "focus", "balance", "day", "night"]
+        for _i, _o in enumerate(_opts):
+            _o["cond"] = FORK_COND.get(_o["final"], _default[_i % len(_default)])
+            _o["label"] = FORK_LABEL[_o["cond"]]
+
+
+def habit_scores(pet):
+    """키우는 동안의 습관 점수 (0~1). 갈래 진화를 정하는 데 씀"""
+    st = pet.get("stats") or {}
+    w, dis = st.get("work", 0.0), st.get("distract", 0.0)
+    days = max(1, len(st.get("days", [])))
+    day_share = st.get("day", 0.0) / w if w else 0.5
+    return {"day": round(day_share, 3), "night": round(1 - day_share, 3),
+            "hustle": round(min(1.0, (w / days) / 240), 3),
+            "focus": round(max(0.0, 1 - ((dis / (w + dis)) if w + dis else 0) / 0.25), 3),
+            "balance": round(min(1.0, st.get("brk", 0.0) / max(1.0, w / 10)) * (1 - min(1.0, st.get("pen", 0.0) / 30)), 3)}
+
+
+def fork_pick(pet):
+    """지금 습관대로라면 갈 진화형 번호 (점수가 가장 높은 쪽, 같으면 앞쪽)"""
+    sc, opts = habit_scores(pet), LINES[pet["line"]]["fork"]["options"]
+    return max(range(len(opts)), key=lambda i: (sc[opts[i]["cond"]], -i))
+
+
 def pet_line(pet):
-    """키우는 포켓몬의 실제 진화 계열. 이브이는 고른 진화형이 뒤에 붙는다"""
+    """키우는 포켓몬의 실제 진화 계열. 이브이는 고른 진화형이, 갈래 진화는 정해진 진화형이 뒤에 붙는다"""
     base = LINES[pet["line"]]
+    if base.get("fork"):
+        i = pet.get("fork_choice")
+        if i is None:
+            return {**base, "evo_levels": base["evo_levels"][:len(base["stages"])]}
+        o = base["fork"]["options"][i]
+        st = base["stages"] + o["stages"]
+        return {**base, "type": o["type"], "stages": st, "evo_levels": base["evo_levels"][:len(st)]}
     if not base.get("branches"):
         return base
     b = EEVEE_BY_ID.get(pet.get("branch"))
@@ -487,7 +545,14 @@ def load_state():
     return s
 
 
-def save():
+_LAST_SAVE = [0.0]
+
+
+def save(force=False):
+    """상태 저장. 감지 루프(3초마다)에서는 15초에 한 번만 쓰고, 사용자 조작·종료 때는 바로 씀"""
+    if not force and time.time() - _LAST_SAVE[0] < 15:
+        return
+    _LAST_SAVE[0] = time.time()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STATE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(STATE, ensure_ascii=False), encoding="utf-8")  # Windows 기본 인코딩은 한글을 못 담음
@@ -498,6 +563,7 @@ STATE = load_state()
 
 
 def log(kind, msg):
+    _LAST_SAVE[0] = 0.0   # 진화·레벨업 같은 일이 생기면 다음 저장을 바로
     STATE["events"].append({"t": time.time(), "kind": kind, "msg": msg})
     del STATE["events"][:-60]
 
@@ -516,8 +582,9 @@ def front_app():
     asn = sh(["lsappinfo", "front"])
     if not asn:
         return "", ""
-    m = re.search(r'"LSDisplayName"\s*=\s*"([^"]*)"', sh(["lsappinfo", "info", "-only", "name", asn]))
-    b = re.search(r'"LSBundlePath"\s*=\s*"([^"]*)"', sh(["lsappinfo", "info", "-only", "bundlepath", asn]))
+    out = sh(["lsappinfo", "info", "-only", "name", "-only", "bundlepath", asn])   # 한 번에
+    m = re.search(r'"LSDisplayName"\s*=\s*"([^"]*)"', out)
+    b = re.search(r'"LSBundlePath"\s*=\s*"([^"]*)"', out)
     return (m.group(1) if m else ""), (b.group(1) if b else "")
 
 
@@ -551,7 +618,20 @@ def browser_url(app):
     return sh(["osascript", "-e", f'tell application "{app}" to get {prop}'])
 
 
+_CG_IDLE = None
+if sys.platform == "darwin":   # 입력 없는 시간: 외부 명령(ioreg) 대신 시스템 함수로 바로
+    try:
+        import ctypes as _ct
+        import ctypes.util as _ctu
+        _CG_IDLE = _ct.cdll.LoadLibrary(_ctu.find_library("ApplicationServices")).CGEventSourceSecondsSinceLastEventType
+        _CG_IDLE.restype, _CG_IDLE.argtypes = _ct.c_double, [_ct.c_int32, _ct.c_uint32]
+    except Exception:
+        _CG_IDLE = None
+
+
 def idle_seconds():
+    if _CG_IDLE:
+        return float(_CG_IDLE(1, 0xFFFFFFFF))   # HID 시스템 상태, 모든 입력
     m = re.search(r'"HIDIdleTime" = (\d+)', sh(["ioreg", "-c", "IOHIDSystem", "-d", "4"]))
     return int(m.group(1)) / 1e9 if m else 0.0
 
@@ -841,6 +921,29 @@ def step(app, url, idle, dt, title=""):
         log("penalty", f"페널티 시작! {label} 때문에 경험치가 줄고 있어요")
     LIVE["mode"] = mode
 
+    if pet:   # 키우는 동안의 습관 (갈래 진화를 정하는 데 씀)
+        st = pet.setdefault("stats", {"work": 0.0, "distract": 0.0, "brk": 0.0, "pen": 0.0, "day": 0.0, "days": []})
+        m = dt / 60
+        if mode == "work":
+            st["work"] += m
+            if 6 <= time.localtime(now).tm_hour < 18:
+                st["day"] += m
+            today_s = s["today"]["date"]
+            if not st["days"] or st["days"][-1] != today_s:
+                st["days"] = (st["days"] + [today_s])[-120:]
+        elif mode in ("break", "warning", "penalty"):
+            st["distract"] += m
+            if mode == "break":
+                st["brk"] += m
+        if mode == "penalty":
+            st["pen"] += loss if "loss" in locals() else 0.0
+        line = LINES[pet["line"]]
+        if line.get("fork") and pet.get("fork_choice") is None and level_of(pet["xp"]) >= line["fork_lv"]:
+            i = fork_pick(pet)
+            pet["fork_choice"] = i
+            o = line["fork"]["options"][i]
+            log("evo", f"키운 습관이 진화를 정했어요: {o['label']} → {o['stages'][0][1]}")
+
     if pet:
         after = level_of(pet["xp"])
         if after != before:
@@ -911,6 +1014,16 @@ def view():
                       "next_evo_lv": nxt,
                       "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
                       "min_to_master": max(0.0, (MASTER_LV * XP_PER_LEVEL - xp) / rate)}
+        fl = LINES[pet["line"]]
+        if fl.get("fork"):   # 갈래 진화: 진화 예측
+            sc = habit_scores(pet)
+            out["pet"]["fork"] = {"lv": fl["fork_lv"], "choice": pet.get("fork_choice"), "lean": fork_pick(pet),
+                                  "options": [{"id": o["final"], "name": o["stages"][-1][1], "first": o["stages"][0][1],
+                                               "type": o["type"], "cond": o["cond"], "label": o["label"],
+                                               "score": sc[o["cond"]]} for o in fl["fork"]["options"]]}
+            if pet.get("fork_choice") is None and lv < fl["fork_lv"]:
+                out["pet"]["next_evo_lv"] = fl["fork_lv"]
+                out["pet"]["min_to_evo"] = (fl["fork_lv"] * XP_PER_LEVEL - xp) / rate
         if LINES[pet["line"]].get("branches"):   # 이브이
             out["pet"]["eevee"] = eevee_options(pet)
             out["pet"]["branch_lv"] = EEVEE_LV
@@ -963,9 +1076,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
             self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif self.path == "/api/state":
+        elif self.path.startswith("/api/state"):
             with LOCK:
-                self._send(200, view())
+                v = view()
+            if "lite=1" in self.path:   # 펫은 이것만 있으면 됨 (자주 물어보니 작게)
+                v = {"pet": v["pet"], "live": v["live"], "version": v["version"],
+                     "config": {"pet_size": v["config"].get("pet_size", 1)}}
+            self._send(200, v)
         elif self.path == "/api/report":   # 기록 탭: 오늘 + 지난 날들
             with LOCK:
                 self._send(200, {"today": STATE["today"], "history": STATE.get("history", [])[-HISTORY_DAYS:],
@@ -1039,7 +1156,7 @@ class Handler(BaseHTTPRequestHandler):
                 apply_config(body)
             else:
                 return self._send(404, {"error": "not found"})
-            save()
+            save(force=True)
             self._send(200, view())
 
 
@@ -1105,7 +1222,7 @@ def win_update(manual=False):
             z.extract("Figmon.exe", tmp)
         log("update", f"v{tag.lstrip('v')} 업데이트를 설치하고 다시 시작해요")
         with LOCK:
-            save()
+            save(force=True)
         subprocess.Popen([str(tmp / "Figmon.exe"), "--apply-update", sys.executable, str(os.getpid())],
                          creationflags=0x00000008 | 0x00000200, close_fds=True)  # DETACHED | NEW_PROCESS_GROUP
         os._exit(0)
@@ -1215,7 +1332,16 @@ def open_window(title=True):
         webbrowser.open(url)
 
 
+def _on_term(*_):
+    """맥 앱이 끌 때 보내는 종료 신호: 저장하고 끝"""
+    with LOCK:
+        save(force=True)
+    os._exit(0)
+
+
 if __name__ == "__main__":
+    import signal
+    signal.signal(signal.SIGTERM, _on_term)
     if "--apply-update" in sys.argv:   # Windows 업데이트 마무리 단계
         apply_update(sys.argv[sys.argv.index("--apply-update") + 1])
         sys.exit(0)
@@ -1254,14 +1380,14 @@ if __name__ == "__main__":
                         updated="--updated" in sys.argv)
         finally:
             with LOCK:
-                save()
+                save(force=True)
         sys.exit(0)
     pet_proc = None if "--no-pet" in sys.argv else launch_pet()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         with LOCK:
-            save()
+            save(force=True)
     finally:
         if pet_proc:
             pet_proc.terminate()
