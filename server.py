@@ -63,7 +63,7 @@ XP_PER_MIN = 3.0   # 작업 1분당 기본 경험치 (설정으로 못 바꿈 �
 GROWTH = {"fast": (1.0, "빠름"), "medium": (0.9, "보통"), "medium-slow": (0.85, "조금 느림"),
           "slow": (0.75, "느림"), "slow-then-very-fast": (0.9, "변덕 (빠른 편)"), "fast-then-very-slow": (0.7, "변덕 (느린 편)")}
 # 전설·환상: 졸업한 포켓몬 수로 열리고(능력치가 셀수록 더 많이 필요), 성장도 더 느림
-RARITY = {"legendary": {"name": "전설", "xp": 0.8}, "mythical": {"name": "환상", "xp": 0.7}}
+RARITY = {"legendary": {"name": "전설", "xp": 0.9}, "mythical": {"name": "환상", "xp": 0.85}}
 
 
 def xp_mult(line_key):
@@ -108,12 +108,12 @@ def arceus_unlock():
         types.add(dex_type(d, l))
         gen4 += l["gen"] == 4
         trio += str(d.get("line")) in CREATION_TRIO
-    conds = [{"label": "졸업한 포켓몬", "have": len(dex), "need": 8},
-             {"label": "졸업시킨 타입 종류", "have": len(types), "need": 7},
-             {"label": "4세대 포켓몬 졸업", "have": gen4, "need": 3},
+    conds = [{"label": "졸업한 포켓몬", "have": len(dex), "need": 12},
+             {"label": "졸업시킨 타입 종류", "have": len(types), "need": 10},
+             {"label": "4세대 포켓몬 졸업", "have": gen4, "need": 4},
              {"label": "창조의 신(디아루가·펄기아·기라티나) 졸업", "have": trio, "need": 1}]
     return {"open": all(c["have"] >= c["need"] for c in conds), "conds": conds, "gen": 4,
-            "need": 8, "have": len(dex), "type": None, "type_have": 0}
+            "need": 12, "have": len(dex), "type": None, "type_have": 0}
 
 
 def unlock_status(line_key):
@@ -351,13 +351,13 @@ for _l in LINES.values():
 
 # 아르세우스: 모든 타입의 신. 따로 아주 어렵게 열리고 아주 느리게 자람. 함께 일한 시간만큼 타입(플레이트)이 늘어남
 ARCEUS = "493"
-ARCEUS_XP = 0.35      # 경험치 배율 (빠른 포켓몬의 약 1/3 → 완전 성장까지 약 29시간)
+ARCEUS_XP = 0.55      # 경험치 배율 (빠른 포켓몬의 약 절반 → 완전 성장까지 약 18시간)
 ARC_STEP_H = 3        # 아르세우스와 3시간 일할 때마다 새 타입 하나
 ARC_TYPES = ["fire", "water", "grass", "electric", "ice", "fighting", "poison", "ground", "flying",
              "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
 CREATION_TRIO = {"483", "484", "487"}
 if ARCEUS in LINES:
-    LINES[ARCEUS].update(xp_mult=ARCEUS_XP, unlock_special=True, unlock_need=8, unlock_type=None,
+    LINES[ARCEUS].update(xp_mult=ARCEUS_XP, unlock_special=True, unlock_need=12, unlock_type=None,
                          hours=round(MASTER_LV * XP_PER_LEVEL / (XP_PER_MIN * ARCEUS_XP) / 60))
 
 
