@@ -36,6 +36,54 @@ LINES = {
     "idle": ["Zzz…", "쿨쿨… 돌아오면 깨워줘"],
     "paused": ["일시정지 중 ⏸ 편하게 다녀와!", "기다리고 있을게~"],
 }
+# 포켓몬 특기 몸짓 (pet.html과 같은 표): 멈춰 있을 때 가끔 한 번. (몸짓, 초, 이모지, 말)
+SIG_TYPE = {
+    "normal": ("hop", 1.2, "♪", ""), "fire": ("flare", 1.4, "🔥", ""), "water": ("float", 1.8, "💧", ""),
+    "grass": ("sprout", 1.6, "🌿", ""), "electric": ("zap", 1.1, "⚡", ""), "ice": ("shiver", 1.3, "❄", ""),
+    "fighting": ("punch", 1.1, "💥", ""), "poison": ("ooze", 1.4, "☠", ""), "ground": ("dig", 1.6, "", ""),
+    "flying": ("flutter", 1.8, "💨", ""), "psychic": ("levitate", 2.0, "✨", ""), "bug": ("scuttle", 1.0, "🌱", ""),
+    "rock": ("stomp", 1.2, "", ""), "ghost": ("fade", 2.0, "👻", ""), "dragon": ("roar", 1.5, "🔥", ""),
+    "dark": ("sneak", 1.8, "🌙", ""), "steel": ("shine", 1.2, "✨", ""), "fairy": ("twirl", 1.2, "🌸", ""),
+}
+SIG_MON = {
+    25: ("zap", 1.2, "⚡", "피카피카!"), 26: ("zap", 1.2, "⚡", "라이라이!"), 172: ("zap", 1.0, "⚡", "피츄!"),
+    129: ("flop", 1.4, "💦", "(튀어오르기… 아무 일도 없었다)"), 143: ("yawn", 2.2, "💤", "하아암~ 졸려…"),
+    39: ("sing", 2.2, "🎵", "푸~린~ 푸~린~ 🎵"), 40: ("sing", 2.2, "🎵", "♪~"), 174: ("sing", 2.0, "🎵", "♪"),
+    54: ("puzzle", 2.0, "❓", "고라파… 머리 아파…"), 133: ("wag", 1.4, "💕", "브이~!"),
+    92: ("fade", 2.0, "👻", "히히히…"), 93: ("fade", 2.0, "👻", "히히히…"), 94: ("fade", 2.0, "👻", "깜짝 놀랐지? 히히"),
+    6: ("roar", 1.5, "🔥", "크아앙!"), 150: ("levitate", 2.2, "🌀", "……"), 151: ("twirl", 1.2, "💖", "뮤~"),
+    7: ("float", 1.8, "💧", "꼬북꼬북!"), 1: ("sprout", 1.6, "🌱", "이상해~"), 4: ("flare", 1.4, "🔥", "파이리!"),
+}
+
+
+def sig_offset(kind, k, facing):
+    """특기 몸짓의 위치 흔들림 (k: 0→1 진행도). tkinter는 이미지를 늘이거나 빛나게 못 하니 움직임으로만 표현"""
+    s, pi = math.sin, math.pi
+    if kind == "hop":
+        return 0, -abs(s(k * 2 * pi)) * 18
+    if kind in ("flare", "roar", "stomp"):
+        return s(k * 60) * 2 * (k > .4), -max(0, s(k * pi * 1.4)) * 12
+    if kind in ("float", "sprout"):
+        return s(k * 2 * pi) * 3, -abs(s(k * 4 * pi)) * 5
+    if kind in ("zap", "shiver"):
+        return s(k * 90) * 3, 0
+    if kind == "punch":
+        return max(0, s(k * 4 * pi)) * 14 * facing, 0
+    if kind in ("flutter", "levitate"):
+        return s(k * 18) * 2, -s(k * pi) * 24
+    if kind == "scuttle":
+        return s(k * 40) * 5, -abs(s(k * 40)) * 4
+    if kind in ("dig", "sneak", "ooze"):
+        return s(k * 6 * pi) * 4, s(k * pi) * 7
+    if kind == "fade":
+        return s(k * 2 * pi) * 7, -s(k * pi) * 9
+    if kind == "flop":
+        return s(k * 6 * pi) * 4, -abs(s(k * 3 * pi)) * 30 * (1 - k)
+    if kind == "twirl":
+        return 0, -s(k * pi) * 14
+    return s(k * 4 * pi) * 4, 0   # yawn, sing, wag, puzzle, shine
+
+
 PARTICLE = {"work": ("✦", "#f5c518"), "break": ("♪", "#ff8a3d"), "penalty": ("!", "#e5484d"),
             "warning": ("!", "#ff9f1a"), "idle": ("z", "#8a90a8"), "ai": ("?", "#7d8cff")}
 
@@ -268,6 +316,11 @@ class Pet:
             if p and now > self.next_chatter and m not in ("warning", "penalty"):
                 self.next_chatter = now + random.uniform(20, 35)
                 self.say(self.status_line() if random.random() < .3 else self.mode_line(m), 4.5)
+            if p and now > getattr(self, "next_sig", now + 20) and not self.calm and not self.walking \
+                    and m in ("work", "neutral", "break", "ai") and now > self.evolving_until and not self.drag:
+                self.signature(p)
+            elif not hasattr(self, "next_sig"):
+                self.next_sig = now + random.uniform(15, 30)
         if self.pending:
             key, path = self.pending
             self.pending = None
@@ -418,6 +471,18 @@ class Pet:
     def burst(self):
         for i in range(6):
             self.root.after(i * 120, lambda: self.float_text("✦", "#f5c518", random.uniform(-40, 40)))
+
+    def signature(self, p):
+        kind, secs, fx, line = SIG_MON.get(p["species"][0]) or SIG_TYPE.get(p.get("type"), SIG_TYPE["normal"])
+        now = time.time()
+        self.next_sig = now + random.uniform(35, 80)   # 35~80초에 한 번쯤
+        self.sig, self.sig_start, self.sig_len = kind, now, secs
+        for i in range(3 if fx else 0):
+            self.root.after(120 + i * 220, lambda: self.float_text(fx, "#f5a524", random.uniform(-35, 35)))
+        if kind in ("dig", "stomp"):
+            self.root.after(int(secs * 450), lambda: self.dust(5))
+        if line and self.bubble_until is None:
+            self.say(line, 2.4)
 
     def hop(self, secs=0.5):
         self.hop_until = time.time() + secs
@@ -723,7 +788,19 @@ class Pet:
         if self.target is not None and now >= self.look_until:
             # 크기 변경·커서 추적으로 목적지가 화면 밖에 남으면 도착하지 못하고 멈춰 버림.
             # tick의 위치 제한과 같은 범위 안에서 목적지를 정한다.
-            self.target = min(max(self.target, left - self.W * 0.3), right - self.W * 0.7)
+            lo, hi = left - self.W * 0.3, right - self.W * 0.7
+            self.target = min(max(self.target, lo), hi)
+            # 그래도 2초 넘게 제자리걸음이면(벽에 막힘) 반대쪽 아무 데나로 방향을 바꾼다
+            if self.target != getattr(self, "stuck_goal", None) or abs(self.x - self.stuck_x) > 4:
+                self.stuck_goal, self.stuck_x, self.stuck_since = self.target, self.x, now
+            elif now - self.stuck_since > 2:
+                mid = (lo + hi) / 2
+                self.target = random.uniform(lo, mid) if self.x > mid else random.uniform(mid, hi)
+                self.vx, self.speed = 0.0, 55.0
+                self.look_until = now + 0.4
+                self.facing = 1 if self.target > self.x else -1
+                self.walking = self.running = False
+                return
             d = self.target - self.x
             want = math.copysign(min(self.speed, abs(d) * 2.2), d)   # 도착할수록 천천히
             accel = 520 if self.speed > 150 else 160
@@ -766,6 +843,9 @@ class Pet:
                 dy = 2
             elif self.walking:
                 dy = -abs(math.sin(t * (24 if self.running else 13.6))) * 3 * self.dpi
+            elif getattr(self, "sig", None) and now < self.sig_start + self.sig_len:
+                dx, dy = sig_offset(self.sig, (now - self.sig_start) / self.sig_len, self.facing)
+                dx, dy = dx * self.dpi, dy * self.dpi
             elif self.mode == "penalty":
                 dx = math.sin(t * 22) * 2
             elif self.mode == "warning":

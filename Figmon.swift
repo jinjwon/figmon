@@ -214,6 +214,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var speed: CGFloat = 60          // 목표 최고 속도
     var vx: CGFloat = 0              // 현재 속도 (가속·감속해서 자연스럽게)
     var lookUntil = Date()           // 출발 전에 목표 쪽을 잠깐 바라보는 시간
+    var stuckX: CGFloat = 0, stuckSince = Date(), stuckGoal: CGFloat? = nil   // 걷는데 제자리면(벽에 막힘) 몇 초 뒤 다른 곳으로
     var hovering = false, lastHover = Date.distantPast, nextLook = Date()
     // 쓰다듬기(커서 비비기) 감지
     var lastMouseX: CGFloat = 0, rubSign = 0, rubTravel: CGFloat = 0, rubTurns = 0, rubLast = Date.distantPast, lastPet = Date.distantPast
@@ -507,7 +508,21 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 setFacing(t > x ? 1 : -1)
             }
         }
-        if let t = targetX, now >= lookUntil {
+        if var t = targetX, now >= lookUntil {
+            // 목적지가 화면 밖(커서 근처·크기 변경)이면 끝에 닿아도 도착을 못 해서 벽에 계속 박는다 → 갈 수 있는 범위로
+            let lo = vf.minX - petRect.minX, hi = vf.maxX - petRect.maxX
+            t = min(max(t, lo), hi); targetX = t
+            // 그래도 2초 넘게 제자리걸음이면 반대쪽 아무 데나로 방향을 바꾼다
+            if t != stuckGoal || abs(x - stuckX) > 4 { stuckGoal = t; stuckX = x; stuckSince = now }
+            else if now.timeIntervalSince(stuckSince) > 2 {
+                let mid = (lo + hi) / 2
+                t = x > mid ? CGFloat.random(in: lo...max(lo, mid)) : CGFloat.random(in: min(hi, mid)...hi)
+                targetX = t; vx = 0; speed = 55
+                lookUntil = now.addingTimeInterval(0.4)
+                setFacing(t > x ? 1 : -1)
+                setGait(0)
+                return
+            }
             let d = t - x
             // 도착할수록 천천히 (arrive), 출발은 부드럽게 (가속도 제한)
             let want = (d > 0 ? 1 : -1) * min(speed, abs(d) * 2.2)

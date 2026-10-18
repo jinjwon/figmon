@@ -24,6 +24,54 @@ body{font-family:Jua,-apple-system,sans-serif}
 .m-penalty #body{animation:tremble .28s ease-in-out infinite;filter:saturate(.5) drop-shadow(0 0 8px #ff3150)}
 .m-paused #body{animation:breathe 5s ease-in-out infinite;filter:grayscale(.5)}
 .m-idle #body{animation:sleep 4.5s ease-in-out infinite;filter:brightness(.75)}
+/* 포켓몬 특기 몸짓: 멈춰 있을 때 가끔 한 번 (타입별 + 몇몇 포켓몬은 전용). 걷기가 시작되면 걷기가 우선 */
+.sig #body{animation-duration:var(--sd,1.4s) !important;animation-timing-function:ease-in-out !important;animation-iteration-count:1 !important}
+.sig-hop #body{animation-name:s-hop !important}
+.sig-flare #body{animation-name:s-flare !important}
+.sig-float #body{animation-name:s-float !important}
+.sig-sprout #body{animation-name:s-sprout !important}
+.sig-zap #body{animation-name:s-zap !important}
+.sig-shiver #body{animation-name:s-shiver !important}
+.sig-punch #body{animation-name:s-punch !important}
+.sig-ooze #body{animation-name:s-ooze !important}
+.sig-dig #body{animation-name:s-dig !important}
+.sig-flutter #body{animation-name:s-flutter !important}
+.sig-levitate #body{animation-name:s-levitate !important}
+.sig-scuttle #body{animation-name:s-scuttle !important}
+.sig-stomp #body{animation-name:s-stomp !important}
+.sig-fade #body{animation-name:s-fade !important}
+.sig-roar #body{animation-name:s-roar !important}
+.sig-sneak #body{animation-name:s-sneak !important}
+.sig-shine #body{animation-name:s-shine !important}
+.sig-twirl #body{animation-name:s-twirl !important}
+.sig-flop #body{animation-name:s-flop !important}
+.sig-yawn #body{animation-name:s-yawn !important}
+.sig-sing #body{animation-name:s-sing !important}
+.sig-wag #body{animation-name:s-wag !important}
+.sig-puzzle #body{animation-name:s-puzzle !important}
+@keyframes s-hop{0%,100%{transform:none}15%,55%{transform:scale(1.1,.9)}30%{transform:translateY(-22px) scale(.94,1.06)}70%{transform:translateY(-14px)}85%{transform:scale(1.06,.94)}}
+@keyframes s-flare{0%,100%{transform:none;filter:none}25%{transform:scale(.92,1.08)}50%{transform:scale(1.14,.9);filter:brightness(1.3) drop-shadow(0 0 10px #ff8a3d)}75%{transform:scale(1.04);filter:drop-shadow(0 0 6px #ffb070)}}
+@keyframes s-float{0%,100%{transform:none}25%{transform:translateY(-6px) rotate(-4deg)}50%{transform:translateY(2px) scale(1.04,.96)}75%{transform:translateY(-5px) rotate(4deg)}}
+@keyframes s-sprout{0%,100%{transform:none}30%{transform:scale(.94,1.12)}50%{transform:scale(.96,1.1) rotate(-4deg)}70%{transform:scale(.96,1.1) rotate(4deg)}}
+@keyframes s-zap{0%,100%{transform:none;filter:none}10%,30%,50%,70%{transform:translateX(-3px);filter:brightness(1.6) drop-shadow(0 0 8px #ffe14d)}20%,40%,60%,80%{transform:translateX(3px);filter:none}}
+@keyframes s-shiver{0%,100%{transform:none;filter:none}10%,30%,50%,70%,90%{transform:translateX(-2px) scale(.97,1);filter:hue-rotate(-20deg) brightness(1.1)}20%,40%,60%,80%{transform:translateX(2px) scale(.97,1)}}
+@keyframes s-punch{0%,100%{transform:none}20%{transform:translateX(6px) scale(.95,1.03)}35%{transform:translateX(-16px) scale(1.08,.95)}50%{transform:translateX(4px)}65%{transform:translateX(-14px) scale(1.06,.96)}80%{transform:translateX(2px)}}
+@keyframes s-ooze{0%,100%{transform:none}20%{transform:scale(1.15,.85)}40%{transform:scale(.9,1.1)}60%{transform:scale(1.1,.88)}80%{transform:scale(.97,1.03)}}
+@keyframes s-dig{0%,100%{transform:none}20%,30%{transform:translateY(0) scale(1.1,.8) rotate(-4deg)}25%{transform:scale(1.1,.8) rotate(4deg)}50%{transform:translateY(10px) scale(1.15,.55)}75%{transform:translateY(-10px) scale(.95,1.08)}}
+@keyframes s-flutter{0%,100%{transform:none}20%{transform:translateY(-20px) rotate(-4deg)}35%{transform:translateY(-26px) rotate(3deg)}50%{transform:translateY(-22px) rotate(-3deg)}65%{transform:translateY(-27px) rotate(3deg)}85%{transform:translateY(-6px)}}
+@keyframes s-levitate{0%,100%{transform:none;filter:none}30%,70%{transform:translateY(-16px);filter:drop-shadow(0 0 10px #ff8ad8)}50%{transform:translateY(-20px) scale(1.03);filter:drop-shadow(0 0 14px #c58aff)}}
+@keyframes s-scuttle{0%,100%{transform:none}12%,37%,62%{transform:translate(-5px,-5px)}25%,50%,75%{transform:translate(5px,0)}}
+@keyframes s-stomp{0%,100%{transform:none}30%{transform:translateY(-14px) scale(.96,1.05)}45%{transform:translateY(0) scale(1.2,.8)}55%{transform:translateX(-2px) scale(1.08,.92)}65%{transform:translateX(2px)}}
+@keyframes s-fade{0%,100%{transform:none;opacity:1}30%{transform:translate(-6px,-8px);opacity:.25}60%{transform:translate(6px,-4px);opacity:.35}80%{opacity:.9}}
+@keyframes s-roar{0%,100%{transform:none}25%{transform:scale(.95,1.05) rotate(4deg)}45%,65%{transform:scale(1.15,1.08) translateX(-4px) rotate(-5deg)}55%{transform:scale(1.15,1.08) translateX(-2px) rotate(-3deg)}}
+@keyframes s-sneak{0%,100%{transform:none;filter:none}30%,70%{transform:scale(1.08,.82) translateX(-8px);filter:brightness(.55)}50%{transform:scale(1.08,.82) translateX(8px);filter:brightness(.5)}}
+@keyframes s-shine{0%,100%{transform:none;filter:none}40%{transform:scale(1.04,.98);filter:brightness(1.5) contrast(1.1) drop-shadow(0 0 6px #e8f4ff)}60%{filter:brightness(1.1)}}
+@keyframes s-twirl{0%{transform:none}50%{transform:translateY(-14px) scaleX(-1) scale(1.05)}100%{transform:none}}
+@keyframes s-flop{0%,100%{transform:none}15%{transform:scale(1.15,.8)}35%{transform:translateY(-40px) rotate(-25deg)}55%{transform:translateY(0) rotate(15deg) scale(1.1,.85)}70%{transform:translateY(-14px) rotate(-10deg)}85%{transform:rotate(6deg) scale(1.05,.95)}}
+@keyframes s-yawn{0%,100%{transform:none}35%,55%{transform:scale(1.06,1.08) rotate(-3deg)}75%{transform:scale(1.08,.9)}}
+@keyframes s-sing{0%,100%{transform:none}20%,60%{transform:rotate(-8deg) scale(1.04)}40%,80%{transform:rotate(8deg) scale(1.04)}}
+@keyframes s-wag{0%,100%{transform:none}15%,45%,75%{transform:rotate(-6deg) translateY(-3px)}30%,60%,90%{transform:rotate(6deg)}}
+@keyframes s-puzzle{0%,100%{transform:none}20%,80%{transform:rotate(-10deg)}40%{transform:rotate(-10deg) translateY(-3px)}60%{transform:rotate(-10deg) translateY(1px)}}
 .walk #body{animation:step .46s ease-in-out infinite !important}
 .run #body{animation:step .26s ease-in-out infinite !important}
 .walk .shadow,.run .shadow{animation:shadowstep .46s ease-in-out infinite}
@@ -82,7 +130,7 @@ body{font-family:Jua,-apple-system,sans-serif}
 @keyframes floatup{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-50px)}}
 /* 시스템 "동작 줄이기"를 켜면 흔들림·파티클·깜빡임을 끈다 */
 @media (prefers-reduced-motion: reduce){
-  #body,.egg,#pet{animation:none !important;transition:none !important}
+  #body,.egg,#pet,.sig #body{animation:none !important;transition:none !important}
   .particle,.float{display:none}
   .evolving #body{animation:none !important;opacity:.6}
   #bubble{transition:none}
@@ -113,6 +161,7 @@ function petFace(d) {
 function petWalk(v) {
   v = v === true ? 1 : v === false ? 0 : v;
   walking = v > 0;
+  if (walking) [...document.body.classList].forEach(c => c.startsWith('sig') && document.body.classList.remove(c));
   document.body.classList.toggle('walk', v === 1);
   document.body.classList.toggle('run', v === 2);
 }
@@ -370,6 +419,52 @@ async function poll() {
   if (!p && !$('#bubble').classList.contains('show')) say('대시보드에서 파트너를 골라줘! (나를 클릭)', 0);
   prev = p ? {line: p.line, stage: p.stage, level: p.level, xp: p.xp} : null;
 }
+
+/* ---------- 포켓몬 특기 몸짓 ---------- */
+// [몸짓, 길이(초), 함께 뜨는 이모지]. 타입별 기본 + 전용 몸짓이 있는 포켓몬(도감 번호)
+const SIG_TYPE = {
+  normal: ['hop', 1.2, ['♪', '✨']], fire: ['flare', 1.4, ['🔥', '🔥']], water: ['float', 1.8, ['💧', '🫧']],
+  grass: ['sprout', 1.6, ['🌿', '🍃']], electric: ['zap', 1.1, ['⚡', '⚡']], ice: ['shiver', 1.3, ['❄️', '❄️']],
+  fighting: ['punch', 1.1, ['💥', '👊']], poison: ['ooze', 1.4, ['🫧', '☠️']], ground: ['dig', 1.6, []],
+  flying: ['flutter', 1.8, ['🪶', '💨']], psychic: ['levitate', 2.0, ['🔮', '✨']], bug: ['scuttle', 1.0, ['🌱']],
+  rock: ['stomp', 1.2, []], ghost: ['fade', 2.0, ['👻']], dragon: ['roar', 1.5, ['💨', '🔥']],
+  dark: ['sneak', 1.8, ['🌙']], steel: ['shine', 1.2, ['✨', '⚙️']], fairy: ['twirl', 1.2, ['🌸', '💖']],
+};
+const SIG_MON = {
+  25: ['zap', 1.2, ['⚡', '⚡', '⚡'], '피카피카!'], 26: ['zap', 1.2, ['⚡', '⚡', '⚡'], '라이라이!'], 172: ['zap', 1.0, ['⚡'], '피츄!'],
+  129: ['flop', 1.4, ['💦', '💦'], '(튀어오르기… 아무 일도 없었다)'], 143: ['yawn', 2.2, ['💤', '💤'], '하아암~ 졸려…'],
+  39: ['sing', 2.2, ['🎵', '🎶', '🎵'], '푸~린~ 푸~린~ 🎵'], 40: ['sing', 2.2, ['🎵', '🎶'], '♪~'], 174: ['sing', 2.0, ['🎵'], '♪'],
+  54: ['puzzle', 2.0, ['❓', '❓'], '고라파… 머리 아파…'], 133: ['wag', 1.4, ['💕'], '브이~!'],
+  92: ['fade', 2.0, ['👻'], '히히히…'], 93: ['fade', 2.0, ['👻'], '히히히…'], 94: ['fade', 2.0, ['👻', '😈'], '깜짝 놀랐지? 히히'],
+  6: ['roar', 1.5, ['🔥', '🔥', '🔥'], '크아앙!'], 150: ['levitate', 2.2, ['🔮', '🌀'], '……'], 151: ['twirl', 1.2, ['✨', '💖'], '뮤~'],
+  7: ['float', 1.8, ['💧', '💦'], '꼬북꼬북!'], 1: ['sprout', 1.6, ['🌿', '🌱'], '이상해~'], 4: ['flare', 1.4, ['🔥'], '파이리!'],
+};
+let nextSig = Date.now() + 15000 + Math.random() * 15000;
+function petSignature(force) {
+  const p = S && S.pet, b = document.body;
+  if (!p || !p.species || calm() || evolving) return false;
+  if (!force && (walking || !['work', 'neutral', 'break', 'ai'].includes(mode) ||
+      ['react', 'tickle', 'notice', 'turn', 'land', 'petting', 'surprised', 'grabbed', 'flying'].some(c => b.classList.contains(c)))) return false;
+  const [kind, secs, fx, line] = SIG_MON[p.species[0]] || SIG_TYPE[p.type] || SIG_TYPE.normal;
+  [...b.classList].forEach(c => c.startsWith('sig') && b.classList.remove(c));
+  void b.offsetWidth;
+  b.style.setProperty('--sd', secs + 's');
+  b.classList.add('sig', 'sig-' + kind);
+  clearTimeout(petSignature.t); petSignature.t = setTimeout(() => b.classList.remove('sig', 'sig-' + kind), secs * 1000);
+  if (kind === 'dig' || kind === 'stomp') setTimeout(() => dust(kind === 'dig' ? 6 : 4), secs * 450);
+  const r = petRect();
+  fx.forEach((ch, i) => setTimeout(() => {
+    const e = document.createElement('div'); e.className = 'particle'; e.textContent = ch;
+    e.style.left = (r.left + r.width / 2 - 8 + (Math.random() * 70 - 35)) + 'px'; e.style.top = (r.top + r.height * .3) + 'px';
+    document.body.appendChild(e); setTimeout(() => e.remove(), 1900);
+  }, 120 + i * 220));
+  if (line && !$('#bubble').classList.contains('show')) say(line, 2400);
+  return true;
+}
+setInterval(() => {
+  if (Date.now() < nextSig) return;
+  if (petSignature()) nextSig = Date.now() + 35000 + Math.random() * 45000;   // 35~80초에 한 번쯤
+}, 2000);
 
 setInterval(poll, 1500);
 setInterval(particle, 900);
