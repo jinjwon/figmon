@@ -1424,7 +1424,7 @@ function render() {
   $('#pauseBtn').textContent = paused ? '▶ 다시 시작' : '⏸ 1시간 일시정지';
   $('#bankHint').textContent = `작업 ${cfg.break_earn_ratio}분 = 휴식 1분`;
   $('#activity').textContent = live.label || '-';
-  $('#activityHint').textContent = {work:`+${p ? +(p.xp_mult).toFixed(2) : 1} XP/분${p && p.xp_mult < 1 ? ` (성장 ${p.growth_name})` : ''}`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
+  $('#activityHint').textContent = {work:`+${p ? +(p.xp_rate || 0).toFixed(2) : 0} XP/분${p && p.xp_mult < 1 ? ` (${p.rarity === 'mythical' ? '환상' : '전설'})` : ''}`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
     penalty:`-${cfg.penalty_xp_per_min} XP/분`, paused:'경험치·페널티 멈춤', ai:`무료 AI ${Math.max(0, Math.ceil(cfg.ai_daily_free_min - S.today.ai_sec / 60))}분 남음`, idle:`${live.idle}초 동안 입력 없음`, neutral:'경험치 변화 없음'}[live.mode];
 
   $('#verTag').textContent = S.version ? `Figmon v${S.version} · ` : '';
@@ -1588,7 +1588,7 @@ function renderArceus(p) {
       ${f.open ? '' : 'aria-disabled="true"'} aria-pressed="${f.type === a.cur}" aria-label="${TYPE_KO[f.type]} 타입${f.open ? '' : ', 잠김'}">${f.open ? pixTag(f.id) : '<span class="q">?</span>'}<span>${TYPE_KO[f.type]}</span></button>`).join('')}</div>
     ${a.auto ? '' : '<div class="btns"><button type="button" class="b" data-arc="auto">가장 최근 타입 따라가기</button></div>'}</div>`;
 }
-// 메가진화: 마지막 모습에서 Lv.60
+// 메가진화: 마지막 모습에서 Lv.45
 function renderMega(p) {
   const m = p.mega_info, pick = m.options[m.choice ?? m.lean], two = m.options.length > 1;
   return `<div class="eevee"><h3>💎 메가진화 — Lv.${m.lv}</h3>

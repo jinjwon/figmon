@@ -12,6 +12,7 @@ Figmon — 작업 시간으로 포켓몬을 키우는 데스크톱 펫 (macOS ·
 테스트: FIGMON_SPEED=60 python3 server.py   (1초 = 1분으로 빨리 감기)
 """
 import base64
+import bisect
 import json
 import socket
 import tempfile
@@ -56,13 +57,38 @@ if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로�
     _log = open(_lp, "a", encoding="utf-8", buffering=1)
     sys.stdout, sys.stderr = sys.stdout or _log, sys.stderr or _log
 
-XP_PER_LEVEL = 50
 MASTER_LV, MAX_LV = 36, 100   # Lv.36 = 완전 성장 (자랑 카드·졸업)
 XP_PER_MIN = 3.0   # 작업 1분당 기본 경험치 (설정으로 못 바꿈 — 성장 꼼수 방지)
-# 포켓몬마다 다른 성장 속도 (실제 게임의 성장 그룹을 그대로 씀)
-GROWTH = {"fast": (1.0, "빠름"), "medium": (0.9, "보통"), "medium-slow": (0.85, "조금 느림"),
-          "slow": (0.75, "느림"), "slow-then-very-fast": (0.9, "변덕 (빠른 편)"), "fast-then-very-slow": (0.7, "변덕 (느린 편)")}
-# 전설·환상: 졸업한 포켓몬 수로 열리고(능력치가 셀수록 더 많이 필요), 성장도 더 느림
+# 포켓몬마다 다른 성장 속도: 실제 게임의 성장 그룹별 경험치 곡선(레벨의 세제곱 공식)을 그대로 씀.
+# 낮은 레벨은 금방 오르고 높을수록 느려짐. 게임 수치를 줄여서 "보통" 그룹의 Lv.36이 1800 경험치(약 10시간)가 되게 함
+_XP_SCALE = 1800 / 36 ** 3
+
+
+def _erratic(n):
+    return n ** 3 * (100 - n) / 50 if n < 50 else n ** 3 * (150 - n) / 100 if n < 68 else \
+        n ** 3 * ((1911 - 10 * n) // 3) / 500 if n < 98 else n ** 3 * (160 - n) / 100
+
+
+def _fluctuating(n):
+    return n ** 3 * ((n + 1) // 3 + 24) / 50 if n < 15 else n ** 3 * (n + 14) / 50 if n < 36 else n ** 3 * (n // 2 + 32) / 50
+
+
+GROWTH = {"fast": (lambda n: 4 * n ** 3 / 5, "빠름"), "medium": (lambda n: n ** 3, "보통"),
+          "medium-slow": (lambda n: 6 * n ** 3 / 5 - 15 * n ** 2 + 100 * n - 140, "조금 느림"),
+          "slow": (lambda n: 5 * n ** 3 / 4, "느림"), "slow-then-very-fast": (_erratic, "변덕 (처음엔 느림)"),
+          "fast-then-very-slow": (_fluctuating, "변덕 (나중에 느림)")}
+XP_TABLE = {g: [0.0, 0.0] + [round(max(0.0, f(n)) * _XP_SCALE, 2) for n in range(2, MAX_LV + 1)] for g, (f, _) in GROWTH.items()}
+
+
+def xp_at(lv, growth="medium"):
+    """그 레벨이 되는 데 필요한 누적 경험치"""
+    t = XP_TABLE.get(growth) or XP_TABLE["medium"]
+    return t[max(0, min(MAX_LV, lv))]
+
+
+def growth_of(pet):
+    return LINES[pet["line"]].get("growth", "medium")
+# 전설·환상: 졸업한 포켓몬 수로 열리고(능력치가 셀수록 더 많이 필요), 경험치도 조금 덜 받음
 RARITY = {"legendary": {"name": "전설", "xp": 0.9}, "mythical": {"name": "환상", "xp": 0.85}}
 
 
@@ -331,14 +357,13 @@ def _difficulty(l):
     info = (_DEX_INFO if "_DEX_INFO" in globals() else {})
     growth, bst = (info.get(str(l["stages"][0][0])) or ["medium", 0])[0], max(
         [(info.get(str(i)) or ["", 0])[1] for i, _ in l["stages"]] + [0])
-    mult = GROWTH.get(growth, (0.85,))[0]
-    need = 0
+    mult, need = 1.0, 0
     if l.get("rarity"):
         mult *= RARITY[l["rarity"]]["xp"]
         need = 1 if bst < 600 else 2 if bst < 680 else 3      # 능력치 합계가 높을수록 더 많이 졸업해야
         need += 1 if l["rarity"] == "mythical" else 0
     l.update(growth=growth, growth_name=GROWTH.get(growth, (0, "보통"))[1], xp_mult=round(mult, 3),
-             unlock_need=need, bst=bst, hours=round(MASTER_LV * XP_PER_LEVEL / (XP_PER_MIN * mult) / 60))
+             unlock_need=need, bst=bst, hours=round(xp_at(MASTER_LV, growth) / (XP_PER_MIN * mult) / 60))
 for _k in ("133-water", "133-electric", "133-fire"):
     LINES[_k]["hidden"] = True
 for _l in LINES.values():
@@ -351,14 +376,14 @@ for _l in LINES.values():
 
 # 아르세우스: 모든 타입의 신. 따로 아주 어렵게 열리고 아주 느리게 자람. 함께 일한 시간만큼 타입(플레이트)이 늘어남
 ARCEUS = "493"
-ARCEUS_XP = 0.55      # 경험치 배율 (빠른 포켓몬의 약 절반 → 완전 성장까지 약 18시간)
+ARCEUS_XP = 0.7       # 경험치 배율 (느림 그룹 곡선과 합쳐 완전 성장까지 약 18시간)
 ARC_STEP_H = 3        # 아르세우스와 3시간 일할 때마다 새 타입 하나
 ARC_TYPES = ["fire", "water", "grass", "electric", "ice", "fighting", "poison", "ground", "flying",
              "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"]
 CREATION_TRIO = {"483", "484", "487"}
 if ARCEUS in LINES:
     LINES[ARCEUS].update(xp_mult=ARCEUS_XP, unlock_special=True, unlock_need=12, unlock_type=None,
-                         hours=round(MASTER_LV * XP_PER_LEVEL / (XP_PER_MIN * ARCEUS_XP) / 60))
+                         hours=round(xp_at(MASTER_LV, LINES[ARCEUS]["growth"]) / (XP_PER_MIN * ARCEUS_XP) / 60))
 
 
 def arceus_forms(pet):
@@ -371,8 +396,8 @@ def arceus_cur(pet):
     return pet.get("arc_form") if pet.get("arc_form") in forms else forms[-1]
 
 
-# 메가진화: 마지막 모습에서 Lv.60까지 키우면 (X/Y가 있으면 열심히 → X, 딴짓 줄이기 → Y)
-MEGA_LV = 60
+# 메가진화: 마지막 모습에서 Lv.45까지 키우면 (X/Y가 있으면 열심히 → X, 딴짓 줄이기 → Y)
+MEGA_LV = 45   # 성장 곡선이 높은 레벨에서 가팔라서 60은 너무 멀어짐 (약 18~24시간)
 
 
 def mega_options(line, st):
@@ -524,8 +549,9 @@ LIVE = {"mode": "neutral", "app": "", "label": "", "idle": 0, "last_work": None,
 
 
 # ---------- 레벨 계산 ----------
-def level_of(xp):
-    return min(MAX_LV, int(xp // XP_PER_LEVEL))
+def level_of(xp, growth="medium"):
+    t = XP_TABLE.get(growth) or XP_TABLE["medium"]
+    return max(0, bisect.bisect_right(t, xp + 1e-9) - 1)
 
 
 def stage_of(lv, line="1"):
@@ -536,7 +562,7 @@ def stage_of(lv, line="1"):
 
 def stage_floor_xp(stage, line="1"):
     l = line if isinstance(line, dict) else LINES[line]
-    return l["evo_levels"][stage - 1] * XP_PER_LEVEL
+    return xp_at(l["evo_levels"][stage - 1], l.get("growth", "medium"))
 
 
 def species_name(pet, stage):
@@ -546,7 +572,20 @@ def species_name(pet, stage):
 # ---------- 상태 저장 ----------
 def fresh_state():
     return {"config": dict(DEFAULT_CONFIG), "pet": None, "bank_sec": 0.0, "paused_until": 0.0,
-            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today()}
+            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today(), "xp_curve": 1}
+
+
+def migrate_xp_curve(s):
+    """예전(레벨당 50 경험치) 저장을 성장 곡선으로 바꿈: 레벨과 레벨 안 진행도는 그대로 둠"""
+    if s.get("xp_curve") == 1:
+        return
+    pet = s.get("pet")
+    if pet and pet.get("line") in LINES:
+        xp, g = float(pet.get("xp", 0)), growth_of(pet)
+        lv = min(MAX_LV, int(xp // 50))
+        frac = 0.0 if lv >= MAX_LV else (xp - lv * 50) / 50
+        pet["xp"] = xp_at(lv, g) + frac * (xp_at(lv + 1, g) - xp_at(lv, g))
+    s["xp_curve"] = 1
 
 
 def new_today():
@@ -620,11 +659,14 @@ def load_state():
     s = fresh_state()
     if STATE_FILE.exists():
         try:
-            s.update(json.loads(STATE_FILE.read_text(encoding="utf-8")))
+            saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            s.update(saved)
+            s["xp_curve"] = saved.get("xp_curve", 0)   # 예전 저장엔 없음 → 아래에서 변환
             s["config"] = {**DEFAULT_CONFIG, **s.get("config", {})}
             merge_new_defaults(s["config"])
             s["today"] = {**new_today(), **s["today"]}
             s.setdefault("history", [])
+            migrate_xp_curve(s)
         except Exception as e:
             print("상태 파일을 읽지 못해 새로 시작합니다:", e)
     return s
@@ -928,7 +970,7 @@ def step(app, url, idle, dt, title=""):
                 track(label, "ai", dt)
     LIVE.update(app=app, label=label, idle=int(idle))
     pet = s["pet"]
-    before = level_of(pet["xp"]) if pet else None
+    before = level_of(pet["xp"], growth_of(pet)) if pet else None
     name = species_name(pet, stage_of(before, pet_line(pet))) if pet else "포켓몬"
 
     if kind != "distract":
@@ -980,7 +1022,7 @@ def step(app, url, idle, dt, title=""):
                 loss = 0.0
                 if pet:
                     loss = dt / 60 * cfg["penalty_xp_per_min"]
-                    floor = stage_floor_xp(stage_of(level_of(pet["xp"]), pet_line(pet)), pet_line(pet))
+                    floor = stage_floor_xp(stage_of(level_of(pet["xp"], growth_of(pet)), pet_line(pet)), pet_line(pet))
                     loss = min(loss, max(0.0, pet["xp"] - floor))
                     pet["xp"] -= loss
                     s["today"]["xp_lost"] += loss
@@ -1023,14 +1065,14 @@ def step(app, url, idle, dt, title=""):
         if mode == "penalty":
             st["pen"] += loss if "loss" in locals() else 0.0
         line = LINES[pet["line"]]
-        if line.get("fork") and pet.get("fork_choice") is None and level_of(pet["xp"]) >= line["fork_lv"]:
+        if line.get("fork") and pet.get("fork_choice") is None and level_of(pet["xp"], growth_of(pet)) >= line["fork_lv"]:
             i = fork_pick(pet)
             pet["fork_choice"] = i
             o = line["fork"]["options"][i]
             log("evo", f"키운 습관이 진화를 정했어요: {o['label']} → {o['stages'][0][1]}")
 
     if pet:
-        after = level_of(pet["xp"])
+        after = level_of(pet["xp"], growth_of(pet))
         if after != before:
             sb, sa = stage_of(before, pet_line(pet)), stage_of(after, pet_line(pet))
             if sa > sb:
@@ -1096,7 +1138,8 @@ def view():
     pet = s["pet"]
     if pet:
         xp = pet["xp"]
-        lv = level_of(xp)
+        g = growth_of(pet)
+        lv = level_of(xp, g)
         line = pet_line(pet)
         st = stage_of(lv, line)
         lv_list = line["evo_levels"]
@@ -1106,20 +1149,20 @@ def view():
         out["pet"] = {**pet, "level": lv, "stage": st, "type": atype, "gen": line["gen"],
                       "stages": line["stages"], "species": [aid, aname],
                       "name": pet.get("nickname") or aname,
-                      "lv_progress": 1 if lv >= MAX_LV else (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
+                      "lv_progress": 1 if lv >= MAX_LV else (xp - xp_at(lv, g)) / max(xp_at(lv + 1, g) - xp_at(lv, g), 1e-9),
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
-                      "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]),
+                      "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]), "xp_rate": round(rate, 2),
                       "growth_name": LINES[pet["line"]].get("growth_name", "보통"),
                       "mastered": lv >= MASTER_LV, "master_lv": MASTER_LV,
                       "next_evo_lv": nxt,
-                      "min_to_evo": (nxt * XP_PER_LEVEL - xp) / rate if nxt else None,
-                      "min_to_master": max(0.0, (MASTER_LV * XP_PER_LEVEL - xp) / rate)}
+                      "min_to_evo": max(0.0, xp_at(nxt, g) - xp) / rate if nxt else None,
+                      "min_to_master": max(0.0, (xp_at(MASTER_LV, g) - xp) / rate)}
         mo = MEGA.get(line["stages"][-1][0], []) if not (LINES[pet["line"]].get("fork") and pet.get("fork_choice") is None) else []
         if mo:   # 메가진화할 수 있는 계열
             out["pet"]["mega_info"] = {"lv": MEGA_LV, "options": [{"id": i, "name": n, "type": t} for i, n, t in mo],
                                        "choice": pet.get("mega"), "lean": mega_pick(pet, mo), "on": pet.get("mega_on", True),
                                        "active": is_mega, "ready": st == len(line["stages"]) and lv >= MEGA_LV,
-                                       "min_to": max(0.0, (MEGA_LV * XP_PER_LEVEL - xp) / rate)}
+                                       "min_to": max(0.0, (xp_at(MEGA_LV, g) - xp) / rate)}
         if pet["line"] == ARCEUS:
             forms, done = arceus_forms(pet), pet.get("work_sec", 0) / 3600
             out["pet"]["arceus"] = {"forms": [{"type": t, "id": f"493-{t}" if t != "normal" else 493, "open": t in forms}
@@ -1135,14 +1178,14 @@ def view():
                                                "score": sc[o["cond"]]} for o in fl["fork"]["options"]]}
             if pet.get("fork_choice") is None and lv < fl["fork_lv"]:
                 out["pet"]["next_evo_lv"] = fl["fork_lv"]
-                out["pet"]["min_to_evo"] = (fl["fork_lv"] * XP_PER_LEVEL - xp) / rate
+                out["pet"]["min_to_evo"] = max(0.0, xp_at(fl["fork_lv"], g) - xp) / rate
         if LINES[pet["line"]].get("branches"):   # 이브이
             out["pet"]["eevee"] = eevee_options(pet)
             out["pet"]["branch_lv"] = EEVEE_LV
             out["pet"]["branch_pending"] = not pet.get("branch") and lv >= EEVEE_LV
             if not pet.get("branch"):
                 out["pet"]["next_evo_lv"] = EEVEE_LV if lv < EEVEE_LV else None
-                out["pet"]["min_to_evo"] = (EEVEE_LV * XP_PER_LEVEL - xp) / rate if lv < EEVEE_LV else None
+                out["pet"]["min_to_evo"] = max(0.0, xp_at(EEVEE_LV, g) - xp) / rate if lv < EEVEE_LV else None
                 out["pet"]["mastered"] = False   # 진화형을 골라야 완전 성장
     return out
 
@@ -1201,7 +1244,7 @@ class Handler(BaseHTTPRequestHandler):
                                  "now": time.time()})
         elif self.path == "/api/meta":
             self._send(200, {"lines": LINES, "master_lv": MASTER_LV, "rarity": RARITY,
-                             "xp_per_level": XP_PER_LEVEL, "presets": PRESETS, "limits": LIMITS, "growth": GROWTH,
+                             "xp_table": XP_TABLE, "presets": PRESETS, "limits": LIMITS, "growth": {k: n for k, (_, n) in GROWTH.items()},
                              "platform": "windows" if IS_WIN else "mac"})
         elif self.path == "/pet":
             self._send(200, (HERE / "pet.html").read_bytes(), "text/html; charset=utf-8")
@@ -1233,7 +1276,7 @@ class Handler(BaseHTTPRequestHandler):
                             "nickname": "", "born": time.time()}
                 new = LINES[s["pet"]["line"]]["stages"][0][1]
                 if old:
-                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp']), pet_line(old)))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
+                    log("hatch", f"{species_name(old, stage_of(level_of(old['xp'], growth_of(old)), pet_line(old)))}와(과) 작별… {new}와(과) Lv.0부터 새 출발!")
                 else:
                     log("hatch", f"{new}와(과) 함께 시작! 작업할수록 같이 자라요")
             elif self.path == "/api/mega":   # 메가진화 모습 ↔ 원래 모습
@@ -1251,9 +1294,9 @@ class Handler(BaseHTTPRequestHandler):
                 s["pet"]["nickname"] = str(body.get("nickname", ""))[:12]
             elif self.path == "/api/graduate":
                 pet = s["pet"]
-                if not pet or level_of(pet["xp"]) < MASTER_LV:
+                if not pet or level_of(pet["xp"], growth_of(pet)) < MASTER_LV:
                     return self._send(400, {"error": f"Lv.{MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
-                lv = level_of(pet["xp"])
+                lv = level_of(pet["xp"], growth_of(pet))
                 st = stage_of(lv, pet_line(pet))
                 aid, aname, _, _ = appearance(pet, lv, pet_line(pet), st)
                 s["dex"].append({**pet, "level": lv, "species": [aid, aname],
@@ -1262,7 +1305,7 @@ class Handler(BaseHTTPRequestHandler):
                 s["pet"] = None
             elif self.path == "/api/evolve":   # 이브이 진화형 고르기
                 pet = s["pet"]
-                if not pet or not LINES[pet["line"]].get("branches") or pet.get("branch") or level_of(pet["xp"]) < EEVEE_LV:
+                if not pet or not LINES[pet["line"]].get("branches") or pet.get("branch") or level_of(pet["xp"], growth_of(pet)) < EEVEE_LV:
                     return self._send(400, {"error": "지금은 진화할 수 없어요"})
                 opt = next((o for o in eevee_options(pet)["options"] if o["id"] == body.get("id")), None)
                 if not opt or not opt["open"]:
