@@ -29,7 +29,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.21.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.21.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -47,7 +47,13 @@ for _stream in (sys.stdout, sys.stderr):  # 한글을 못 찍는 Windows 콘솔�
         pass
 if sys.stdout is None or sys.stderr is None:  # 콘솔 없는 Windows exe: 로그 파일로
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _log = open(DATA_DIR / "server.log", "a", encoding="utf-8", buffering=1)
+    _lp = DATA_DIR / "server.log"
+    try:   # 로그가 끝없이 커지지 않게: 1MB를 넘으면 옛 로그 하나만 남기고 새로 시작
+        if _lp.stat().st_size > 1_000_000:
+            os.replace(_lp, DATA_DIR / "server.old.log")
+    except OSError:
+        pass
+    _log = open(_lp, "a", encoding="utf-8", buffering=1)
     sys.stdout, sys.stderr = sys.stdout or _log, sys.stderr or _log
 
 XP_PER_LEVEL = 50
@@ -1341,6 +1347,7 @@ def win_update(manual=False):
         zpath.write_bytes(urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Figmon"}), timeout=180).read())
         with zipfile.ZipFile(zpath) as z:
             z.extract("Figmon.exe", tmp)
+        zpath.unlink()   # 압축 파일(12MB)은 더 필요 없음
         log("update", f"v{tag.lstrip('v')} 업데이트를 설치하고 다시 시작해요")
         with LOCK:
             save(force=True)
@@ -1371,8 +1378,19 @@ def apply_update(target):
     subprocess.Popen([target, "--startup"], close_fds=True)
 
 
+def clean_old_updates():
+    """업데이트할 때 임시 폴더에 받은 새 exe(수십 MB)가 남아 쌓이지 않게 지난 것들을 지운다.
+    지금 실행 중인 exe가 든 폴더는 건너뛰고, 아직 잠겨 있으면 다음 실행 때 지운다."""
+    import shutil
+    here = Path(sys.executable).resolve().parent
+    for d in Path(tempfile.gettempdir()).glob("figmon-update-*"):
+        if d.is_dir() and d.resolve() != here and time.time() - d.stat().st_mtime > 600:   # 받는 중인 건 건드리지 않게
+            shutil.rmtree(d, ignore_errors=True)
+
+
 def update_loop():
     time.sleep(float(os.environ.get("FIGMON_UPDATE_DELAY", 10)))
+    clean_old_updates()
     while True:
         if STATE["config"].get("auto_update", True):
             win_update()

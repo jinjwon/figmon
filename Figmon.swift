@@ -778,8 +778,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
+    /// 도감·펫 이미지 웹 캐시가 64MB를 넘으면 비운다 (필요한 이미지는 다시 받아짐)
+    func trimWebCache() {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
+              let id = Bundle.main.bundleIdentifier else { return }
+        let dir = caches.appendingPathComponent(id).appendingPathComponent("WebKit")
+        var total = 0
+        if let e = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) {
+            for case let f as URL in e { total += (try? f.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize ?? 0) ?? 0 }
+        }
+        if total > 64 << 20 {
+            WKWebsiteDataStore.default().removeData(ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache],
+                                                    modifiedSince: .distantPast) {}
+        }
+    }
+
     func applicationDidFinishLaunching(_ n: Notification) {
         if quitIfAlreadyRunning() { return }
+        trimWebCache()
         NSApp.setActivationPolicy(.accessory)
         buildMainMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

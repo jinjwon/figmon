@@ -151,6 +151,17 @@ def gif_disposals(path):
     return out
 
 
+def trim_cache(keep, limit=40):
+    """펫 이미지 캐시는 최근 40장만 (포켓몬을 많이 바꿔도 쌓이지 않게)"""
+    try:
+        files = sorted(CACHE.iterdir(), key=lambda f: f.stat().st_mtime, reverse=True)
+        for f in files[limit:]:
+            if f != keep:
+                f.unlink()
+    except OSError:
+        pass
+
+
 def fetch_sprite(pid):
     """애니메이션 GIF(없으면 정지 PNG)를 받아 캐시 경로를 돌려준다."""
     CACHE.mkdir(parents=True, exist_ok=True)
@@ -158,9 +169,11 @@ def fetch_sprite(pid):
                       (f"{pid}-art.png", f"{RAW}/other/official-artwork/{pid}.png")):   # 움직이는 이미지가 없으면 일러스트
         p = CACHE / name
         if p.exists() and p.stat().st_size > 0:
+            p.touch()   # 최근에 쓴 것부터 남기려고
             return p
         try:
             p.write_bytes(urllib.request.urlopen(url, timeout=15).read())
+            trim_cache(keep=p)
             return p
         except Exception:
             continue
