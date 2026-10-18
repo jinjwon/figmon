@@ -4,6 +4,7 @@ pokedex.json 만들기: PokeAPI 공개 데이터(CSV)로 2~9세대 진화 계열
 
 사용: python3 tools/build_pokedex.py            (CSV를 내려받음)
       python3 tools/build_pokedex.py <CSV 폴더>  (이미 받은 CSV 사용)
+      python3 tools/build_pokedex.py --evo [CSV 폴더]  (진화 조건만 다시 넣음)
 """
 import csv
 import io
@@ -24,6 +25,32 @@ def rows(name, folder=None):
     else:
         text = urllib.request.urlopen(BASE + name + ".csv", timeout=60).read().decode("utf-8")
     return list(csv.DictReader(io.StringIO(text)))
+
+
+def evo_conditions(folder=None):
+    """종마다 실제 진화 조건 {종 id: [방식, 최소 레벨]}. 방식: level · friend(친밀도) · stone(진화의 돌 등 아이템) · trade(교환) · other"""
+    by = defaultdict(list)
+    for r in rows("pokemon_evolution", folder):
+        by[int(r["evolved_species_id"])].append(r)
+    out = {}
+    for r in rows("pokemon_species", folder):
+        sid = int(r["id"])
+        if not r["evolves_from_species_id"]:
+            continue
+        ev = by.get(sid, [])
+        lv = next((int(e["minimum_level"]) for e in ev if e["minimum_level"]), None)
+        how = "level" if lv else "friend" if any(e["minimum_happiness"] or e["minimum_affection"] for e in ev) \
+            else "stone" if any(e["evolution_trigger_id"] == "3" for e in ev) \
+            else "trade" if any(e["evolution_trigger_id"] == "2" for e in ev) else "other"
+        out[str(sid)] = [how, lv]
+    return out
+
+
+def add_evo(folder=None):
+    d = json.loads(OUT.read_text(encoding="utf-8"))
+    d["evo"] = evo_conditions(folder)
+    OUT.write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"{OUT.name}: 진화 조건 {len(d['evo'])}종")
 
 
 def main(folder=None):
@@ -97,6 +124,7 @@ def main(folder=None):
     info = {sid: [growth_name.get(r["growth_rate_id"], "medium"), bst.get(sid, 0)] for sid, r in species.items()}
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",
                                "lines": lines, "legendary": legendary, "mythical": mythical, "info": info,
+                              "evo": evo_conditions(folder),
                                "mega": dict(sorted(mega.items(), key=lambda kv: int(kv[0])))},
                               ensure_ascii=False, separators=(",", ":")),
                    encoding="utf-8")
@@ -107,4 +135,7 @@ def main(folder=None):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else None)
+    if sys.argv[1:2] == ["--evo"]:
+        add_evo(sys.argv[2] if len(sys.argv) > 2 else None)
+    else:
+        main(sys.argv[1] if len(sys.argv) > 1 else None)

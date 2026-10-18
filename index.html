@@ -448,7 +448,7 @@ label.f textarea{height:64px;resize:vertical}
 <!-- 스타팅 고르기 -->
 <div class="modal" id="pickModal" role="dialog" aria-modal="true" aria-label="포켓몬 고르기"><div class="sheet">
   <div style="display:flex;align-items:center"><h2 style="flex:1">함께 자랄 파트너를 골라줘</h2><button class="icon-btn" id="pickClose" title="닫기" aria-label="닫기">✕</button></div>
-  <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 Lv.16 · Lv.36에 진화해요.</div>
+  <div class="muted" id="pickHint">진화 전 모습으로 Lv.0부터 시작해요. Figma·코딩 등 작업한 시간만큼 자라서 실제 게임과 같은 레벨에 진화해요 (예: 미뇽은 Lv.30 · Lv.55).</div>
   <input id="pickSearch" type="search" placeholder="🔍 이름·초성·도감 번호 (예: 피카츄, ㅍㅋㅊ, 25)" aria-label="포켓몬 찾기">
   <div class="tabs" id="genTabs" role="tablist" aria-label="세대"></div>
   <div class="filters">
@@ -583,10 +583,13 @@ const TYPE_KO = {grass:'풀', fire:'불꽃', water:'물', normal:'노말', bug:'
 // 갈래 진화(랄토스 등): 공통 단계 뒤에 키우는 습관으로 정해지는 진화형들
 const forkOpts = l => (l.fork ? l.fork.options : []);
 const forkNames = l => forkOpts(l).flatMap(o => o.stages.map(s => s[1]));
-const evoPath = l => l.fork ? l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ')
-    + ` → Lv.${l.fork_lv} ${forkOpts(l).map(o => o.stages.map(s => s[1]).join('→')).join(' / ')} (키우는 습관으로 정해져요)`
+// 진화 레벨은 실제 게임 값. 돌·교환·친밀도로 진화하는 포켓몬은 비슷한 시점의 레벨로 바꿔서 보여 줌
+const EVO_HOW = {stone: '원래 진화의 돌', trade: '원래 통신교환', friend: '원래 친밀도', other: '원래 특별한 조건'};
+const evoStep = (s, lv, how) => `Lv.${lv} ${s[1]}${EVO_HOW[how] ? ` (${EVO_HOW[how]})` : ''}`;
+const evoPath = l => l.fork ? l.stages.map((s, i) => evoStep(s, l.evo_levels[i], l.evo_how && l.evo_how[i])).join(' → ')
+    + ` → ${forkOpts(l).map(o => o.stages.map((s, j) => evoStep(s, o.evo_levels[l.stages.length + j], o.evo_how && o.evo_how[l.stages.length + j])).join(' → ')).join(' / ')} (키우는 습관으로 정해져요)`
   : l.branches ? `Lv.0 이브이 → Lv.${l.branch_lv} 일한 시간대에 따라 8가지 중 직접 선택`
-  : l.stages.map((s, i) => `Lv.${l.evo_levels[i]} ${s[1]}`).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
+  : l.stages.map((s, i) => evoStep(s, l.evo_levels[i], l.evo_how && l.evo_how[i])).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
 const DP = {morning: ['🌅', '아침', '6~11시'], noon: ['☀️', '점심', '11~17시'], evening: ['🌇', '저녁', '17~21시'], night: ['🌙', '새벽', '21~6시']};
 const ICON = {evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
 
@@ -1654,7 +1657,7 @@ function openPicker() {
   $('#pickClose').style.display = S && S.pet ? '' : 'none';
   $('#pickHint').textContent = S && S.pet
     ? `⚠️ 바꾸면 지금 ${S.pet.name}(Lv.${S.pet.level})와 헤어지고 새 포켓몬이 Lv.0부터 다시 시작해요.`
-    : '진화 전 모습으로 Lv.0부터 시작해요. 작업한 시간만큼 자라서 진화하고, Lv.36에 완전 성장해요.';
+    : '진화 전 모습으로 Lv.0부터 시작해요. 작업한 시간만큼 자라서 실제 게임과 같은 레벨에 진화하고, Lv.36(마지막 진화가 더 늦으면 그 레벨)에 완전 성장해요.';
   $('#genTabs').innerHTML = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => `<button data-g="${g}" class="${g === pickGen ? 'on' : ''}" role="tab" aria-selected="${g === pickGen}">${g ? `${g}세대 · ${REGIONS[g].name}` : '전체'}</button>`).join('');
   if ($('#fType').options.length === 1)   // 타입 목록은 한 번만
     $('#fType').innerHTML += [...new Set(Object.values(META.lines).map(l => l.type))].sort((a, b) => TYPE_KO[a].localeCompare(TYPE_KO[b], 'ko'))
@@ -1759,7 +1762,7 @@ $('#starters').onclick = async e => {
   if (rr && !rr.open) return toast(`🔒 ${l.stages[0][1]}은(는) ${l.gen}세대 포켓몬 ${rr.need}마리를 졸업시키면 열려요${rr.t ? ` (그중 ${TYPE_KO[rr.t] || rr.t} 타입 1마리)` : ''} · 지금 ${rr.have}마리${rr.t ? `, ${TYPE_KO[rr.t] || rr.t} ${rr.tHave}마리` : ''}`);
   const replace = !!S.pet;
   const warn = replace ? `<br><b style="color:var(--bad)">지금 ${S.pet.name} Lv.${S.pet.level}의 성장 기록은 사라지고 Lv.0부터 다시 시작해요.</b>` : '';
-  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${META.master_lv} 완전 성장까지 작업 약 <b>${l.hours}시간</b> (성장 ${l.growth_name})${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬이라 키우기 어려워요!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
+  if (!await ask(`${l.stages[0][1]}와(과) 함께할까요?`, `${pixTag(l.stages[0][0]).replace('<img', '<img class="ask-img"')}${evoPath(l)}<br>Lv.${l.master_lv || META.master_lv} 완전 성장까지 작업 약 <b>${l.hours}시간</b> (성장 ${l.growth_name})${rr ? `<br><b style="color:var(--warn)">${rr.mark} ${rr.name} 포켓몬이라 키우기 어려워요!</b>` : ''}${warn}`, {yes: '이 친구로 할래!', no: '다시 고를래'})) return;
   S = await api('/api/choose', {line: b.dataset.k, replace});
   $('#pickModal').classList.remove('open'); prev = null; shownId = null; render(); speak(true); toast(`${l.stages[0][1]}와(과) 함께 Lv.0부터 출발!`);
 };

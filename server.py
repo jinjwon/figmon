@@ -30,7 +30,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.22.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.23.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -159,7 +159,10 @@ def unlock_status(line_key):
 
 def is_unlocked(line_key):
     return unlock_status(line_key)["open"]
-EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 단계 수별 진화 레벨
+EVO_LEVELS = {1: [], 2: [20], 3: [16, 36]}   # 진화 데이터가 없을 때만 쓰는 진화 레벨
+# 레벨이 아닌 조건으로 진화하는 포켓몬은 비슷한 시점의 레벨로 바꿈. 첫 진화면 그 레벨, 두 번째 진화면 앞 진화 + 그만큼 (최소 30)
+EVO_FIRST = {"friend": 20, "stone": 25, "trade": 30, "other": 25}
+EVO_NEXT = {"friend": 10, "stone": 12, "trade": 14, "other": 12}
 
 DESIGN_APPS = ["Figma", "Sketch", "Framer", "Adobe Illustrator", "Adobe Photoshop", "Adobe XD", "Penpot",
                "Photoshop", "Illustrator", "XD"]  # 아래 소문자/64 이름들은 Windows 실행 파일 이름
@@ -346,10 +349,40 @@ try:
         _l["legendary"] = bool(_l["rarity"])
     _DEX_INFO = _DEX.get("info", {})
     MEGA = {int(k): v for k, v in _DEX.get("mega", {}).items()}   # 종 id → [[모습 id, 이름, 타입], ...]
+    EVO = _DEX.get("evo", {})   # 종 id → [방식, 최소 레벨]: 실제 게임의 진화 조건
 except Exception as _e:
+    EVO = {}
     print("pokedex.json을 읽지 못했어요:", _e)
+
+
+def evo_path(ids):
+    """진화 경로(종 id들)의 각 단계가 시작되는 레벨과 진화 방식. 실제 게임 레벨 그대로 (예: 미뇽 → Lv.30 신뇽 → Lv.55 망나뇽)"""
+    if not EVO:
+        return [0] + EVO_LEVELS[min(3, len(ids))][:len(ids) - 1], [None] * len(ids)
+    lv, how = [0], [None]
+    for i, sid in enumerate(ids[1:]):
+        h, need = EVO.get(str(sid), ["other", None])
+        if h == "level":
+            need = need
+        elif i == 0:
+            need = EVO_FIRST[h]
+        else:
+            need = max(lv[-1] + EVO_NEXT[h], 30)
+        lv.append(max(need, lv[-1] + 1))
+        how.append(h)
+    return lv, how
+
+
 for _l in LINES.values():
-    _l["evo_levels"] = [0] + EVO_LEVELS[len(_l["stages"])]   # 각 단계가 시작되는 레벨
+    _ids = [i for i, _ in _l["stages"]]
+    _l["evo_levels"], _l["evo_how"] = evo_path(_ids)   # 각 단계가 시작되는 레벨
+    _last = _l["evo_levels"][-1]
+    if _l.get("fork"):   # 갈래마다 진화 레벨이 다를 수 있음 (랄토스 → Lv.30 가디안 / 돌 엘레이드)
+        for _o in _l["fork"]["options"]:
+            _o["evo_levels"], _o["evo_how"] = evo_path(_ids + [i for i, _ in _o["stages"]])
+        _l["fork_lv"] = min(o["evo_levels"][len(_ids)] for o in _l["fork"]["options"])
+        _last = max(o["evo_levels"][-1] for o in _l["fork"]["options"])
+    _l["master_lv"] = max(MASTER_LV, _last)   # 마지막 진화가 늦은 포켓몬(망나뇽 Lv.55)은 그때가 완전 성장
 
 
 def _difficulty(l):
@@ -363,9 +396,9 @@ def _difficulty(l):
         need = 1 if bst < 600 else 2 if bst < 680 else 3      # 능력치 합계가 높을수록 더 많이 졸업해야
         need += 1 if l["rarity"] == "mythical" else 0
     l.update(growth=growth, growth_name=GROWTH.get(growth, (0, "보통"))[1], xp_mult=round(mult, 3),
-             unlock_need=need, bst=bst, hours=round(xp_at(MASTER_LV, growth) / (XP_PER_MIN * mult) / 60))
-for _k in ("133-water", "133-electric", "133-fire"):
-    LINES[_k]["hidden"] = True
+             unlock_need=need, bst=bst, hours=round(xp_at(l["master_lv"], growth) / (XP_PER_MIN * mult) / 60))
+for _k in ("133-water", "133-electric", "133-fire"):   # 예전 저장용 이브이 계열: 이브이와 같은 Lv.20
+    LINES[_k].update(hidden=True, evo_levels=[0, 20])
 for _l in LINES.values():
     _difficulty(_l)
 # 전설·환상마다 같은 타입 조건: 그 세대에 그 타입의 일반 포켓몬이 있을 때만 (못 여는 전설이 없게)
@@ -383,7 +416,7 @@ ARC_TYPES = ["fire", "water", "grass", "electric", "ice", "fighting", "poison", 
 CREATION_TRIO = {"483", "484", "487"}
 if ARCEUS in LINES:
     LINES[ARCEUS].update(xp_mult=ARCEUS_XP, unlock_special=True, unlock_need=12, unlock_type=None,
-                         hours=round(xp_at(MASTER_LV, LINES[ARCEUS]["growth"]) / (XP_PER_MIN * ARCEUS_XP) / 60))
+                         hours=round(xp_at(LINES[ARCEUS]["master_lv"], LINES[ARCEUS]["growth"]) / (XP_PER_MIN * ARCEUS_XP) / 60))
 
 
 def arceus_forms(pet):
@@ -418,7 +451,7 @@ def appearance(pet, lv, line, st):
         t = arceus_cur(pet)
         return (f"493-{t}", f"아르세우스 ({TYPE_KO[t]})", t, False) if t != "normal" else (sid, name, "normal", False)
     opts = mega_options(line, st)
-    if opts and pet.get("mega") is not None and pet.get("mega_on", True) and lv >= MEGA_LV:
+    if opts and pet.get("mega") is not None and pet.get("mega_on", True) and lv >= mega_lv_of(pet):
         mid, mname, mtype = opts[min(pet["mega"], len(opts) - 1)]
         return mid, mname, mtype, True
     return sid, name, line["type"], False
@@ -468,9 +501,6 @@ FORK_LABEL = {"day": "☀️ 낮(6~18시)에 많이 작업", "night": "🌙 밤(
 for _l in LINES.values():
     if _l.get("fork"):
         _opts = _l["fork"]["options"]
-        _maxlen = len(_l["stages"]) + max(len(o["stages"]) for o in _opts)
-        _l["evo_levels"] = [0] + EVO_LEVELS[_maxlen]
-        _l["fork_lv"] = _l["evo_levels"][len(_l["stages"])]
         _default = ["day", "night"] if len(_opts) == 2 else ["hustle", "focus", "balance", "day", "night"]
         for _i, _o in enumerate(_opts):
             _o["cond"] = FORK_COND.get(_o["final"], _default[_i % len(_default)])
@@ -501,16 +531,28 @@ def pet_line(pet):
     if base.get("fork"):
         i = pet.get("fork_choice")
         if i is None:
-            return {**base, "evo_levels": base["evo_levels"][:len(base["stages"])]}
+            return base
         o = base["fork"]["options"][i]
         st = base["stages"] + o["stages"]
-        return {**base, "type": o["type"], "stages": st, "evo_levels": base["evo_levels"][:len(st)]}
+        return {**base, "type": o["type"], "stages": st, "evo_levels": o["evo_levels"], "evo_how": o["evo_how"]}
     if not base.get("branches"):
         return base
     b = EEVEE_BY_ID.get(pet.get("branch"))
     if b:
         return {**base, "type": b["type"], "stages": base["stages"] + [[b["id"], b["name"]]], "evo_levels": [0, EEVEE_LV]}
     return {**base, "evo_levels": [0]}
+
+
+def master_of(pet):
+    """완전 성장(졸업) 레벨: 기본 Lv.36, 마지막 진화가 더 늦으면 그 레벨"""
+    l = LINES[pet["line"]]
+    if l.get("fork") and pet.get("fork_choice") is not None:
+        return max(MASTER_LV, l["fork"]["options"][pet["fork_choice"]]["evo_levels"][-1])
+    return l.get("master_lv", MASTER_LV)
+
+
+def mega_lv_of(pet):
+    return max(MEGA_LV, master_of(pet))
 
 
 def eevee_options(pet):
@@ -572,7 +614,7 @@ def species_name(pet, stage):
 # ---------- 상태 저장 ----------
 def fresh_state():
     return {"config": dict(DEFAULT_CONFIG), "pet": None, "bank_sec": 0.0, "paused_until": 0.0,
-            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today(), "xp_curve": 1}
+            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today(), "xp_curve": 1, "evo_v": 1}
 
 
 def migrate_xp_curve(s):
@@ -586,6 +628,25 @@ def migrate_xp_curve(s):
         frac = 0.0 if lv >= MAX_LV else (xp - lv * 50) / 50
         pet["xp"] = xp_at(lv, g) + frac * (xp_at(lv + 1, g) - xp_at(lv, g))
     s["xp_curve"] = 1
+
+
+def migrate_evo_levels(s):
+    """예전엔 모두 Lv.16/20/36에 진화했음. 진화 레벨이 실제 게임 값으로 바뀌어도 이미 진화한 모습은 그대로 둠
+    (모자란 만큼 레벨을 올려 줌)"""
+    if s.get("evo_v") == 1:
+        return
+    pet = s.get("pet")
+    if pet and pet.get("line") in LINES and not LINES[pet["line"]].get("branches"):
+        base, line, g = LINES[pet["line"]], pet_line(pet), growth_of(pet)
+        n = len(line["stages"])
+        if base.get("fork") and pet.get("fork_choice") is None:
+            n += max(len(o["stages"]) for o in base["fork"]["options"])
+        old = [0] + EVO_LEVELS[min(3, n)]
+        lv = level_of(pet["xp"], g)
+        was = min(len(line["stages"]), sum(1 for need in old if lv >= need))
+        if stage_of(lv, line) < was:
+            pet["xp"] = max(pet["xp"], xp_at(line["evo_levels"][was - 1], g))
+    s["evo_v"] = 1
 
 
 def new_today():
@@ -662,11 +723,13 @@ def load_state():
             saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
             s.update(saved)
             s["xp_curve"] = saved.get("xp_curve", 0)   # 예전 저장엔 없음 → 아래에서 변환
+            s["evo_v"] = saved.get("evo_v", 0)
             s["config"] = {**DEFAULT_CONFIG, **s.get("config", {})}
             merge_new_defaults(s["config"])
             s["today"] = {**new_today(), **s["today"]}
             s.setdefault("history", [])
             migrate_xp_curve(s)
+            migrate_evo_levels(s)
         except Exception as e:
             print("상태 파일을 읽지 못해 새로 시작합니다:", e)
     return s
@@ -1082,8 +1145,8 @@ def step(app, url, idle, dt, title=""):
             if LINES[pet["line"]].get("branches") and not pet.get("branch") and before < EEVEE_LV <= after:
                 log("evo", "이브이가 진화하려고 해요! 대시보드에서 진화형을 골라 주세요")
                 notify("✨ 진화할 수 있어요", "이브이가 진화하려고 해요! Figmon 대시보드에서 골라 주세요")
-            if before < MASTER_LV <= after:
-                log("grad", f"Lv.{MASTER_LV} 완전 성장! 자랑 카드를 만들 수 있어요")
+            if before < master_of(pet) <= after:
+                log("grad", f"Lv.{master_of(pet)} 완전 성장! 자랑 카드를 만들 수 있어요")
                 notify("🏆 완전 성장", "Figmon 창에서 자랑 카드를 만들어 자랑해보세요!")
             elif sa > sb:
                 pass
@@ -1094,7 +1157,7 @@ def step(app, url, idle, dt, title=""):
         line_now = pet_line(pet)
         st_now = stage_of(after, line_now)
         opts = mega_options(line_now, st_now)
-        if opts and after >= MEGA_LV and pet.get("mega") is None:
+        if opts and after >= mega_lv_of(pet) and pet.get("mega") is None:
             pet["mega"], pet["mega_on"] = mega_pick(pet, opts), True
             msg = f"{line_now['stages'][st_now - 1][1]} → {opts[pet['mega']][1]} 메가진화!"
             log("evo", msg)
@@ -1153,16 +1216,16 @@ def view():
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
                       "rarity": LINES[pet["line"]].get("rarity"), "xp_mult": xp_mult(pet["line"]), "xp_rate": round(rate, 2),
                       "growth_name": LINES[pet["line"]].get("growth_name", "보통"),
-                      "mastered": lv >= MASTER_LV, "master_lv": MASTER_LV,
+                      "mastered": lv >= master_of(pet), "master_lv": master_of(pet),
                       "next_evo_lv": nxt,
                       "min_to_evo": max(0.0, xp_at(nxt, g) - xp) / rate if nxt else None,
-                      "min_to_master": max(0.0, (xp_at(MASTER_LV, g) - xp) / rate)}
+                      "min_to_master": max(0.0, (xp_at(master_of(pet), g) - xp) / rate)}
         mo = MEGA.get(line["stages"][-1][0], []) if not (LINES[pet["line"]].get("fork") and pet.get("fork_choice") is None) else []
         if mo:   # 메가진화할 수 있는 계열
-            out["pet"]["mega_info"] = {"lv": MEGA_LV, "options": [{"id": i, "name": n, "type": t} for i, n, t in mo],
+            out["pet"]["mega_info"] = {"lv": mega_lv_of(pet), "options": [{"id": i, "name": n, "type": t} for i, n, t in mo],
                                        "choice": pet.get("mega"), "lean": mega_pick(pet, mo), "on": pet.get("mega_on", True),
-                                       "active": is_mega, "ready": st == len(line["stages"]) and lv >= MEGA_LV,
-                                       "min_to": max(0.0, (xp_at(MEGA_LV, g) - xp) / rate)}
+                                       "active": is_mega, "ready": st == len(line["stages"]) and lv >= mega_lv_of(pet),
+                                       "min_to": max(0.0, (xp_at(mega_lv_of(pet), g) - xp) / rate)}
         if pet["line"] == ARCEUS:
             forms, done = arceus_forms(pet), pet.get("work_sec", 0) / 3600
             out["pet"]["arceus"] = {"forms": [{"type": t, "id": f"493-{t}" if t != "normal" else 493, "open": t in forms}
@@ -1294,8 +1357,8 @@ class Handler(BaseHTTPRequestHandler):
                 s["pet"]["nickname"] = str(body.get("nickname", ""))[:12]
             elif self.path == "/api/graduate":
                 pet = s["pet"]
-                if not pet or level_of(pet["xp"], growth_of(pet)) < MASTER_LV:
-                    return self._send(400, {"error": f"Lv.{MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
+                if not pet or level_of(pet["xp"], growth_of(pet)) < master_of(pet):
+                    return self._send(400, {"error": f"Lv.{master_of(pet) if pet else MASTER_LV} 완전 성장 후에 졸업할 수 있어요"})
                 lv = level_of(pet["xp"], growth_of(pet))
                 st = stage_of(lv, pet_line(pet))
                 aid, aname, _, _ = appearance(pet, lv, pet_line(pet), st)
