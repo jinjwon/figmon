@@ -265,7 +265,7 @@ _GEN1 = [
     ("35", "fairy", [(35, "삐삐"), (36, "픽시")]),
     ("37", "fire", [(37, "식스테일"), (38, "나인테일")]),
     ("39", "normal", [(39, "푸린"), (40, "푸크린")]),
-    ("41", "poison", [(41, "주뱃"), (42, "골뱃")]),
+    ("41", "poison", [(41, "주뱃"), (42, "골뱃"), (169, "크로뱃")]),
     ("43", "grass", [(43, "뚜벅쵸"), (44, "냄새꼬"), (45, "라플레시아")]),
     ("46", "bug", [(46, "파라스"), (47, "파라섹트")]),
     ("48", "bug", [(48, "콘팡"), (49, "도나리")]),
@@ -282,14 +282,14 @@ _GEN1 = [
     ("74", "rock", [(74, "꼬마돌"), (75, "데구리"), (76, "딱구리")]),
     ("77", "fire", [(77, "포니타"), (78, "날쌩마")]),
     ("79", "water", [(79, "야돈"), (80, "야도란")]),
-    ("81", "electric", [(81, "코일"), (82, "레어코일")]),
+    ("81", "electric", [(81, "코일"), (82, "레어코일"), (462, "자포코일")]),
     ("83", "normal", [(83, "파오리")]),
     ("84", "normal", [(84, "두두"), (85, "두트리오")]),
     ("86", "water", [(86, "쥬쥬"), (87, "쥬레곤")]),
     ("88", "poison", [(88, "질퍽이"), (89, "질뻐기")]),
     ("90", "water", [(90, "셀러"), (91, "파르셀")]),
     ("92", "ghost", [(92, "고오스"), (93, "고우스트"), (94, "팬텀")]),
-    ("95", "rock", [(95, "롱스톤")]),
+    ("95", "rock", [(95, "롱스톤"), (208, "강철톤")]),
     ("96", "psychic", [(96, "슬리프"), (97, "슬리퍼")]),
     ("98", "water", [(98, "크랩"), (99, "킹크랩")]),
     ("100", "electric", [(100, "찌리리공"), (101, "붐볼")]),
@@ -297,17 +297,17 @@ _GEN1 = [
     ("104", "ground", [(104, "탕구리"), (105, "텅구리")]),
     ("106", "fighting", [(106, "시라소몬")]),
     ("107", "fighting", [(107, "홍수몬")]),
-    ("108", "normal", [(108, "내루미")]),
+    ("108", "normal", [(108, "내루미"), (463, "내룸벨트")]),
     ("109", "poison", [(109, "또가스"), (110, "또도가스")]),
-    ("111", "ground", [(111, "뿔카노"), (112, "코뿌리")]),
+    ("111", "ground", [(111, "뿔카노"), (112, "코뿌리"), (464, "거대코뿌리")]),
     ("113", "normal", [(113, "럭키")]),
-    ("114", "grass", [(114, "덩쿠리")]),
+    ("114", "grass", [(114, "덩쿠리"), (465, "덩쿠림보")]),
     ("115", "normal", [(115, "캥카")]),
-    ("116", "water", [(116, "쏘드라"), (117, "시드라")]),
+    ("116", "water", [(116, "쏘드라"), (117, "시드라"), (230, "킹드라")]),
     ("118", "water", [(118, "콘치"), (119, "왕콘치")]),
     ("120", "water", [(120, "별가사리"), (121, "아쿠스타")]),
     ("122", "psychic", [(122, "마임맨")]),
-    ("123", "bug", [(123, "스라크")]),
+    ("123", "bug", [(123, "스라크"), (212, "핫삼")]),
     ("124", "ice", [(124, "루주라")]),
     ("125", "electric", [(125, "에레브")]),
     ("126", "fire", [(126, "마그마")]),
@@ -321,7 +321,7 @@ _GEN1 = [
     ("133-water", "water", [(133, "이브이"), (134, "샤미드")]),
     ("133-electric", "electric", [(133, "이브이"), (135, "쥬피썬더")]),
     ("133-fire", "fire", [(133, "이브이"), (136, "부스터")]),
-    ("137", "normal", [(137, "폴리곤")]),
+    ("137", "normal", [(137, "폴리곤"), (233, "폴리곤2"), (474, "폴리곤Z")]),
     ("138", "rock", [(138, "암나이트"), (139, "암스타")]),
     ("140", "rock", [(140, "투구"), (141, "투구푸스")]),
     ("142", "rock", [(142, "프테라")]),
@@ -333,6 +333,8 @@ _GEN1 = [
     ("150", "psychic", [(150, "뮤츠")]),
     ("151", "psychic", [(151, "뮤")]),
 ]
+# 나중에 2세대 이후 진화형이 붙은 계열의 예전 단계 수 (1.24까지): 예전 저장 변환용
+OLD_STAGES = {"41": 2, "81": 2, "95": 1, "108": 1, "111": 2, "114": 1, "116": 2, "123": 1, "137": 1}
 LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "starter": True} for g, t, st in _RAW}
 LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
 MEGA = {}
@@ -546,6 +548,8 @@ def pet_line(pet):
 def master_of(pet):
     """완전 성장(졸업) 레벨: 기본 Lv.36, 마지막 진화가 더 늦으면 그 레벨"""
     l = LINES[pet["line"]]
+    if pet.get("grad_lv"):   # 진화형이 늘기 전에 이미 완전 성장한 포켓몬은 예전 레벨 그대로
+        return pet["grad_lv"]
     if l.get("fork") and pet.get("fork_choice") is not None:
         return max(MASTER_LV, l["fork"]["options"][pet["fork_choice"]]["evo_levels"][-1])
     return l.get("master_lv", MASTER_LV)
@@ -614,7 +618,7 @@ def species_name(pet, stage):
 # ---------- 상태 저장 ----------
 def fresh_state():
     return {"config": dict(DEFAULT_CONFIG), "pet": None, "bank_sec": 0.0, "paused_until": 0.0,
-            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today(), "xp_curve": 1, "evo_v": 1}
+            "total_work_sec": 0.0, "dex": [], "events": [], "today": new_today(), "xp_curve": 1, "evo_v": 2}
 
 
 def migrate_xp_curve(s):
@@ -633,20 +637,41 @@ def migrate_xp_curve(s):
 def migrate_evo_levels(s):
     """예전엔 모두 Lv.16/20/36에 진화했음. 진화 레벨이 실제 게임 값으로 바뀌어도 이미 진화한 모습은 그대로 둠
     (모자란 만큼 레벨을 올려 줌)"""
-    if s.get("evo_v") == 1:
-        return
+    if s.get("evo_v", 0) >= 1:
+        return migrate_new_stages(s)
     pet = s.get("pet")
     if pet and pet.get("line") in LINES and not LINES[pet["line"]].get("branches"):
         base, line, g = LINES[pet["line"]], pet_line(pet), growth_of(pet)
-        n = len(line["stages"])
+        n = OLD_STAGES.get(pet["line"], len(line["stages"]))
         if base.get("fork") and pet.get("fork_choice") is None:
             n += max(len(o["stages"]) for o in base["fork"]["options"])
         old = [0] + EVO_LEVELS[min(3, n)]
         lv = level_of(pet["xp"], g)
-        was = min(len(line["stages"]), sum(1 for need in old if lv >= need))
+        was = min(len(line["stages"]), n, sum(1 for need in old if lv >= need))
         if stage_of(lv, line) < was:
             pet["xp"] = max(pet["xp"], xp_at(line["evo_levels"][was - 1], g))
     s["evo_v"] = 1
+    migrate_new_stages(s)
+
+
+def migrate_new_stages(s):
+    """롱스톤 → 강철톤, 골뱃 → 크로뱃처럼 진화형이 새로 붙은 계열: 이미 진화 레벨을 넘긴 포켓몬은
+    레벨은 그대로 두고 진화한 모습이 됨 (말없이 바뀌지 않게 기록을 남김).
+    마지막 진화가 늦어져 완전 성장 레벨이 올라간 계열(킹드라 Lv.46 등)은 이미 완전 성장했으면 예전 레벨 그대로"""
+    if s.get("evo_v", 0) >= 2:
+        return
+    pet = s.get("pet")
+    if pet and pet.get("line") in OLD_STAGES and pet.get("line") in LINES:
+        line, n = LINES[pet["line"]], OLD_STAGES[pet["line"]]
+        lv = level_of(pet.get("xp", 0), growth_of(pet))
+        old_master = max(MASTER_LV, line["evo_levels"][n - 1])
+        if lv >= old_master and master_of(pet) > old_master:
+            pet["grad_lv"] = old_master
+        st = stage_of(lv, line)
+        if st > n:
+            s.setdefault("events", []).append({"t": time.time(), "kind": "evo", "msg":
+                f"{line['stages'][n - 1][1]} → {line['stages'][st - 1][1]} 진화! (새 진화형이 생겼어요)"})
+    s["evo_v"] = 2
 
 
 def new_today():
