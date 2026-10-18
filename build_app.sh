@@ -15,7 +15,13 @@ fi
 echo "▸ 앱 컴파일"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -swift-version 5 Figmon.swift -o "$APP/Contents/MacOS/Figmon"
+# 대상 OS를 꼭 정해야 함: 안 정하면 빌드한 Mac의 버전(예: macOS 26)이 최소 버전이 되어
+# Sequoia(15)·Sonoma(14)·Ventura(13)에서 앱이 안 열림. Intel Mac도 쓸 수 있게 유니버설로 만든다
+MIN_OS=13.0
+for ARCH in arm64 x86_64; do
+  swiftc -O -swift-version 5 -target $ARCH-apple-macos$MIN_OS Figmon.swift -o build/Figmon-$ARCH
+done
+lipo -create build/Figmon-arm64 build/Figmon-x86_64 -output "$APP/Contents/MacOS/Figmon"
 cp server.py index.html pet.html pokedex.json build/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -32,7 +38,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>CFBundleDevelopmentRegion</key><string>ko</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSMinimumSystemVersion</key><string>${MIN_OS}</string>
   <key>LSUIElement</key><true/>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSHighResolutionCapable</key><true/>

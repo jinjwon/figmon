@@ -85,7 +85,27 @@ body{font-family:Jua,-apple-system,sans-serif}
 .petting #body{animation:petting .7s ease-in-out !important}
 .flying #body{animation:spin .45s linear infinite !important;transform-origin:50% 50%}
 .surprised #body{animation:surprised .9s ease-out !important}
-.evolving #body{animation:evoflash 3s steps(1) forwards !important}
+.evolving #body{animation:none !important}
+/* 진화: 하얀 실루엣이 빛나며 예전 모습 ↔ 새 모습이 점점 빠르게 바뀜 · 메가진화: 무지개 빛에 휩싸임 */
+.evo-white .mon{filter:brightness(0) invert(1) drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px #9cf);transition:filter .6s}
+.mega-white .mon{filter:brightness(0) invert(1) drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px #c9a8ff);transition:filter .6s}
+#body .mon.hide{display:none}
+.evo-dot{position:absolute;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px #bfe3ff;pointer-events:none;opacity:0;animation:evoIn 1s ease-in forwards}
+@keyframes evoIn{0%{opacity:0;transform:translate(var(--x),var(--y))}25%{opacity:1}100%{opacity:0;transform:translate(0,0) scale(.3)}}
+.evo-spark{position:absolute;width:6px;height:6px;margin:-3px;border-radius:50%;background:var(--c,#fff);box-shadow:0 0 6px 2px var(--c,#fff);pointer-events:none;animation:evoOut 1.1s cubic-bezier(.1,.7,.3,1) forwards}
+@keyframes evoOut{from{opacity:1;transform:none}to{opacity:0;transform:translate(var(--x),var(--y)) scale(.3)}}
+.evo-ring{position:absolute;width:40px;height:40px;margin:-20px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 14px #fff;pointer-events:none;animation:evoRing .9s ease-out forwards}
+.evo-ring.rainbow{border:0;box-shadow:none;background:conic-gradient(#ff5d8f,#ffb84d,#ffe94d,#5dff9c,#4dd2ff,#8a6bff,#ff5d8f);-webkit-mask:radial-gradient(circle,transparent 60%,#000 63%)}
+@keyframes evoRing{from{opacity:1;transform:scale(.4)}to{opacity:0;transform:scale(4.5)}}
+.beam{position:absolute;width:4px;margin-left:-2px;border-radius:4px;transform-origin:50% 100%;pointer-events:none;background:linear-gradient(to top,#fff,var(--c) 35%,transparent);filter:drop-shadow(0 0 4px var(--c));animation:beam 1.3s ease-out forwards;opacity:0}
+@keyframes beam{0%{opacity:0;transform:rotate(var(--r)) scaleY(0)}30%{opacity:1;transform:rotate(var(--r)) scaleY(1)}100%{opacity:0;transform:rotate(0) scaleY(.9)}}
+.orb{position:absolute;border-radius:50%;pointer-events:none;opacity:0;transform:scale(.3);transition:opacity .4s,transform .6s cubic-bezier(.3,1.4,.5,1);
+  background:radial-gradient(circle,#ffffffcc 0 30%,#e9ddff55 55%,transparent 70%)}
+.orb:before{content:"";position:absolute;inset:4%;border-radius:50%;background:conic-gradient(#ff5d8f,#ffb84d,#ffe94d,#5dff9c,#4dd2ff,#8a6bff,#ff5d8f);
+  -webkit-mask:radial-gradient(circle,transparent 61%,#000 63%,#000 67%,transparent 69%);animation:spinR 1.4s linear infinite}
+.orb.on{opacity:1;transform:scale(1)}
+.orb.burst{transition:opacity .45s,transform .45s ease-out;opacity:0;transform:scale(1.7)}
+@keyframes spinR{to{transform:rotate(360deg)}}
 @keyframes petting{0%,100%{transform:scale(1,1) rotate(0)}20%{transform:scale(1.08,.92) rotate(-5deg)}45%{transform:scale(.97,1.03) rotate(4deg)}70%{transform:scale(1.06,.94) rotate(-3deg)}}
 /* 날아가며 돌 때: 회전하면 모서리가 튀어나오니 --lift만큼 띄우고 --fs만큼 줄여서 창 안에서 돌게 */
 @keyframes spin{from{transform:translateY(calc(-1 * var(--lift, 0px))) scale(var(--fs, 1)) rotate(0)}
@@ -133,6 +153,7 @@ body{font-family:Jua,-apple-system,sans-serif}
   #body,.egg,#pet,.sig #body{animation:none !important;transition:none !important}
   .particle,.float{display:none}
   .evolving #body{animation:none !important;opacity:.6}
+  .evo-dot,.evo-spark,.evo-ring,.beam,.orb{display:none}
   #bubble{transition:none}
 }
 </style>
@@ -303,6 +324,61 @@ function floatText(t, color) {
 }
 function heart() { floatText(mode === 'penalty' ? '💢' : '♥', '#ff8fa8'); }
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- 진화 연출 ---------- */
+// 일반: 빛이 모여들어 하얀 실루엣 → 예전 ↔ 새 모습이 점점 빠르게 바뀜 → 펑
+// 메가: 아래에서 무지개 빛줄기 → 무지개 빛의 알이 감쌈 → 깨지며 메가 모습
+function evolveFx(toId, mega, text) {
+  const b = document.body, body = $('#body');
+  if (calm()) { shownKey = null; draw(); say(text, 6000); return; }
+  evolving = true; b.classList.add('evolving');
+  const T = [], at = (ms, f) => T.push(setTimeout(f, ms));
+  const center = () => { const r = petRect(); return [r.left + r.width / 2, r.top + r.height / 2, Math.max(r.width, r.height)]; };
+  const put = (cls, x, y, vars = {}) => { const e = document.createElement('div'); e.className = cls;
+    e.style.left = x + 'px'; e.style.top = y + 'px'; for (const k in vars) e.style.setProperty(k, vars[k]);
+    b.appendChild(e); setTimeout(() => e.remove(), 2200); return e; };
+  const RAINBOW = ['#ff5d8f', '#ffb84d', '#ffe94d', '#5dff9c', '#4dd2ff', '#8a6bff'];
+  const old = body.querySelector('img');
+  // 새 모습을 미리 불러 두고 숨김 (바뀌는 연출에 씀)
+  const nw = new Image(); nw.className = 'mon hide'; nw.alt = '';
+  nw.onload = () => sizeImg(nw);
+  nw.onerror = () => { nw.onerror = null; nw.classList.add('art'); nw.src = ART(toId); };
+  nw.src = ANI(toId); body.appendChild(nw);
+  const reveal = () => {
+    const [x, y] = center();
+    b.classList.remove('evo-white', 'mega-white');
+    if (old) old.remove(); nw.classList.remove('hide');
+    shownKey = toId; draw(); jump();
+    const ring = put('evo-ring' + (mega ? ' rainbow' : ''), x, y);
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2, r = 60 + Math.random() * 40;
+      put('evo-spark', x, y, {'--x': Math.cos(a) * r + 'px', '--y': Math.sin(a) * r + 'px', '--c': mega ? RAINBOW[i % 6] : pick(['#fff', '#fff6b0', '#bfe3ff'])}); }
+    say(text, 6000);
+    for (let i = 0; i < 6; i++) setTimeout(() => floatText(pick(mega ? ['💎', '✨'] : ['✨', '⭐', '🎉']), mega ? '#9fe8ff' : '#ffe066'), 300 + i * 140);
+    b.classList.remove('evolving'); evolving = false;
+  };
+  if (!mega) {
+    say('…어라? 몸이 빛나고 있어!', 0);
+    at(200, () => b.classList.add('evo-white'));
+    for (let i = 0; i < 16; i++) at(200 + i * 80, () => { const [x, y, s] = center(), a = Math.random() * Math.PI * 2, r = s * .7 + 30;
+      put('evo-dot', x, y, {'--x': Math.cos(a) * r + 'px', '--y': Math.sin(a) * r + 'px'}); });
+    let t = 1700, showNew = false;
+    for (const gap of [440, 380, 320, 270, 230, 190, 160, 130, 110, 90, 75, 60, 50]) {
+      at(t, ((n) => () => { if (old) old.classList.toggle('hide', n); nw.classList.toggle('hide', !n); })(showNew = !showNew));
+      t += gap;
+    }
+    at(t, reveal);
+  } else {
+    say('메가링이 반응하고 있어…!', 0);
+    at(300, () => { const [x, y, s] = center();
+      RAINBOW.forEach((c, i) => { const e = put('beam', x, y + s / 2 + 6, {'--c': c, '--r': `${(i - 2.5) * 12}deg`});
+        e.style.height = (s * .9 + 30) + 'px'; e.style.top = (y + s / 2 + 6 - (s * .9 + 30)) + 'px'; e.style.animationDelay = i * .06 + 's'; }); });
+    let orb;
+    at(1400, () => { const [x, y, s] = center(), d = s * 1.35 + 30; b.classList.add('mega-white');
+      orb = put('orb', x - d / 2, y - d / 2); orb.style.width = orb.style.height = d + 'px'; orb.style.margin = 0;
+      requestAnimationFrame(() => orb.classList.add('on')); say('빛에 휩싸였다…!', 0); });
+    at(3300, () => { if (orb) orb.classList.add('burst'); reveal(); });
+  }
+}
 function particle() {
   if (calm()) return;
   const em = {work: ['✨', '⭐'], break: ['🍿', '🎵'], penalty: ['💢', '💧'], warning: ['❗'], idle: ['💤'], ai: ['🧠', '🤖']}[mode];
@@ -394,17 +470,12 @@ async function poll() {
 
   if (p && prev && prev.line === p.line && !evolving) {
     if (p.stage > prev.stage) {
-      evolving = true; document.body.classList.add('evolving'); say('…어라? 몸이 빛나고 있어!', 0);
-      setTimeout(() => {
-        document.body.classList.remove('evolving'); evolving = false; shownKey = null; draw(); jump();
-        say(prev && prev.stage === 0 ? `알이 부화했다! ${p.species[1]}!` : `✨ ${p.species[1]}(으)로 진화했다!`, 6000);
-        for (let i = 0; i < 8; i++) setTimeout(() => floatText(pick(['✨', '⭐', '🎉']), '#ffe066'), i * 120);
-      }, 3000);
+      const hatch = prev.stage === 0;
+      evolveFx(p.species[0], false, hatch ? `알이 부화했다! ${p.species[1]}!` : `✨ ${p.species[1]}(으)로 진화했다!`);
     } else if (p.species && prev.species && p.species[0] !== prev.species[0] && p.stage === prev.stage) {   // 메가진화·아르세우스 타입처럼 모습만 바뀜
       const mega = p.mega_info && p.mega_info.active && !(prev.mega_info && prev.mega_info.active);
-      shownKey = null; draw(); jump();
-      say(mega ? `💎 ${p.species[1]}(으)로 메가진화!` : `✨ ${p.species[1]}!`, 5000);
-      if (mega) for (let i = 0; i < 8; i++) setTimeout(() => floatText(pick(['💎', '✨', '⭐']), '#9fe8ff'), i * 120);
+      if (mega) evolveFx(p.species[0], true, `💎 ${p.species[1]}(으)로 메가진화!`);
+      else { shownKey = null; draw(); jump(); say(`✨ ${p.species[1]}!`, 5000); }
     } else if (p.level > prev.level) { floatText(`Lv.${p.level}!`, '#ffe066'); jump(); say(`레벨 업! Lv.${p.level} 🎉`, 3000); }
     else if (p.level < prev.level) say(`Lv.${p.level}로 떨어졌어… 😢`, 4000, true);
     if (prev.xp - p.xp > 0.05) floatText(`-${(prev.xp - p.xp).toFixed(1)} XP`, '#ff6b7a');

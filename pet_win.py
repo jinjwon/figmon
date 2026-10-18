@@ -229,6 +229,7 @@ class Pet:
         self.vx_air, self.thrown, self.bounced, self.spin_until, self.samples = 0.0, False, False, 0.0, []
         self.drag, self.falling, self.vy = None, False, 0.0
         self.evolving_until = 0.0
+        self.fx, self.ring_fx = None, []
         self.bubble_until = None
         self.floats = []
         self.t0 = self.last = time.time()
@@ -302,14 +303,14 @@ class Pet:
 
             if p and self.prev and self.prev["line"] == p["line"] and time.time() > self.evolving_until:
                 if p["stage"] > self.prev["stage"]:
-                    self.evolving_until = time.time() + 2.6
-                    self.say("…어라? 몸이 빛나고 있어!", 2.6)
-                    name = p["species"][1]
-                    self.root.after(2700, lambda: (self.say(f"✨ {name}(으)로 진화했다!", 6), self.burst()))
+                    self.start_evo(False, f"✨ {p['species'][1]}(으)로 진화했다!")
                 elif p["species"][0] != self.prev["species"]:   # 메가진화·아르세우스 타입처럼 모습만 바뀜
                     mega = (p.get("mega_info") or {}).get("active") and not self.prev.get("mega")
-                    self.say(f"💎 {p['species'][1]}(으)로 메가진화!" if mega else f"✨ {p['species'][1]}!", 5)
-                    self.burst()
+                    if mega:
+                        self.start_evo(True, f"💎 {p['species'][1]}(으)로 메가진화!")
+                    else:
+                        self.say(f"✨ {p['species'][1]}!", 5)
+                        self.burst()
                 elif p["level"] > self.prev["level"]:
                     self.say(f"레벨 업! Lv.{p['level']} 🎉", 3)
                     self.float_text(f"Lv.{p['level']}!", "#e0a800")
@@ -321,8 +322,14 @@ class Pet:
                          "mega": (p.get("mega_info") or {}).get("active")} if p else None
 
             key = (p["species"][0], self.zoom_for(p, s)) if p else None
-            if key != self.cur_key and key != self.loading and time.time() > self.evolving_until:
-                self.load_sprite(key)
+            if key != self.cur_key and key != self.loading:
+                if time.time() > self.evolving_until:
+                    self.load_sprite(key)
+                elif self.fx and key not in self.frames:   # 진화 연출 중: 새 모습을 미리 불러 둠 (바꿔 보여 주는 데 씀)
+                    self.loading = key
+                    threading.Thread(target=lambda: setattr(self, "pending", (key, fetch_sprite(key[0]))), daemon=True).start()
+                elif self.fx:
+                    self.fx["new"] = key
             if not p and self.bubble_until is None:
                 self.say("대시보드에서 파트너를 골라줘! (나를 클릭)", 0)
             now = time.time()
@@ -415,6 +422,9 @@ class Pet:
             m.tk.call(str(m), "copy", str(f), "-subsample", -1, 1)  # 좌우 반전
             right.append(m)
         self.frames[key] = {"L": left, "R": right}
+        if self.fx and time.time() < self.evolving_until:
+            self.fx["new"] = key   # 연출이 끝나면 바꿈
+            return
         self.set_cur(key)
         self.cv.delete("ball")
 
@@ -432,7 +442,7 @@ class Pet:
         self.cv.create_text(cx, by - r, text="?", font=("Malgun Gothic", int(16 * self.dpi), "bold"), fill="#a9a39a", tags="ball")
 
     def animate(self):
-        if self.cur:
+        if self.cur and not self.fx:
             seq = self.cur["R" if self.facing > 0 else "L"]
             self.frame_i = (self.frame_i + 1) % len(seq)
             self.cv.itemconfigure(self.img_item, image=seq[self.frame_i])
@@ -480,6 +490,119 @@ class Pet:
             r = 3 * self.dpi
             item = self.cv.create_oval(x - r, foot_y - r, x + r, foot_y + r, fill="#c9c1b3", outline="")
             self.floats.append([item, time.time(), 0.6, back * 18, 10])
+
+    # ----- 진화 연출 -----
+    # 일반: 빛이 모여들어 하얀 실루엣 → 예전 ↔ 새 모습이 점점 빠르게 바뀜 → 펑 (링 + 반짝이)
+    # 메가: 아래에서 무지개 빛줄기 → 무지개 고리가 감싸며 하얗게 빛남 → 펑 (무지개 링 + 반짝이)
+    RAINBOW = ("#ff5d8f", "#ffb84d", "#ffe94d", "#5dff9c", "#4dd2ff", "#8a6bff")
+
+    def silhouette(self, key, side):
+        """스프라이트 첫 장면의 하얀 실루엣 (불투명한 픽셀만 흰색으로)"""
+        f = self.frames.get(key)
+        if not f:
+            return None
+        cache = f.setdefault("W", {})
+        if side not in cache:
+            src = f[side][0]
+            w, h = src.width(), src.height()
+            out = tk.PhotoImage(width=w, height=h)
+            for y in range(h):
+                x = 0
+                while x < w:
+                    if src.transparency_get(x, y):
+                        x += 1
+                        continue
+                    x0 = x
+                    while x < w and not src.transparency_get(x, y):
+                        x += 1
+                    out.put("#ffffff", to=(x0, y, x, y + 1))
+            cache[side] = out
+        return cache[side]
+
+    def start_evo(self, mega, text):
+        now = time.time()
+        if self.calm:   # 동작 줄이기: 연출 없이 바로
+            self.say(text, 6)
+            return
+        gaps = [0.44, 0.38, 0.32, 0.27, 0.23, 0.19, 0.16, 0.13, 0.11, 0.09, 0.075, 0.06, 0.05]
+        swaps, t = [], 1.7
+        for g in gaps:
+            swaps.append(t)
+            t += g
+        self.fx = {"mega": mega, "t0": now, "old": self.cur_key, "new": None, "text": text, "swaps": swaps,
+                   "end": 3.3 if mega else t, "next_dot": 0.0, "beams": False, "rings": []}
+        self.evolving_until = now + self.fx["end"]
+        self.say("메가링이 반응하고 있어…!" if mega else "…어라? 몸이 빛나고 있어!", 0)
+
+    def pet_center(self):
+        h = self.cur["L"][0].height() if self.cur else 52 * self.dpi
+        return self.W / 2, self.H - 6 - h / 2, h
+
+    def run_fx(self, now):
+        fx = self.fx
+        el = now - fx["t0"]
+        cx, cy, h = self.pet_center()
+        side = "R" if self.facing > 0 else "L"
+        if el >= fx["end"]:
+            return self.reveal_fx()
+        if not fx["mega"]:
+            if el < 1.5 and el >= fx["next_dot"]:   # 빛이 모여듦
+                fx["next_dot"] = el + 0.08
+                a, r = random.uniform(0, math.tau), h * 0.7 + 40 * self.dpi
+                x, y, d = cx + math.cos(a) * r, cy + math.sin(a) * r, 3 * self.dpi
+                item = self.cv.create_oval(x - d, y - d, x + d, y + d, fill="#ffffff", outline="#bfe3ff", tags="fx")
+                self.floats.append([item, now, 0.9, -math.cos(a) * r / 0.9, math.sin(a) * r / 0.9])
+            n = sum(1 for t in fx["swaps"] if el >= t)
+            show_new = n % 2 == 1 and fx["new"] in self.frames
+            img = self.silhouette(fx["new"] if show_new else fx["old"], side)
+        else:
+            if el >= 0.3 and not fx["beams"]:   # 아래에서 무지개 빛줄기
+                fx["beams"] = True
+                for i, c in enumerate(self.RAINBOW):
+                    x0 = cx + (i - 2.5) * 16 * self.dpi
+                    fx["rings"].append(self.cv.create_line(x0, self.H, x0, self.H, fill=c, width=3 * self.dpi, tags="fx"))
+            if el < 1.4:
+                k = min(1.0, (el - 0.3) / 0.5) if el > 0.3 else 0
+                for i, item in enumerate(fx["rings"]):
+                    x0 = cx + (i - 2.5) * 16 * self.dpi
+                    self.cv.coords(item, x0, self.H, x0 + (cx - x0) * k, self.H - (self.H - cy) * k)
+                img = None
+            else:
+                if len(fx["rings"]) == len(self.RAINBOW):   # 빛줄기 → 무지개 고리
+                    for item in fx["rings"]:
+                        self.cv.delete(item)
+                    r = h * 0.75 + 18 * self.dpi
+                    fx["rings"] = [self.cv.create_arc(cx - r, cy - r, cx + r, cy + r, start=i * 60, extent=60, style="arc",
+                                                      outline=c, width=4 * self.dpi, tags="fx")
+                                   for i, c in enumerate(self.RAINBOW)] + [None]
+                spin = (el - 1.4) * 360
+                for i, item in enumerate(fx["rings"][:-1]):
+                    self.cv.itemconfigure(item, start=(i * 60 + spin) % 360)
+                img = self.silhouette(fx["old"], side)
+        if img is not None:
+            self.cv.itemconfigure(self.img_item, image=img)
+
+    def reveal_fx(self):
+        fx, self.fx = self.fx, None
+        self.evolving_until = 0.0
+        self.cv.delete("fx")
+        if fx["new"] in self.frames:
+            self.set_cur(fx["new"])
+        else:
+            self.cur_key = None   # 다음 상태 반영 때 새 모습을 불러옴
+        cx, cy, h = self.pet_center()
+        now = time.time()
+        colors = self.RAINBOW if fx["mega"] else ("#ffffff", "#fff6b0", "#bfe3ff")
+        for i in range(18):   # 반짝이가 사방으로
+            a, d = i / 18 * math.tau, 3 * self.dpi
+            item = self.cv.create_oval(cx - d, cy - d, cx + d, cy + d, fill=colors[i % len(colors)], outline="")
+            sp = random.uniform(70, 110) * self.dpi
+            self.floats.append([item, now, 1.0, math.cos(a) * sp, -math.sin(a) * sp])
+        self.ring_fx = [(self.cv.create_oval(cx, cy, cx, cy, outline=c, width=3 * self.dpi), now, i * 0.05)
+                        for i, c in enumerate(self.RAINBOW if fx["mega"] else ("#ffffff",))]
+        self.hop(0.55)
+        self.say(fx["text"], 6)
+        self.burst()
 
     def burst(self):
         for i in range(6):
@@ -866,11 +989,17 @@ class Pet:
         if self.falling and self.thrown and now < self.spin_until and not self.calm:
             self.facing = 1 if int(t * 10) % 2 else -1
         self.cv.coords(self.img_item, self.W / 2 + dx, self.H - 6 + dy)
-        # 진화 중 깜빡임 (동작 줄이기면 생략)
-        if now < self.evolving_until and not self.calm:
-            self.cv.itemconfigure(self.img_item, state="hidden" if int(t * 8) % 2 else "normal")
-        else:
-            self.cv.itemconfigure(self.img_item, state="normal")
+        if self.fx:
+            self.run_fx(now)
+        for item, born, delay in list(getattr(self, "ring_fx", [])):   # 펑 하고 퍼지는 링
+            k = (now - born - delay) / 0.8
+            if k >= 1:
+                self.cv.delete(item)
+                self.ring_fx.remove((item, born, delay))
+            elif k > 0:
+                cx, cy, _ = self.pet_center()
+                r = (10 + 150 * k) * self.dpi
+                self.cv.coords(item, cx - r, cy - r, cx + r, cy + r)
         if self.bubble_until and now > self.bubble_until:
             self.cv.delete("bubble")
             self.bubble_until = None
