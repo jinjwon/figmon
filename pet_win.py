@@ -305,7 +305,7 @@ class Pet:
             self.draw_ball()
             return
         if key in self.frames:
-            self.cur, self.cur_key = self.frames[key], key
+            self.set_cur(key)
             return
         self.loading = key
         threading.Thread(target=lambda: setattr(self, "pending", (key, fetch_sprite(key[0]))), daemon=True).start()
@@ -349,9 +349,14 @@ class Pet:
             m.tk.call(str(m), "copy", str(f), "-subsample", -1, 1)  # 좌우 반전
             right.append(m)
         self.frames[key] = {"L": left, "R": right}
-        self.cur, self.cur_key = self.frames[key], key
+        self.set_cur(key)
         self.cv.delete("ball")
-        self.frame_i = 0
+
+    def set_cur(self, key):
+        # 캔버스를 새 이미지로 바로 바꿔야 함: 크기를 바꾸면 예전 이미지가 지워지는데,
+        # 캔버스가 지워진 이미지를 가리킨 채로 남으면 tick에서 TclError가 나서 펫이 멈춤
+        self.cur, self.cur_key, self.frame_i = self.frames[key], key, 0
+        self.cv.itemconfigure(self.img_item, image=self.cur["R" if self.facing > 0 else "L"][0])
 
     def draw_ball(self):
         self.cv.delete("ball")
@@ -691,9 +696,11 @@ class Pet:
             self.y = ground
             self.think(now, mx, l, r, dt)
             self.x = min(max(self.x, l - self.W * 0.3), r - self.W * 0.7)
-        self.place()
-        self.render(now)
-        self.root.after(16, self.tick)
+        try:
+            self.place()
+            self.render(now)
+        finally:   # 한 번 오류가 나도 움직임·드래그가 멈추지 않게
+            self.root.after(16, self.tick)
 
     def think(self, now, mx, left, right, dt):
         """작업 중엔 가끔 커서 근처로 와서 지켜보고, 딴짓하면 달려온다. 가속·감속해서 자연스럽게 걷는다."""
@@ -714,6 +721,9 @@ class Pet:
             self.look_until = now + 0.6             # 출발 전에 갈 쪽을 먼저 봄
             self.facing = 1 if t > self.x else -1
         if self.target is not None and now >= self.look_until:
+            # 크기 변경·커서 추적으로 목적지가 화면 밖에 남으면 도착하지 못하고 멈춰 버림.
+            # tick의 위치 제한과 같은 범위 안에서 목적지를 정한다.
+            self.target = min(max(self.target, left - self.W * 0.3), right - self.W * 0.7)
             d = self.target - self.x
             want = math.copysign(min(self.speed, abs(d) * 2.2), d)   # 도착할수록 천천히
             accel = 520 if self.speed > 150 else 160
