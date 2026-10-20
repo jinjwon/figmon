@@ -30,7 +30,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.25.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.25.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -798,8 +798,23 @@ def front_app():
     if not asn:
         return "", ""
     out = sh(["lsappinfo", "info", "-only", "name", "-only", "bundlepath", asn])   # 한 번에
-    m = re.search(r'"LSDisplayName"\s*=\s*"([^"]*)"', out)
-    b = re.search(r'"LSBundlePath"\s*=\s*"([^"]*)"', out)
+    name, path = parse_lsappinfo(out)
+    if not name and not _FRONT_WARNED[0]:   # 출력 형식이 또 바뀌면 조용히 멈추지 말고 로그에 남김
+        _FRONT_WARNED[0] = True
+        print("앞에 있는 앱의 이름을 읽지 못했어요 (lsappinfo 출력):", out[:200].replace("\n", " | "))
+    return name, path
+
+
+_FRONT_WARNED = [False]
+
+
+def parse_lsappinfo(out):
+    """lsappinfo info 출력에서 (앱 이름, 번들 위치). macOS 26 이하와 macOS 27 이후의 출력 형식을 모두 읽는다.
+    옛 형식:  "LSDisplayName"="Brave Browser"  /  "LSBundlePath"="/Applications/Brave Browser.app"
+    새 형식:  "Brave Browser" ASN:0x0-0x3e03e: (in front)  /  bundle path="/Applications/Brave Browser.app"
+    (새 형식에서 못 읽으면 앱 이름이 항상 비어서 유튜브 같은 딴짓이 하나도 잡히지 않았음)"""
+    m = re.search(r'"LSDisplayName"\s*=\s*"([^"]*)"', out) or re.match(r'\s*(?:\d+\)\s*)?"(.*)"\s+ASN:', out)
+    b = re.search(r'"LSBundlePath"\s*=\s*"([^"]*)"', out) or re.search(r'bundle path="([^"]*)"', out)
     return (m.group(1) if m else ""), (b.group(1) if b else "")
 
 
