@@ -30,7 +30,7 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.25.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.26.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -859,6 +859,24 @@ if sys.platform == "darwin":   # 입력 없는 시간: 외부 명령(ioreg) 대�
         _CG_IDLE = None
 
 
+_CG_KEYS = None
+if sys.platform == "darwin":   # 키를 누른 "횟수"만 (무슨 키인지는 모름 · 권한 필요 없음) → 펫이 타이핑 박자에 맞춰 움직임
+    try:
+        _CG_KEYS = _ct.cdll.LoadLibrary(_ctu.find_library("ApplicationServices")).CGEventSourceCounterForEventType
+        _CG_KEYS.restype, _CG_KEYS.argtypes = _ct.c_uint32, [_ct.c_int32, _ct.c_uint32]
+    except Exception:
+        _CG_KEYS = None
+
+
+def key_count():
+    return int(_CG_KEYS(1, 10)) if _CG_KEYS else -1   # 10 = kCGEventKeyDown
+
+
+def key_idle():
+    """마지막으로 키를 누른 뒤 지난 초 (카운터가 막힌 환경에서도 이건 됨)"""
+    return round(float(_CG_IDLE(1, 10)), 2) if _CG_IDLE else -1
+
+
 def idle_seconds():
     if _CG_IDLE:
         return float(_CG_IDLE(1, 0xFFFFFFFF))   # HID 시스템 상태, 모든 입력
@@ -1334,6 +1352,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
             self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
+        elif self.path == "/api/keys":   # 펫이 자주 물어봄 (0.25초마다) → 잠금 없이 숫자 하나만
+            self._send(200, {"n": key_count(), "k": key_idle()})
         elif self.path.startswith("/api/state"):
             with LOCK:
                 v = view()

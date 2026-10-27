@@ -123,6 +123,12 @@ body{font-family:Jua,-apple-system,sans-serif}
 @keyframes notice{30%{transform:translateY(-8px) scale(.96,1.04)}60%{transform:translateY(0) scale(1.04,.96)}}
 @keyframes turn{50%{transform:scale(1.08,.92)}}
 @keyframes landing{0%{transform:scale(1.2,.78)}50%{transform:scale(.95,1.06)}100%{transform:scale(1,1)}}
+.stretch #body{animation:stretch 1.5s ease-in-out !important}
+@keyframes stretch{0%,100%{transform:none}30%{transform:translateY(-5px) scale(.9,1.16)}50%{transform:translateY(-5px) scale(.92,1.14) rotate(-5deg)}65%{transform:translateY(-4px) scale(.92,1.14) rotate(5deg)}85%{transform:scale(1.1,.9)}}
+/* 타이핑: 빠르게 몰아치면 타입 색으로 빛남 · 오래 몰입하면 발밑에서 기운이 퍼짐 */
+.typing-fever .mon{filter:drop-shadow(0 0 5px var(--type)) drop-shadow(0 0 2px #fff);transition:filter .4s}
+.type-ring{position:absolute;width:60px;height:16px;margin:-8px -30px;border-radius:50%;border:2px solid var(--type);box-shadow:0 0 10px var(--type);pointer-events:none;animation:typeRing 1.2s ease-out forwards}
+@keyframes typeRing{from{opacity:.9;transform:scale(.5)}to{opacity:0;transform:scale(3.2)}}
 .dust{position:absolute;width:8px;height:8px;border-radius:50%;background:rgba(160,150,140,.55);pointer-events:none;animation:dust .7s ease-out forwards}
 @keyframes dust{to{opacity:0;transform:translate(var(--dx),-6px) scale(2)}}
 .heart{position:absolute;pointer-events:none;font-size:16px;animation:heart 1.1s ease-out forwards}
@@ -166,7 +172,8 @@ const $ = s => document.querySelector(s);
 const RAW = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
 const ANI = id => `${RAW}/other/showdown/${id}.gif`;
 const ART = id => `${RAW}/other/official-artwork/${id}.png`;
-const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0'};
+const TYPE = {grass:'#78C850', fire:'#F08030', water:'#6890F0', normal:'#A8A878', bug:'#A8B820', poison:'#A040A0', electric:'#E8B820',
+  ground:'#D8B058', fairy:'#EE99AC', fighting:'#C03028', psychic:'#F85888', rock:'#B8A038', ghost:'#705898', ice:'#78C8C8', dragon:'#7038F8', dark:'#705848', steel:'#9A9AB8', flying:'#A890F0'};
 const post = m => { try { webkit.messageHandlers.pet.postMessage(m); } catch (e) {} };
 
 let lastSummon = 0, lastSize = null;
@@ -284,7 +291,7 @@ function modeLine(m) {
 function play(cls, ms) {
   if (calm()) return;
   const b = document.body;
-  ['react', 'tickle', 'notice', 'turn', 'land', 'petting', 'surprised'].forEach(c => b.classList.remove(c));
+  ['react', 'tickle', 'notice', 'turn', 'land', 'petting', 'surprised', 'stretch'].forEach(c => b.classList.remove(c));
   void b.offsetWidth; b.classList.add(cls);
   clearTimeout(play.t); play.t = setTimeout(() => b.classList.remove(cls), ms);
 }
@@ -536,6 +543,84 @@ setInterval(() => {
   if (Date.now() < nextSig) return;
   if (petSignature()) nextSig = Date.now() + 35000 + Math.random() * 45000;   // 35~80초에 한 번쯤
 }, 2000);
+
+/* ---------- 타이핑 리듬 ---------- */
+// 서버에서 키를 누른 "횟수"만 받아(무슨 키인지는 모름) 말 대신 몸짓으로 반응:
+// 칠 때마다 박자 맞춰 통통 · 빠르게 몰아치면 빛나며 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 오래 치다 멈추면 기지개
+const TY = {last: null, hist: [], start: 0, lastKey: 0, combo: 0, tilt: 1, nextRing: 0, on: false};
+const TY_MODES = ['work', 'neutral', 'ai'];
+function tyActive() {
+  const b = document.body.classList;
+  return S && S.pet && S.pet.species && TY_MODES.includes(mode) && !evolving && !calm() && !b.contains('grabbed') && !b.contains('flying');
+}
+async function typingPoll() {
+  if (!S || !S.pet || document.hidden || !TY_MODES.includes(mode)) { TY.last = null; return; }
+  let r;
+  try { r = await (await fetch('/api/keys', {cache: 'no-store'})).json(); } catch (e) { return; }
+  const n = r.n, first = TY.last == null;
+  let d = !first && n >= 0 ? n - TY.last : 0;
+  TY.last = n;
+  if (d > 0 && d < 60) TY.counter = true;   // 키 횟수를 셀 수 있는 환경
+  else d = 0;                                 // 처음 한 번·잠자기 뒤 큰 차이는 무시
+  if (!d && !first && r.k >= 0 && r.k < .3) d = 1;   // 횟수를 못 세면 "방금 키를 눌렀나"로 대신
+  typingStep(d, Date.now());
+}
+function typingStep(d, now) {
+  TY.hist = TY.hist.filter(h => now - h[0] < 2000);
+  if (d) TY.hist.push([now, d]);
+  const rate = TY.hist.reduce((a, h) => a + h[1], 0) / 2;   // 초당 키 수
+  if (d) {
+    if (!TY.start || now - TY.lastKey > 3000) { TY.start = now; TY.combo = 0; }
+    TY.lastKey = now; TY.combo += d;
+  }
+  const secs = TY.start ? (TY.lastKey - TY.start) / 1000 : 0, active = tyActive();
+  if (TY.start && now - TY.lastKey > 2500) {   // 손을 멈춤
+    if (active && secs > 15) play('stretch', 1500);
+    TY.start = 0; typingOn(false); return;
+  }
+  if (!active) { typingOn(false); return; }
+  if (!d) return;
+  typingOn(true);
+  tap(rate);
+  const fever = rate >= (TY.counter ? 6 : 3.5) && secs > 2;   // 대신 셀 땐 0.25초마다 최대 1번이라 기준을 낮춤
+  document.body.classList.toggle('typing-fever', fever);
+  if (fever && Math.random() < .45) sparks(2);
+  if (secs > 30 && now > TY.nextRing) { TY.nextRing = now + 4000; typeRing(); }
+  if (Math.floor(TY.combo / 300) > Math.floor((TY.combo - d) / 300)) { jump(); sparks(12); }
+}
+function typingOn(on) {
+  if (!on) document.body.classList.remove('typing-fever');
+  if (on !== TY.on || (on && Date.now() - (TY.sent || 0) > 2000)) {   // 치는 동안엔 Swift가 돌아다니지 않게 함 (2초마다 다시 알림)
+    TY.on = on; TY.sent = Date.now(); post({type: 'typing', on});
+  }
+}
+function tap(rate) {   // 한 박자: 살짝 눌렸다 튀어 오르며 좌우로 까딱
+  const img = $('#body .mon:not(.hide)');
+  if (!img || !img.animate || walking) return;
+  const a = Math.min(1, .35 + rate / 10);
+  TY.tilt = -TY.tilt;
+  img.animate([{transform: 'none'},
+    {transform: `translateY(${(-5 * a).toFixed(1)}px) rotate(${(TY.tilt * 4 * a).toFixed(1)}deg) scale(${(1 - .05 * a).toFixed(3)},${(1 + .07 * a).toFixed(3)})`, offset: .35},
+    {transform: `scale(${(1 + .07 * a).toFixed(3)},${(1 - .07 * a).toFixed(3)})`, offset: .7},
+    {transform: 'none'}], {duration: 220, easing: 'ease-out'});
+}
+function sparks(n) {   // 타입 색 불꽃이 양옆으로 튐
+  const r = petRect(), col = getComputedStyle(document.documentElement).getPropertyValue('--type').trim() || '#fff';
+  for (let i = 0; i < n; i++) {
+    const e = document.createElement('div'); e.className = 'evo-spark';
+    const side = Math.random() < .5 ? -1 : 1;
+    e.style.left = (r.left + r.width / 2 + side * r.width * .3) + 'px'; e.style.top = (r.top + r.height * (.3 + Math.random() * .4)) + 'px';
+    e.style.setProperty('--c', col);
+    e.style.setProperty('--x', (side * (30 + Math.random() * 40)) + 'px'); e.style.setProperty('--y', (-10 - Math.random() * 40) + 'px');
+    document.body.appendChild(e); setTimeout(() => e.remove(), 1150);
+  }
+}
+function typeRing() {
+  const r = petRect(), e = document.createElement('div'); e.className = 'type-ring';
+  e.style.left = (r.left + r.width / 2) + 'px'; e.style.top = (r.bottom - 4) + 'px';
+  document.body.appendChild(e); setTimeout(() => e.remove(), 1250);
+}
+setInterval(typingPoll, 250);
 
 setInterval(poll, 1500);
 setInterval(particle, 900);

@@ -22,6 +22,9 @@ if IS_WIN:
     import ctypes
     from ctypes import wintypes
 
+    class LASTINPUTINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
 KEY = "#ff00fe"  # 이 색은 투명 + 클릭 통과
 RAW = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon"
 CACHE = Path(os.environ.get("FIGMON_HOME", Path.home() / ".figmon")) / "sprites"
@@ -79,10 +82,17 @@ def sig_offset(kind, k, facing):
         return s(k * 2 * pi) * 7, -s(k * pi) * 9
     if kind == "flop":
         return s(k * 6 * pi) * 4, -abs(s(k * 3 * pi)) * 30 * (1 - k)
+    if kind == "stretch":   # 기지개: 쭉 올라갔다 좌우로 흔들고 내려옴
+        return s(k * 4 * pi) * 3 * (k > .45), -s(k * pi) * 10
     if kind == "twirl":
         return 0, -s(k * pi) * 14
     return s(k * 4 * pi) * 4, 0   # yawn, sing, wag, puzzle, shine
 
+
+TYPE_COLOR = {"grass": "#78C850", "fire": "#F08030", "water": "#6890F0", "normal": "#A8A878", "bug": "#A8B820",
+              "poison": "#A040A0", "electric": "#E8B820", "ground": "#D8B058", "fairy": "#EE99AC", "fighting": "#C03028",
+              "psychic": "#F85888", "rock": "#B8A038", "ghost": "#705898", "ice": "#98D8D8", "dragon": "#7038F8",
+              "dark": "#705848", "steel": "#B8B8D0", "flying": "#A890F0"}
 
 PARTICLE = {"work": ("✦", "#f5c518"), "break": ("♪", "#ff8a3d"), "penalty": ("!", "#e5484d"),
             "warning": ("!", "#ff9f1a"), "idle": ("z", "#8a90a8"), "ai": ("?", "#7d8cff")}
@@ -235,6 +245,10 @@ class Pet:
         self.t0 = self.last = time.time()
         self.next_particle = 0.0
         self.next_chatter = time.time() + 20
+        # 타이핑 리듬 (키 내용은 모르고, "입력은 있었는데 마우스는 그대로"인 순간만 셈)
+        self.ty = {"hist": [], "start": 0.0, "last_key": 0.0, "combo": 0, "next_ring": 0.0}
+        self.k_last, self.k_pt, self.next_ksample = None, None, 0.0
+        self.tap_until, self.tap_len, self.tap_tilt, self.tap_amp = 0.0, 0.22, 1, 0.0
 
         self.img_item = self.cv.create_image(self.W // 2, self.H - 6, anchor="s")
         self.cv.bind("<ButtonPress-1>", self.on_down)
@@ -898,10 +912,64 @@ class Pet:
             self.think(now, mx, l, r, dt)
             self.x = min(max(self.x, l - self.W * 0.3), r - self.W * 0.7)
         try:
+            if IS_WIN and now >= self.next_ksample:
+                self.next_ksample = now + 0.1
+                self.typing(now)
             self.place()
             self.render(now)
         finally:   # 한 번 오류가 나도 움직임·드래그가 멈추지 않게
             self.root.after(16, self.tick)
+
+    def key_sample(self):
+        """0.1초 동안 키보드 입력이 있었는지 (입력 시각이 바뀌었는데 커서·마우스 버튼은 그대로면 키보드로 봄)"""
+        u = ctypes.windll.user32
+        li = LASTINPUTINFO()
+        li.cbSize = ctypes.sizeof(LASTINPUTINFO)
+        pt = wintypes.POINT()
+        if not u.GetLastInputInfo(ctypes.byref(li)) or not u.GetCursorPos(ctypes.byref(pt)):
+            return 0
+        cur, pos = li.dwTime, (pt.x, pt.y)
+        hit = self.k_last is not None and cur != self.k_last and pos == self.k_pt \
+            and not any(u.GetAsyncKeyState(vk) & 0x8000 for vk in (1, 2, 4))
+        self.k_last, self.k_pt = cur, pos
+        return 1 if hit else 0
+
+    def typing(self, now):
+        """말 대신 몸짓: 칠 때마다 통통 · 몰아치면 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 멈추면 기지개"""
+        ty, p = self.ty, (self.state or {}).get("pet")
+        d = self.key_sample()
+        ty["hist"] = [t for t in ty["hist"] if now - t < 2]
+        if d:
+            ty["hist"].append(now)
+            if not ty["start"] or now - ty["last_key"] > 3:
+                ty["start"], ty["combo"] = now, 0
+            ty["last_key"] = now
+            ty["combo"] += 1
+        rate = len(ty["hist"]) / 2   # 초당 (최대 10)
+        secs = ty["last_key"] - ty["start"] if ty["start"] else 0
+        active = p and self.mode in ("work", "neutral", "ai") and not self.calm and now > self.evolving_until \
+            and not self.drag and not self.falling
+        if ty["start"] and now - ty["last_key"] > 2.5:
+            if active and secs > 15:
+                self.sig, self.sig_start, self.sig_len = "stretch", now, 1.5
+            ty["start"] = 0
+            return
+        if not active or not d:
+            return
+        self.rest_until = max(self.rest_until, now + 5)   # 치는 동안엔 곁에 머묾
+        if now >= self.tap_until - 0.05:
+            self.tap_tilt, self.tap_amp = -self.tap_tilt, min(1.0, 0.35 + rate / 8)
+            self.tap_until, self.tap_len = now + 0.22, 0.22
+        col = TYPE_COLOR.get(p.get("type"), "#f5c518")
+        if rate >= 5 and secs > 2 and random.random() < 0.25:   # 몰아치기: 타입 색 불꽃
+            self.float_text("✦", col, random.choice((-1, 1)) * random.uniform(25, 50), 60)
+        if secs > 30 and now > ty["next_ring"]:
+            ty["next_ring"] = now + 4
+            cx, cy, _ = self.pet_center()
+            self.ring_fx.append((self.cv.create_oval(cx, cy, cx, cy, outline=col, width=2 * self.dpi), now, 0))
+        if ty["combo"] % 300 == 0:
+            self.hop(0.5)
+            self.burst()
 
     def think(self, now, mx, left, right, dt):
         """작업 중엔 가끔 커서 근처로 와서 지켜보고, 딴짓하면 달려온다. 가속·감속해서 자연스럽게 걷는다."""
@@ -977,6 +1045,10 @@ class Pet:
                 dx = math.sin(t * 7) * 4
             elif self.squash_until > now:
                 dy = 2
+            elif self.tap_until > now and not self.walking:   # 타이핑 한 박자: 통통 + 좌우 까딱
+                k = 1 - (self.tap_until - now) / self.tap_len
+                dy = -math.sin(k * math.pi) * 5 * self.tap_amp * self.dpi
+                dx = math.sin(k * math.pi) * 3 * self.tap_amp * self.tap_tilt * self.dpi
             elif self.walking:
                 dy = -abs(math.sin(t * (24 if self.running else 13.6))) * 3 * self.dpi
             elif getattr(self, "sig", None) and now < self.sig_start + self.sig_len:

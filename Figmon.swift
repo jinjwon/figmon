@@ -339,6 +339,8 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             let m = d["mode"] as? String ?? "neutral"
             if m != mode && (m == "warning" || m == "penalty") { targetX = nil; pauseUntil = Date() }
             mode = m
+        case "typing":   // 타이핑하는 동안엔 새로 돌아다니지 않고 곁에 머묾
+            if d["on"] as? Bool == true { pauseUntil = max(pauseUntil, Date().addingTimeInterval(5)) }
         case "summon":
             summon()
         case "size":
