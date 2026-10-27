@@ -461,6 +461,10 @@ async function poll() {
     return;
   }
   const p = S.pet, m = S.live.mode;
+  if (S.news && !poll.news) {   // 업데이트 직후 한 번: 새 기능 한 줄
+    poll.news = true;
+    setTimeout(() => { if (!evolving) { jump(); say(`✨ v${S.news.v} 업데이트! ${S.news.text}`, 7000); } }, 3000);
+  }
   if ((S.live.summon || 0) > lastSummon) {   // 작업 앱을 켜서 불려 나옴 → Swift가 창을 보이고 걸어 나오게 함
     lastSummon = S.live.summon;
     post({type: 'summon'});

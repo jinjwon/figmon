@@ -817,9 +817,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if ok {
                 self.pet = PetController(app: self, startHidden: launchedInBackground)
                 if justUpdated {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                        self.pet?.js("say('v\(appVersion)로 업데이트했어요 ✨', 6000)")
-                    }
+                    // 업데이트 알림·말풍선은 서버(announce_update)와 펫 화면이 새 기능 한 줄과 함께 보여 줌
                 } else if !launchedInBackground {
                     self.dashboard.show(title: true)   // 직접 켜면 타이틀 화면부터
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

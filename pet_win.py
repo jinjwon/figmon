@@ -262,8 +262,6 @@ class Pet:
         threading.Thread(target=self.poll_loop, daemon=True).start()
         if start_hidden:   # 로그인 자동 실행: 작업을 시작하면 걸어 나옴
             self.hide()
-        if updated:
-            root.after(3500, lambda: self.say(f"v{version}로 업데이트했어요 ✨", 6))
         if IS_WIN:
             root.after(6000, self.ask_startup_once)
         root.after(16, self.tick)
@@ -300,6 +298,10 @@ class Pet:
         elif s:
             self.state = s
             p, m = s["pet"], s["live"]["mode"]
+            if s.get("news") and not getattr(self, "news_shown", False):   # 업데이트 직후 한 번: 새 기능 한 줄
+                self.news_shown = True
+                n = s["news"]
+                self.root.after(3000, lambda: (self.hop(0.5), self.say(f"✨ v{n['v']} 업데이트! {n['text']}", 7)))
             ps = self.live_size if time.time() < self.live_until else float(s["config"].get("pet_size", 1) or 1)
             if ps != self.size:
                 self.resize(ps)

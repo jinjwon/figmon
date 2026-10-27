@@ -628,7 +628,7 @@ const evoPath = l => l.fork ? l.stages.map((s, i) => evoStep(s, l.evo_levels[i],
   : l.branches ? `Lv.0 이브이 → Lv.${l.branch_lv} 일한 시간대에 따라 8가지 중 직접 선택`
   : l.stages.map((s, i) => evoStep(s, l.evo_levels[i], l.evo_how && l.evo_how[i])).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
 const DP = {morning: ['🌅', '아침', '6~11시'], noon: ['☀️', '점심', '11~17시'], evening: ['🌇', '저녁', '17~21시'], night: ['🌙', '새벽', '21~6시']};
-const ICON = {evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
+const ICON = {update:'🆕', evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
 
 let META, S, prev = null, shownId = null, lastMode = null, busy = false, pickGen = 1;
 
@@ -1451,6 +1451,7 @@ const EGG_SVG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://w
 /* ---------- 렌더 ---------- */
 function render() {
   const p = S.pet, live = S.live, cfg = S.config;
+  if (S.news && !render.news) { render.news = true; toast(`✨ v${S.news.v} 업데이트 · ${S.news.text}`); }
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b');
   const dp = daypart();
   setScene(p ? p.gen : pickGen, p);

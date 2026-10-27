@@ -25,11 +25,11 @@ jobs:
         run: python tools/win_smoketest.py source
 
       - name: Build Figmon.exe
-        run: >
-          pyinstaller --noconfirm --onefile --windowed --name Figmon
-          --icon assets/figmon.ico
-          --add-data "index.html;." --add-data "pet.html;." --add-data "pokedex.json;."
-          --hidden-import pet_win server.py
+        run: pyinstaller --noconfirm figmon.spec   # 안 쓰는 모듈·Tcl 데이터를 빼서 가볍게 (figmon.spec 참고)
+
+      - name: Size
+        shell: pwsh
+        run: "'Figmon.exe: {0:N1} MB' -f ((Get-Item dist/Figmon.exe).Length / 1MB)"
 
       - name: Smoke test (exe)
         run: python tools/win_smoketest.py exe

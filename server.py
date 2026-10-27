@@ -31,6 +31,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 VERSION = "1.26.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "타이핑하면 펫이 박자에 맞춰 같이 움직여요 ⌨️"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -777,6 +778,19 @@ def save(force=False):
 STATE = load_state()
 
 
+def announce_update():
+    """업데이트된 앱이 처음 켜졌을 때 한 번: 시스템 알림 + 기록 + 펫·대시보드에 새 기능 한 줄"""
+    prev = STATE.get("seen_version")
+    if prev == VERSION:
+        return
+    STATE["seen_version"] = VERSION
+    if prev or STATE_FILE.exists():   # 처음 설치가 아니면 = 업데이트됨
+        LIVE["news"] = {"v": VERSION, "text": WHATS_NEW, "t": time.time()}
+        log("update", f"v{VERSION}로 업데이트했어요 · {WHATS_NEW}")
+        notify(f"v{VERSION} 업데이트 완료 ✨", WHATS_NEW)
+    save(force=True)
+
+
 def log(kind, msg):
     _LAST_SAVE[0] = 0.0   # 진화·레벨업 같은 일이 생기면 다음 저장을 바로
     STATE["events"].append({"t": time.time(), "kind": kind, "msg": msg})
@@ -1253,6 +1267,7 @@ def view():
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
+           "news": LIVE["news"] if LIVE.get("news") and time.time() - LIVE["news"]["t"] < 600 else None,
            "recent": LIVE["recent"],
            "unlock": {"graduated": len(s["dex"]), "by_gen": grad_stats()[0], "by_type": grad_stats()[1],
                       "special": {ARCEUS: arceus_unlock()} if ARCEUS in LINES else {}}, "platform": "windows" if IS_WIN else "mac", "releases_url": RELEASES_URL}
@@ -1358,7 +1373,7 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 v = view()
             if "lite=1" in self.path:   # 펫은 이것만 있으면 됨 (자주 물어보니 작게)
-                v = {"pet": v["pet"], "live": v["live"], "version": v["version"],
+                v = {"pet": v["pet"], "live": v["live"], "version": v["version"], "news": v["news"],
                      "config": {"pet_size": v["config"].get("pet_size", 1)}}
             self._send(200, v)
         elif self.path == "/api/report":   # 기록 탭: 오늘 + 지난 날들
@@ -1669,6 +1684,7 @@ if __name__ == "__main__":
         if not quiet:
             open_window(False)
         sys.exit(0)
+    announce_update()
     threading.Thread(target=loop, daemon=True).start()
     print(f"Figmon 실행 중 → http://localhost:{PORT}  (속도 x{SPEED:g}, 종료: Ctrl+C)")
     if not quiet:
@@ -1676,8 +1692,6 @@ if __name__ == "__main__":
     if IS_WIN and "--no-pet" not in sys.argv:  # Windows: 펫(tkinter)이 메인 스레드, 서버는 백그라운드
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         threading.Thread(target=update_loop, daemon=True).start()
-        if "--updated" in sys.argv:
-            notify("업데이트 완료", f"Figmon v{VERSION}로 업데이트했어요 ✨")
         import pet_win
         try:
             pet_win.run(PORT, open_window, check_update=lambda: threading.Thread(target=win_update, args=(True,), daemon=True).start(),
