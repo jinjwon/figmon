@@ -16,7 +16,7 @@ a = Analysis(["server.py"], datas=[("index.html", "."), ("pet.html", "."), ("pok
              hiddenimports=["pet_win"], excludes=EXCLUDES)
 before = len(a.datas)
 a.datas = [d for d in a.datas if not d[0].replace("\\", "/").startswith(DROP)]
-print(f"[figmon.spec] Tcl/Tk 데이터 {before - len(a.datas)}개 뺌")
+print(f"[figmon.spec] dropped {before - len(a.datas)} Tcl/Tk data files")   # Windows 콘솔은 한글 출력 불가
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="Figmon", icon="assets/figmon.ico",
           console=False, upx=False, strip=False, optimize=1)
