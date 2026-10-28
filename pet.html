@@ -127,6 +127,8 @@ body{font-family:Jua,-apple-system,sans-serif}
 @keyframes stretch{0%,100%{transform:none}30%{transform:translateY(-5px) scale(.9,1.16)}50%{transform:translateY(-5px) scale(.92,1.14) rotate(-5deg)}65%{transform:translateY(-4px) scale(.92,1.14) rotate(5deg)}85%{transform:scale(1.1,.9)}}
 /* 타이핑: 빠르게 몰아치면 타입 색으로 빛남 · 오래 몰입하면 발밑에서 기운이 퍼짐 */
 .typing-fever .mon{filter:drop-shadow(0 0 5px var(--type)) drop-shadow(0 0 2px #fff);transition:filter .4s}
+.keycap{position:absolute;width:11px;height:9px;margin:-5px;border-radius:3px;background:#fff;border:1.5px solid var(--type);border-bottom-width:3px;pointer-events:none;animation:keycap .6s ease-out forwards}
+@keyframes keycap{0%{opacity:0;transform:translateY(4px) scale(.6)}25%{opacity:1;transform:translate(calc(var(--dx) * .4),-10px) scale(1)}100%{opacity:0;transform:translate(var(--dx),-22px) rotate(var(--r)) scale(.8)}}
 .type-ring{position:absolute;width:60px;height:16px;margin:-8px -30px;border-radius:50%;border:2px solid var(--type);box-shadow:0 0 10px var(--type);pointer-events:none;animation:typeRing 1.2s ease-out forwards}
 @keyframes typeRing{from{opacity:.9;transform:scale(.5)}to{opacity:0;transform:scale(3.2)}}
 .dust{position:absolute;width:8px;height:8px;border-radius:50%;background:rgba(160,150,140,.55);pointer-events:none;animation:dust .7s ease-out forwards}
@@ -550,7 +552,7 @@ setInterval(() => {
 
 /* ---------- 타이핑 리듬 ---------- */
 // 서버에서 키를 누른 "횟수"만 받아(무슨 키인지는 모름) 말 대신 몸짓으로 반응:
-// 칠 때마다 박자 맞춰 통통 · 빠르게 몰아치면 빛나며 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 오래 치다 멈추면 기지개
+// 칠 때마다 같이 키보드를 두드림 · 빠르게 몰아치면 빛나며 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 오래 치다 멈추면 기지개
 const TY = {last: null, hist: [], start: 0, lastKey: 0, combo: 0, tilt: 1, nextRing: 0, on: false};
 const TY_MODES = ['work', 'neutral', 'ai'];
 function tyActive() {
@@ -598,15 +600,17 @@ function typingOn(on) {
     TY.on = on; TY.sent = Date.now(); post({type: 'typing', on});
   }
 }
-function tap(rate) {   // 한 박자: 살짝 눌렸다 튀어 오르며 좌우로 까딱
+function tap(rate) {   // 같이 키보드를 두드림: 좌우 앞발을 번갈아 꾹 누르듯 기울고, 누른 쪽 발밑에서 키캡이 톡
   const img = $('#body .mon:not(.hide)');
   if (!img || !img.animate || walking) return;
-  const a = Math.min(1, .35 + rate / 10);
-  TY.tilt = -TY.tilt;
+  const a = Math.min(1, .4 + rate / 8), side = TY.tilt = -TY.tilt;
   img.animate([{transform: 'none'},
-    {transform: `translateY(${(-5 * a).toFixed(1)}px) rotate(${(TY.tilt * 4 * a).toFixed(1)}deg) scale(${(1 - .05 * a).toFixed(3)},${(1 + .07 * a).toFixed(3)})`, offset: .35},
-    {transform: `scale(${(1 + .07 * a).toFixed(3)},${(1 - .07 * a).toFixed(3)})`, offset: .7},
-    {transform: 'none'}], {duration: 220, easing: 'ease-out'});
+    {transform: `translate(${(side * 3 * a).toFixed(1)}px,${(3 * a).toFixed(1)}px) rotate(${(side * 6 * a).toFixed(1)}deg) scale(1.05,.93)`, offset: .3},
+    {transform: 'none'}], {duration: 170, easing: 'ease-out'});
+  const r = img.getBoundingClientRect(), k = document.createElement('div'); k.className = 'keycap';
+  k.style.left = (r.left + r.width / 2 + side * r.width * .28) + 'px'; k.style.top = (r.bottom - 4) + 'px';
+  k.style.setProperty('--dx', (side * (8 + Math.random() * 10)) + 'px'); k.style.setProperty('--r', (side * 25) + 'deg');
+  document.body.appendChild(k); setTimeout(() => k.remove(), 650);
 }
 function sparks(n) {   // 타입 색 불꽃이 양옆으로 튐
   const r = petRect(), col = getComputedStyle(document.documentElement).getPropertyValue('--type').trim() || '#fff';

@@ -958,11 +958,17 @@ class Pet:
             return
         if not active or not d:
             return
+        if self.target is not None and self.mode not in ("warning", "penalty"):   # 걷던 중이면 그 자리에 서서 같이 두드림
+            self.target, self.vx, self.walking, self.running = None, 0.0, False, False
         self.rest_until = max(self.rest_until, now + 5)   # 치는 동안엔 곁에 머묾
-        if now >= self.tap_until - 0.05:
-            self.tap_tilt, self.tap_amp = -self.tap_tilt, min(1.0, 0.35 + rate / 8)
-            self.tap_until, self.tap_len = now + 0.22, 0.22
         col = TYPE_COLOR.get(p.get("type"), "#f5c518")
+        if now >= self.tap_until - 0.05:
+            self.tap_tilt, self.tap_amp = -self.tap_tilt, min(1.0, 0.4 + rate / 8)
+            self.tap_until, self.tap_len = now + 0.17, 0.17
+            cx, _, h = self.pet_center()   # 누른 쪽 발밑에서 키캡이 톡
+            x, y, w = cx + self.tap_tilt * h * 0.28, self.H - 10, 5 * self.dpi
+            item = self.cv.create_rectangle(x - w, y - w * .8, x + w, y + w * .8, fill="#ffffff", outline=col, width=2)
+            self.floats.append([item, now, 0.55, self.tap_tilt * 30, 45])
         if rate >= 5 and secs > 2 and random.random() < 0.25:   # 몰아치기: 타입 색 불꽃
             self.float_text("✦", col, random.choice((-1, 1)) * random.uniform(25, 50), 60)
         if secs > 30 and now > ty["next_ring"]:
@@ -1047,10 +1053,10 @@ class Pet:
                 dx = math.sin(t * 7) * 4
             elif self.squash_until > now:
                 dy = 2
-            elif self.tap_until > now and not self.walking:   # 타이핑 한 박자: 통통 + 좌우 까딱
-                k = 1 - (self.tap_until - now) / self.tap_len
-                dy = -math.sin(k * math.pi) * 5 * self.tap_amp * self.dpi
-                dx = math.sin(k * math.pi) * 3 * self.tap_amp * self.tap_tilt * self.dpi
+            elif self.tap_until > now and not self.walking:   # 같이 키보드를 두드림: 누른 쪽으로 꾹
+                k = math.sin((1 - (self.tap_until - now) / self.tap_len) * math.pi)
+                dy = k * 3 * self.tap_amp * self.dpi
+                dx = k * 4 * self.tap_amp * self.tap_tilt * self.dpi
             elif self.walking:
                 dy = -abs(math.sin(t * (24 if self.running else 13.6))) * 3 * self.dpi
             elif getattr(self, "sig", None) and now < self.sig_start + self.sig_len:
