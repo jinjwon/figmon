@@ -602,12 +602,13 @@ function typingStep(d, now) {
   if (secs > 30 && now > TY.nextRing) { TY.nextRing = now + 4000; typeRing(); }
   if (Math.floor(TY.combo / 300) > Math.floor((TY.combo - d) / 300)) { jump(); sparks(12); }
 }
-function enterHit() {   // 엔터: 꾹 눌러 찍고 통 튀어오름 + ↵
-  const img = $('#body .mon:not(.hide)');
-  if (!img || !img.animate || walking) return;
-  img.animate([{transform: 'none'}, {transform: 'translateY(5px) scale(1.14,.82)', offset: .25},
-    {transform: 'translateY(-12px) scale(.94,1.07)', offset: .6}, {transform: 'none'}], {duration: 380, easing: 'ease-out'});
-  floatText('↵', getComputedStyle(document.documentElement).getPropertyValue('--type').trim() || '#fff');
+function enterHit() {   // 엔터: 그 포켓몬의 특기 몸짓을 짧게 (불꽃은 펑, 전기는 찌릿 …)
+  const p = S && S.pet, b = document.body;
+  if (!p || !p.species || walking) return;
+  const kind = (SIG_MON[p.species[0]] || SIG_TYPE[p.type] || SIG_TYPE.normal)[0];
+  [...b.classList].forEach(c => c.startsWith('sig') && b.classList.remove(c));
+  void b.offsetWidth; b.style.setProperty('--sd', '.7s'); b.classList.add('sig', 'sig-' + kind);
+  clearTimeout(petSignature.t); petSignature.t = setTimeout(() => b.classList.remove('sig', 'sig-' + kind), 700);
 }
 function typingOn(on) {
   if (!on) document.body.classList.remove('typing-fever', 'typing-rush');

@@ -979,9 +979,9 @@ class Pet:
             x, y, w = cx + self.tap_tilt * h * 0.28, self.H - 10, 5 * self.dpi
             item = self.cv.create_rectangle(x - w, y - w * .8, x + w, y + w * .8, fill="#ffffff", outline=col, width=2)
             self.floats.append([item, now, 0.55, self.tap_tilt * 30, 45])
-        if enter:   # 엔터: 꾹 찍고 통 튀어오름 + ↵
-            self.hop(0.45)
-            self.float_text("↵", col, 0, 50)
+        if enter:   # 엔터: 그 포켓몬의 특기 몸짓을 짧게
+            kind = (SIG_MON.get(p["species"][0]) or SIG_TYPE.get(p.get("type"), SIG_TYPE["normal"]))[0]
+            self.sig, self.sig_start, self.sig_len = kind, now, 0.7
         if rate >= 7 and secs > 2:   # 아주 빠르면 발을 동동
             self.rush_until = now + 0.4
         if rate >= 5 and secs > 2 and random.random() < 0.25:   # 몰아치기: 타입 색 불꽃
