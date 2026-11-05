@@ -30,8 +30,8 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.26.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "타이핑하면 펫이 같이 키보드를 두드려요 ⌨️"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.27.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "🎯 집중 모드 · 말풍선 끄기 · 엔터·빠른 타이핑 몸짓"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -210,7 +210,8 @@ DEFAULT_CONFIG = {
     # 사용성 / 접근성
     "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
     "pet_size": 1.0,             # 데스크톱 펫 크기 배율
-    "auto_summon": True,         # 한동안 안 하다가 작업 앱을 켜면 펫이 걸어 나옴
+    "auto_summon": True,
+    "pet_talk": True,            # 펫 말풍선 (꺼도 경고·페널티 알림은 나옴)         # 한동안 안 하다가 작업 앱을 켜면 펫이 걸어 나옴
     "auto_update": True,         # GitHub 새 버전 자동 설치
     # AI 절제 모드
     "ai_limit_enabled": False,
@@ -886,6 +887,25 @@ def key_count():
     return int(_CG_KEYS(1, 10)) if _CG_KEYS else -1   # 10 = kCGEventKeyDown
 
 
+ENTER = {"n": 0}
+if _CG_KEYS:   # 엔터만 따로 셈: 키 상태를 짧게 살펴 눌린 순간만 (무슨 글자인지는 여전히 모름)
+    try:
+        _CG_KEYDOWN = _ct.cdll.LoadLibrary(_ctu.find_library("ApplicationServices")).CGEventSourceKeyState
+        _CG_KEYDOWN.restype, _CG_KEYDOWN.argtypes = _ct.c_bool, [_ct.c_int32, _ct.c_uint16]
+
+        def _watch_enter():
+            was = False
+            while True:
+                down = bool(_CG_KEYDOWN(1, 36) or _CG_KEYDOWN(1, 76))   # Return · 키패드 Enter
+                if down and not was:
+                    ENTER["n"] += 1
+                was = down
+                time.sleep(0.03)
+        threading.Thread(target=_watch_enter, daemon=True).start()
+    except Exception:
+        ENTER["n"] = -1
+
+
 def key_idle():
     """마지막으로 키를 누른 뒤 지난 초 (카운터가 막힌 환경에서도 이건 됨)"""
     return round(float(_CG_IDLE(1, 10)), 2) if _CG_IDLE else -1
@@ -1264,6 +1284,7 @@ def view():
     if LIVE["penalty_since"]:
         live["grace_left"] = max(0, cfg["grace_sec"] - (time.time() - LIVE["penalty_since"]))
     out = {"config": cfg, "bank_sec": s["bank_sec"], "today": s["today"], "paused_until": s.get("paused_until", 0),
+           "focus_until": s.get("focus_until", 0) if s.get("focus_until", 0) > time.time() else 0,
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
            "update": LIVE["update"],
@@ -1368,13 +1389,14 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split("?")[0] in ("/", "/index.html"):
             self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/keys":   # 펫이 자주 물어봄 (0.25초마다) → 잠금 없이 숫자 하나만
-            self._send(200, {"n": key_count(), "k": key_idle()})
+            self._send(200, {"n": key_count(), "k": key_idle(), "e": ENTER["n"] if _CG_KEYS else -1})
         elif self.path.startswith("/api/state"):
             with LOCK:
                 v = view()
             if "lite=1" in self.path:   # 펫은 이것만 있으면 됨 (자주 물어보니 작게)
                 v = {"pet": v["pet"], "live": v["live"], "version": v["version"], "news": v["news"],
-                     "config": {"pet_size": v["config"].get("pet_size", 1)}}
+                     "focus_until": v["focus_until"],
+                     "config": {"pet_size": v["config"].get("pet_size", 1), "pet_talk": v["config"].get("pet_talk", True)}}
             self._send(200, v)
         elif self.path == "/api/report":   # 기록 탭: 오늘 + 지난 날들
             with LOCK:
@@ -1456,6 +1478,12 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/summon":   # 펫 부르기 (Windows에서 Figmon을 한 번 더 실행했을 때 등)
                 LIVE["summon"] += 1
                 LIVE["summon_label"] = ""
+            elif self.path in ("/api/pause", "/api/config") and s.get("focus_until", 0) > time.time():
+                return self._send(423, {"error": "집중 모드 중엔 설정·일시정지를 바꿀 수 없어요"})
+            elif self.path == "/api/focus":   # 집중 모드: 정한 시간 동안 설정 잠금 · 펫은 조용히 곁에 머묾
+                minutes = min(180.0, max(0.0, float(body.get("minutes", 0))))
+                s["focus_until"] = time.time() + minutes * 60 if minutes > 0 else 0.0
+                log("focus", f"집중 모드 {int(minutes)}분" if minutes > 0 else "집중 모드 끝")
             elif self.path == "/api/pause":
                 minutes = float(body.get("minutes", 0))
                 s["paused_until"] = time.time() + minutes * 60 if minutes > 0 else 0.0

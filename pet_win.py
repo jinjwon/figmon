@@ -249,6 +249,7 @@ class Pet:
         self.ty = {"hist": [], "start": 0.0, "last_key": 0.0, "combo": 0, "next_ring": 0.0}
         self.k_last, self.k_pt, self.next_ksample = None, None, 0.0
         self.tap_until, self.tap_len, self.tap_tilt, self.tap_amp = 0.0, 0.22, 1, 0.0
+        self.rush_until = 0.0
 
         self.img_item = self.cv.create_image(self.W // 2, self.H - 6, anchor="s")
         self.cv.bind("<ButtonPress-1>", self.on_down)
@@ -470,7 +471,13 @@ class Pet:
         return self.H - 8 - 52 * self.dpi
 
     # ----- 말풍선 / 효과 -----
+    def focus(self):   # 집중 모드: 화면을 가로지르지 않고 곁에서 가끔 자리만 조금 옮김
+        return (getattr(self, "state", None) or {}).get("focus_until", 0) > time.time()
+
     def say(self, text, secs=4.0, alert=False):
+        st = self.state or {}
+        if not alert and st and (st.get("config", {}).get("pet_talk") is False or self.focus()):   # 말풍선 끔 · 집중 모드
+            return
         self.cv.delete("bubble")
         bg, fg = ("#ff5d6c", "#ffffff") if alert else ("#ffffff", "#222222")
         y = max(40, self.sprite_top() - 14)
@@ -940,6 +947,7 @@ class Pet:
         """말 대신 몸짓: 칠 때마다 통통 · 몰아치면 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 멈추면 기지개"""
         ty, p = self.ty, (self.state or {}).get("pet")
         d = self.key_sample()
+        enter = d and ctypes.windll.user32.GetAsyncKeyState(0x0D) & 0x8001   # 엔터 (눌려 있거나 방금 눌림)
         ty["hist"] = [t for t in ty["hist"] if now - t < 2]
         if d:
             ty["hist"].append(now)
@@ -954,7 +962,9 @@ class Pet:
         if ty["start"] and now - ty["last_key"] > 2.5:
             if active and secs > 15:
                 self.sig, self.sig_start, self.sig_len = "stretch", now, 1.5
-            ty["start"] = 0
+            elif active:   # 잠깐 치다 멈춤: "응? 멈췄네" 하고 고개
+                self.hop(0.25)
+            ty["start"], self.rush_until = 0, 0.0
             return
         if not active or not d:
             return
@@ -969,6 +979,11 @@ class Pet:
             x, y, w = cx + self.tap_tilt * h * 0.28, self.H - 10, 5 * self.dpi
             item = self.cv.create_rectangle(x - w, y - w * .8, x + w, y + w * .8, fill="#ffffff", outline=col, width=2)
             self.floats.append([item, now, 0.55, self.tap_tilt * 30, 45])
+        if enter:   # 엔터: 꾹 찍고 통 튀어오름 + ↵
+            self.hop(0.45)
+            self.float_text("↵", col, 0, 50)
+        if rate >= 7 and secs > 2:   # 아주 빠르면 발을 동동
+            self.rush_until = now + 0.4
         if rate >= 5 and secs > 2 and random.random() < 0.25:   # 몰아치기: 타입 색 불꽃
             self.float_text("✦", col, random.choice((-1, 1)) * random.uniform(25, 50), 60)
         if secs > 30 and now > ty["next_ring"]:
@@ -991,10 +1006,11 @@ class Pet:
                 self.target, self.speed = cursor + (-80 if self.x < cursor else 80), 220.0
         elif not self.calm and self.target is None and now >= self.rest_until:
             watch = random.random() < (0.6 if m == "work" else 0.25)
-            t = cursor + random.uniform(-160, 160) if watch else random.uniform(left, right - self.W)
+            t = self.x + random.uniform(-90, 90) if self.focus() \
+                else cursor + random.uniform(-160, 160) if watch else random.uniform(left, right - self.W)
             if abs(t - self.x) < 40:
                 t = self.x + (60 if t > self.x else -60)
-            self.target, self.speed = t, (32.0 if m == "break" else 55.0)
+            self.target, self.speed = t, (32.0 if m == "break" or self.focus() else 55.0)
             self.look_until = now + 0.6             # 출발 전에 갈 쪽을 먼저 봄
             self.facing = 1 if t > self.x else -1
         if self.target is not None and now >= self.look_until:
@@ -1020,7 +1036,7 @@ class Pet:
             self.x += self.vx * dt
             if abs(d) < 2 and abs(self.vx) < 12:
                 self.target, self.vx = None, 0.0
-                lo, hi = (14, 30) if m == "break" else (10, 24) if m == "work" else (6, 16)
+                lo, hi = (40, 80) if self.focus() else (14, 30) if m == "break" else (10, 24) if m == "work" else (6, 16)
                 self.rest_until = now + random.uniform(lo, hi)
                 self.speed, self.walking, self.running = 55.0, False, False
             else:
@@ -1059,6 +1075,8 @@ class Pet:
                 dx = k * 4 * self.tap_amp * self.tap_tilt * self.dpi
             elif self.walking:
                 dy = -abs(math.sin(t * (24 if self.running else 13.6))) * 3 * self.dpi
+            elif self.rush_until > now:
+                dx = math.sin(t * 45) * 2 * self.dpi
             elif getattr(self, "sig", None) and now < self.sig_start + self.sig_len:
                 dx, dy = sig_offset(self.sig, (now - self.sig_start) / self.sig_len, self.facing)
                 dx, dy = dx * self.dpi, dy * self.dpi

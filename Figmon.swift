@@ -222,6 +222,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var dragSamples: [(t: TimeInterval, p: CGPoint)] = []
     var thrown = false, bounced = false, vxAir: CGFloat = 0
     var pauseUntil = Date()
+    var focus = false   // 집중 모드: 화면을 가로지르지 않고 곁에서 가끔 자리만 조금 옮김
     var dragging = false, falling = false, grabOffset = CGPoint.zero, dragDistance: CGFloat = 0, lastMouse = CGPoint.zero
     var facing = 0, gait = 0, lastTick = Date(), hidden = false, clickThrough = true   // gait: 0 멈춤, 1 걷기, 2 달리기
 
@@ -344,6 +345,9 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 if targetX != nil { targetX = nil; vx = 0; setGait(0) }   // 걷던 중이면 그 자리에 서서 같이 두드림
                 pauseUntil = max(pauseUntil, Date().addingTimeInterval(5))
             }
+        case "focus":
+            focus = d["on"] as? Bool == true
+            if focus && mode != "warning" && mode != "penalty" { targetX = nil; vx = 0; setGait(0) }
         case "summon":
             summon()
         case "size":
@@ -505,10 +509,11 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         default:
             if !calm && targetX == nil && now >= pauseUntil {
                 let watch = Double.random(in: 0..<1) < (mode == "work" ? 0.6 : 0.25)
-                var t = watch ? cursorX + CGFloat.random(in: -160...160) : CGFloat.random(in: vf.minX...(vf.maxX - W))
+                var t = focus ? x + CGFloat.random(in: -90...90)
+                    : watch ? cursorX + CGFloat.random(in: -160...160) : CGFloat.random(in: vf.minX...(vf.maxX - W))
                 if abs(t - x) < 40 { t = x + (t > x ? 60 : -60) }
                 targetX = t
-                speed = mode == "break" ? 32 : 55
+                speed = mode == "break" || focus ? 32 : 55
                 lookUntil = now.addingTimeInterval(0.6)          // 출발 전에 갈 쪽을 먼저 봄
                 setFacing(t > x ? 1 : -1)
             }
@@ -536,7 +541,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             x += vx * dt
             if abs(d) < 2 && abs(vx) < 12 {
                 targetX = nil; vx = 0
-                let rest: ClosedRange<Double> = mode == "break" ? 14...30 : mode == "work" ? 10...24 : 6...16
+                let rest: ClosedRange<Double> = focus ? 40...80 : mode == "break" ? 14...30 : mode == "work" ? 10...24 : 6...16
                 pauseUntil = now.addingTimeInterval(Double.random(in: rest))
                 speed = 55
                 setGait(0)

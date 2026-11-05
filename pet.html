@@ -126,6 +126,8 @@ body{font-family:Jua,-apple-system,sans-serif}
 .stretch #body{animation:stretch 1.5s ease-in-out !important}
 @keyframes stretch{0%,100%{transform:none}30%{transform:translateY(-5px) scale(.9,1.16)}50%{transform:translateY(-5px) scale(.92,1.14) rotate(-5deg)}65%{transform:translateY(-4px) scale(.92,1.14) rotate(5deg)}85%{transform:scale(1.1,.9)}}
 /* 타이핑: 빠르게 몰아치면 타입 색으로 빛남 · 오래 몰입하면 발밑에서 기운이 퍼짐 */
+.typing-rush .shadow{animation:shadowstep .18s ease-in-out infinite}
+.typing-rush #body{animation:tremble .14s linear infinite !important}
 .typing-fever .mon{filter:drop-shadow(0 0 5px var(--type)) drop-shadow(0 0 2px #fff);transition:filter .4s}
 .keycap{position:absolute;width:11px;height:9px;margin:-5px;border-radius:3px;background:#fff;border:1.5px solid var(--type);border-bottom-width:3px;pointer-events:none;animation:keycap .6s ease-out forwards}
 @keyframes keycap{0%{opacity:0;transform:translateY(4px) scale(.6)}25%{opacity:1;transform:translate(calc(var(--dx) * .4),-10px) scale(1)}100%{opacity:0;transform:translate(var(--dx),-22px) rotate(var(--r)) scale(.8)}}
@@ -268,7 +270,10 @@ const LINES = {
   egg: ['(알이 꿈틀거린다…)', '(안에서 톡톡 소리가 난다)', '(따뜻해지고 있다)'],
 };
 let sayTimer;
+const focusing = () => S && S.focus_until > Date.now() / 1000;
+const hush = () => S && S.config && (S.config.pet_talk === false || focusing());   // 말풍선 끔 · 집중 모드
 function say(text, ms = 4000, alert = false) {
+  if (!alert && hush()) return;
   const b = $('#bubble'); b.textContent = text; b.classList.toggle('alert', alert); b.classList.add('show');
   placeBubble(); clearTimeout(sayTimer);
   if (ms) sayTimer = setTimeout(() => b.classList.remove('show'), ms);
@@ -474,6 +479,7 @@ async function poll() {
     setTimeout(() => say(app ? `${app} 켰구나! ${p ? p.name : '나'}도 같이 할게 🎨` : '불렀어? 왔어!', 4500), 400);
   }
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ccc');
+  if (focusing() !== poll.focus) { poll.focus = focusing(); post({type: 'focus', on: poll.focus}); if (!poll.focus) $('#bubble').classList.remove('show'); }
   if (m !== mode) {
     document.body.classList.remove('m-' + mode); document.body.classList.add('m-' + m);
     const alert = m === 'warning' || m === 'penalty';
@@ -553,7 +559,7 @@ setInterval(() => {
 /* ---------- 타이핑 리듬 ---------- */
 // 서버에서 키를 누른 "횟수"만 받아(무슨 키인지는 모름) 말 대신 몸짓으로 반응:
 // 칠 때마다 같이 키보드를 두드림 · 빠르게 몰아치면 빛나며 불꽃 · 30초 넘게 몰입하면 발밑에 기운 · 300타마다 점프 · 오래 치다 멈추면 기지개
-const TY = {last: null, hist: [], start: 0, lastKey: 0, combo: 0, tilt: 1, nextRing: 0, on: false};
+const TY = {lastE: null, last: null, hist: [], start: 0, lastKey: 0, combo: 0, tilt: 1, nextRing: 0, on: false};
 const TY_MODES = ['work', 'neutral', 'ai'];
 function tyActive() {
   const b = document.body.classList;
@@ -563,6 +569,7 @@ async function typingPoll() {
   if (!S || !S.pet || document.hidden || !TY_MODES.includes(mode)) { TY.last = null; return; }
   let r;
   try { r = await (await fetch('/api/keys', {cache: 'no-store'})).json(); } catch (e) { return; }
+  if (r.e >= 0) { const e = TY.lastE == null ? 0 : r.e - TY.lastE; TY.lastE = r.e; if (e > 0 && e < 20 && tyActive()) enterHit(); }
   const n = r.n, first = TY.last == null;
   let d = !first && n >= 0 ? n - TY.last : 0;
   TY.last = n;
@@ -581,8 +588,8 @@ function typingStep(d, now) {
   }
   const secs = TY.start ? (TY.lastKey - TY.start) / 1000 : 0, active = tyActive();
   if (TY.start && now - TY.lastKey > 2500) {   // 손을 멈춤
-    if (active && secs > 15) play('stretch', 1500);
-    TY.start = 0; typingOn(false); return;
+    if (active) secs > 15 ? play('stretch', 1500) : play('notice', 450);   // 오래 쳤으면 기지개, 잠깐이면 "응? 멈췄네" 하고 고개
+    TY.start = 0; typingOn(false); document.body.classList.remove('typing-rush'); return;
   }
   if (!active) { typingOn(false); return; }
   if (!d) return;
@@ -590,12 +597,20 @@ function typingStep(d, now) {
   tap(rate);
   const fever = rate >= (TY.counter ? 6 : 3.5) && secs > 2;   // 대신 셀 땐 0.25초마다 최대 1번이라 기준을 낮춤
   document.body.classList.toggle('typing-fever', fever);
+  document.body.classList.toggle('typing-rush', fever && rate >= (TY.counter ? 9 : 5));   // 아주 빠르면 발을 동동
   if (fever && Math.random() < .45) sparks(2);
   if (secs > 30 && now > TY.nextRing) { TY.nextRing = now + 4000; typeRing(); }
   if (Math.floor(TY.combo / 300) > Math.floor((TY.combo - d) / 300)) { jump(); sparks(12); }
 }
+function enterHit() {   // 엔터: 꾹 눌러 찍고 통 튀어오름 + ↵
+  const img = $('#body .mon:not(.hide)');
+  if (!img || !img.animate || walking) return;
+  img.animate([{transform: 'none'}, {transform: 'translateY(5px) scale(1.14,.82)', offset: .25},
+    {transform: 'translateY(-12px) scale(.94,1.07)', offset: .6}, {transform: 'none'}], {duration: 380, easing: 'ease-out'});
+  floatText('↵', getComputedStyle(document.documentElement).getPropertyValue('--type').trim() || '#fff');
+}
 function typingOn(on) {
-  if (!on) document.body.classList.remove('typing-fever');
+  if (!on) document.body.classList.remove('typing-fever', 'typing-rush');
   if (on !== TY.on || (on && Date.now() - (TY.sent || 0) > 2000)) {   // 치는 동안엔 Swift가 돌아다니지 않게 함 (2초마다 다시 알림)
     TY.on = on; TY.sent = Date.now(); post({type: 'typing', on});
   }

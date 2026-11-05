@@ -437,6 +437,7 @@ label.f textarea{height:64px;resize:vertical}
   </div>
   <div class="btns quick">
     <button class="b" id="pauseBtn">⏸ 1시간 일시정지</button>
+    <button class="b" id="focusBtn">🎯 25분 집중</button>
     <button class="b" id="switchBtn">🔄 포켓몬 바꾸기</button>
     <button class="b" id="titleBtn">🏠 타이틀</button>
   </div>
@@ -543,6 +544,9 @@ label.f textarea{height:64px;resize:vertical}
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="auto_summon" style="width:18px;height:18px"> 작업 앱을 켜면 펫이 걸어 나오기 (10분 넘게 쉬었다가 켤 때)
       </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
+        <input type="checkbox" name="pet_talk" style="width:18px;height:18px"> 펫 말풍선 보이기 (꺼도 경고·페널티 알림은 나와요)
+      </label>
 
       <div class="muted" style="margin-top:6px" id="motionHint">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
     </div>
@@ -628,7 +632,7 @@ const evoPath = l => l.fork ? l.stages.map((s, i) => evoStep(s, l.evo_levels[i],
   : l.branches ? `Lv.0 이브이 → Lv.${l.branch_lv} 일한 시간대에 따라 8가지 중 직접 선택`
   : l.stages.map((s, i) => evoStep(s, l.evo_levels[i], l.evo_how && l.evo_how[i])).join(' → ') + (l.stages.length === 1 ? ' (진화 없음)' : '');
 const DP = {morning: ['🌅', '아침', '6~11시'], noon: ['☀️', '점심', '11~17시'], evening: ['🌇', '저녁', '17~21시'], night: ['🌙', '새벽', '21~6시']};
-const ICON = {update:'🆕', evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳'};
+const ICON = {update:'🆕', evo:'✨', lvup:'⬆️', lvdown:'⬇️', penalty:'💢', warn:'⚠️', break:'🍿', hatch:'🥚', grad:'🎓', bank:'⏳', focus:'🎯'};
 
 let META, S, prev = null, shownId = null, lastMode = null, busy = false, pickGen = 1;
 
@@ -1514,6 +1518,9 @@ function render() {
   $('#bank').setAttribute('aria-label', `휴식 잔고 ${Math.floor(S.bank_sec / 60)}분 ${Math.floor(S.bank_sec % 60)}초`);
   const paused = live.mode === 'paused';
   $('#pauseBtn').textContent = paused ? '▶ 다시 시작' : '⏸ 1시간 일시정지';
+  const focus = S.focus_until > Date.now() / 1000;
+  $('#focusBtn').textContent = focus ? `🎯 집중 중 · ${clockTo(S.focus_until)}까지 (끝내기)` : '🎯 25분 집중';
+  $('#pauseBtn').disabled = $('#openSettings').disabled = $('#sizeRange').disabled = focus;   // 집중 모드: 설정 잠금
   $('#bankHint').textContent = `작업 ${cfg.break_earn_ratio}분 = 휴식 1분`;
   $('#activity').textContent = live.label || '-';
   $('#activityHint').textContent = {work:`+${p ? +(p.xp_rate || 0).toFixed(2) : 0} XP/분${p && p.xp_mult < 1 ? ` (${p.rarity === 'mythical' ? '환상' : '전설'})` : ''}`, break:'휴식 잔고 소모 중', warning:'곧 페널티!',
@@ -1821,6 +1828,12 @@ $('#pauseBtn').onclick = async () => {
   const resume = S.live.mode === 'paused';
   S = await api('/api/pause', {minutes: resume ? 0 : 60}); render();
   toast(resume ? '▶ 다시 추적해요' : '⏸ 1시간 동안 쉬어요 (메뉴 막대에서 시간 변경 가능)');
+};
+$('#focusBtn').onclick = async () => {
+  const on = S.focus_until > Date.now() / 1000;
+  if (on && !await ask('집중 모드를 끝낼까요?', '설정 잠금이 풀리고 펫이 다시 돌아다녀요', {yes: '끝내기'})) return;
+  S = await api('/api/focus', {minutes: on ? 0 : 25}); render();
+  toast(on ? '집중 모드를 끝냈어요' : '🎯 25분 집중! 설정은 잠기고 펫은 조용히 곁에 있어요');
 };
 $('#titleBtn').onclick = () => openTitle();
 
