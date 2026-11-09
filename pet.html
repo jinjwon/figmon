@@ -233,7 +233,7 @@ function petEvent(k) {
       body.style.setProperty('--lift', `${Math.max(0, (diag * fs - r.height) / 2) + 6}px`);   // 아래로 튀어나오는 만큼 띄움
       b.classList.add('flying');
     }
-    say(pick(['으아아아~!', '날 수 있다…?!', '살려줘어~']), 0, true);
+    if (!hush()) say(pick(['으아아아~!', '날 수 있다…?!', '살려줘어~']), 0, true);   // 경고가 아니므로 말풍선 끔·집중 모드를 따름 (착지 대사가 막히면 안 지워짐)
   }
   if (k === 'surprised') {
     b.classList.remove('flying', 'grabbed'); play('surprised', 900); dust(5); mark('!?');

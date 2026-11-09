@@ -474,9 +474,12 @@ class Pet:
     def focus(self):   # 집중 모드: 화면을 가로지르지 않고 곁에서 가끔 자리만 조금 옮김
         return (getattr(self, "state", None) or {}).get("focus_until", 0) > time.time()
 
-    def say(self, text, secs=4.0, alert=False):
+    def hush(self):   # 말풍선 끔 · 집중 모드
         st = self.state or {}
-        if not alert and st and (st.get("config", {}).get("pet_talk") is False or self.focus()):   # 말풍선 끔 · 집중 모드
+        return bool(st) and (st.get("config", {}).get("pet_talk") is False or self.focus())
+
+    def say(self, text, secs=4.0, alert=False):
+        if not alert and self.hush():
             return
         self.cv.delete("bubble")
         bg, fg = ("#ff5d6c", "#ffffff") if alert else ("#ffffff", "#222222")
@@ -752,7 +755,8 @@ class Pet:
                     self.vx_air = max(-2600.0, min(2600.0, vx))
                     self.vy = max(-2600.0, min(2600.0, vy))
                     self.spin_until = time.time() + 5
-                    self.say(random.choice(["으아아아~!", "날 수 있다…?!", "살려줘어~"]), 0, True)
+                    if not self.hush():   # 경고가 아니므로 말풍선 끔·집중 모드를 따름 (착지 대사가 막히면 안 지워짐)
+                        self.say(random.choice(["으아아아~!", "날 수 있다…?!", "살려줘어~"]), 0, True)
 
     def on_menu(self, e):
         m = tk.Menu(self.root, tearoff=0, font=("Malgun Gothic", 10))

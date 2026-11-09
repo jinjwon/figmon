@@ -30,8 +30,8 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.27.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "엔터를 치면 포켓몬마다 다른 특기 몸짓을 해요 ✨"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.27.2"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "말풍선을 꺼도 던질 때 말풍선이 남던 문제를 고쳤어요 🔧"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
