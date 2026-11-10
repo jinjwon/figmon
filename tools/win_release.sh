@@ -9,8 +9,8 @@ TAG="v$(sed -n 's/^VERSION = "\([^"]*\)".*/\1/p' server.py)"
 gh release view "$TAG" >/dev/null   # 릴리스가 없으면 여기서 멈춤
 gh repo view "$MIRROR" >/dev/null 2>&1 || gh repo create "$MIRROR" --public
 git fetch -q origin tag "$TAG"   # gh release가 만든 태그는 로컬에 없음
-git push "https://github.com/$MIRROR.git" "$TAG^{commit}:refs/heads/main"   # 릴리스한 커밋 그대로 빌드
-gh workflow run windows.yml -R "$MIRROR" --ref main
+git push "https://github.com/$MIRROR.git" "$TAG^{commit}:refs/heads/build"   # 릴리스한 커밋 그대로 빌드. main이 아니라서 push 빌드가 따로 돌지 않음
+gh workflow run windows.yml -R "$MIRROR" --ref build
 sleep 15   # 방금 요청한 실행이 목록에 나타날 때까지
 ID=$(gh run list -R "$MIRROR" --workflow windows.yml --event workflow_dispatch -L 1 --json databaseId -q '.[0].databaseId')
 gh run watch "$ID" -R "$MIRROR" --exit-status   # 스모크 테스트가 실패하면 올리지 않음
