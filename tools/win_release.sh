@@ -8,6 +8,7 @@ MIRROR="${FIGMON_MIRROR:?FIGMON_MIRROR=<조직>/figmon 을 지정하세요}"
 TAG="v$(sed -n 's/^VERSION = "\([^"]*\)".*/\1/p' server.py)"
 gh release view "$TAG" >/dev/null   # 릴리스가 없으면 여기서 멈춤
 gh repo view "$MIRROR" >/dev/null 2>&1 || gh repo create "$MIRROR" --public
+git fetch -q origin tag "$TAG"   # gh release가 만든 태그는 로컬에 없음
 git push "https://github.com/$MIRROR.git" "$TAG^{commit}:refs/heads/main"   # 릴리스한 커밋 그대로 빌드
 gh workflow run windows.yml -R "$MIRROR" --ref main
 sleep 15   # 방금 요청한 실행이 목록에 나타날 때까지
