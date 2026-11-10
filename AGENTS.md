@@ -25,6 +25,7 @@ FIGMON_HOME=/tmp/figmon-test FIGMON_PORT=7799 python3 server.py --no-open --no-p
 2. 커밋·푸시 → Actions 통과 확인
 3. `gh release create vX.Y.Z dist/Figmon-macOS.zip --title ... --notes ...`
    → release 이벤트에서 Actions가 `Figmon-Windows.zip`을 자동으로 올림
+   → 본 계정 Actions가 막혀 zip이 안 올라오면: `FIGMON_MIRROR=figmon-build/figmon tools/win_release.sh` (조직 미러에서 빌드해 릴리스에 붙임)
 4. 앱들이 1시간 안에 `releases/latest`를 보고 스스로 업데이트
 
 ## 꼭 지킬 것
