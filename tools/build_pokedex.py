@@ -53,6 +53,13 @@ def add_evo(folder=None):
     print(f"{OUT.name}: 진화 조건 {len(d['evo'])}종")
 
 
+def air_ids(folder=None):
+    """떠 있는 포켓몬: 비행 타입(type 3)이거나 부유 특성(ability 26). 폼(메가 등) id도 포함."""
+    fly = {int(r["pokemon_id"]) for r in rows("pokemon_types", folder) if r["type_id"] == "3"}
+    lev = {int(r["pokemon_id"]) for r in rows("pokemon_abilities", folder) if r["ability_id"] == "26" and r["is_hidden"] == "0"}
+    return sorted(fly | lev)
+
+
 def main(folder=None):
     species = {int(r["id"]): r for r in rows("pokemon_species", folder)}
     names = {int(r["pokemon_species_id"]): r["name"] for r in rows("pokemon_species_names", folder)
@@ -60,6 +67,7 @@ def main(folder=None):
     type_name = {r["id"]: r["identifier"] for r in rows("types", folder)}
     first_type = {int(r["pokemon_id"]): type_name[r["type_id"]] for r in rows("pokemon_types", folder) if r["slot"] == "1"}
     growth_name = {r["id"]: r["identifier"] for r in rows("growth_rates", folder)}
+    air = air_ids(folder)
     bst = defaultdict(int)   # 능력치 합계 (기본 폼: pokemon_id == species_id)
     for r in rows("pokemon_stats", folder):
         bst[int(r["pokemon_id"])] += int(r["base_stat"])
@@ -123,7 +131,7 @@ def main(folder=None):
     # 포켓몬별 [성장 그룹, 능력치 합계] — 1세대 포함 전부 (성장 속도·전설 해금 난이도에 씀)
     info = {sid: [growth_name.get(r["growth_rate_id"], "medium"), bst.get(sid, 0)] for sid, r in species.items()}
     OUT.write_text(json.dumps({"source": "PokeAPI (https://github.com/PokeAPI/pokeapi), names in Korean",
-                               "lines": lines, "legendary": legendary, "mythical": mythical, "info": info,
+                               "lines": lines, "legendary": legendary, "mythical": mythical, "info": info, "air": air,
                               "evo": evo_conditions(folder),
                                "mega": dict(sorted(mega.items(), key=lambda kv: int(kv[0])))},
                               ensure_ascii=False, separators=(",", ":")),

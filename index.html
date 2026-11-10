@@ -419,6 +419,7 @@ label.f textarea{height:64px;resize:vertical}
       <div id="aiStat"><span class="muted">AI</span><b id="tAi" style="color:#9fb0ff">0분</b></div>
       <div><span class="muted">잃은 경험치</span><b id="tLost" style="color:var(--bad)">0</b></div>
     </div>
+    <div class="muted" id="aiUsage" style="margin-top:8px" hidden></div>
     <div class="muted" id="tPenaltyHint" style="margin-top:8px"></div>
   </div>
 
@@ -543,6 +544,9 @@ label.f textarea{height:64px;resize:vertical}
       </label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="auto_summon" style="width:18px;height:18px"> 작업 앱을 켜면 펫이 걸어 나오기 (10분 넘게 쉬었다가 켤 때)
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
+        <input type="checkbox" name="pet_still" style="width:18px;height:18px"> 펫 움직임 최소화 (돌아다니지 않고 제자리 근처에만 머물러요 · 끌어서 원하는 곳에 두세요)
       </label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="pet_talk" style="width:18px;height:18px"> 펫 말풍선 보이기 (꺼도 경고·페널티 알림은 나와요)
@@ -1533,6 +1537,8 @@ function render() {
   $('#tDis').textContent = dur(S.today.distract_sec);
   $('#tAi').textContent = dur(S.today.ai_sec || 0); $('#aiStat').style.display = cfg.ai_limit_enabled || S.today.ai_sec > 30 ? '' : 'none';
   $('#tLost').textContent = S.today.xp_lost.toFixed(0);
+  const usage = (S.ai_usage || {}).lines || [];   // Claude Code · Codex 오늘 토큰과 남은 한도
+  $('#aiUsage').hidden = !usage.length; $('#aiUsage').textContent = usage.map(l => '🧠 ' + l).join('\n'); $('#aiUsage').style.whiteSpace = 'pre-line';
   const pens = S.today.penalties || [];
   $('#tPenaltyHint').textContent = !pens.length ? (S.today.work_sec > 60 ? '오늘은 아직 페널티가 없어요 👏' : '')
     : `💢 페널티: ${pens[pens.length - 1].label} ${dur(pens[pens.length - 1].sec)} (-${pens[pens.length - 1].xp.toFixed(0)} XP)${pens.length > 1 ? ` 외 ${pens.length - 1}건` : ''}`;

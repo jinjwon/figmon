@@ -16,6 +16,10 @@ body{font-family:Jua,-apple-system,sans-serif}
 .mon{image-rendering:pixelated;transform-origin:50% 100%;display:block}
 .mon.art{image-rendering:auto}
 .shadow{width:60px;height:10px;border-radius:50%;background:rgba(0,0,0,.22);margin-top:-4px}
+/* 비행·부유 포켓몬: 땅에서 떠서 둥실거림 (#pet의 transform은 좌우 뒤집기에 쓰여서 margin으로 띄움) */
+.air #pet{margin-bottom:26px;animation:hover 2.6s ease-in-out infinite}
+.air .shadow{transform:scale(.7);opacity:.55}
+@keyframes hover{50%{margin-bottom:36px}}
 
 /* 기본은 차분하게: 숨쉬기만, 움직일 때만 걸음 */
 .m-work #body,.m-neutral #body,.m-ai #body{animation:breathe 3.2s ease-in-out infinite}
@@ -200,8 +204,9 @@ function petWalk(v) {
 let clickTimes = [];
 function petEvent(k) {
   const b = document.body;
-  if (k === 'grabbed') { b.classList.add('grabbed'); say(pick(['으아아 내려줘~', '높다…!', '어디 가는 거야?']), 2000); }
-  if (k === 'land') { b.classList.remove('grabbed'); play('land', 400); dust(4); say('착지!', 1200); }
+  // 회전(flying)은 잡을 때·착지할 때도 끔: 날다가 잡혔다 살살 놓이면 'surprised'가 안 와서 계속 돌았음
+  if (k === 'grabbed') { b.classList.remove('flying'); b.classList.add('grabbed'); say(pick(['으아아 내려줘~', '높다…!', '어디 가는 거야?']), 2000); }
+  if (k === 'land') { b.classList.remove('grabbed', 'flying'); play('land', 400); dust(4); say('착지!', 1200); }
   if (k === 'come') say('불렀어? 갈게!', 2000);
   if (k === 'hover' && !evolving && !walking) { play('notice', 450); mark('!'); }
   if (k === 'click') {
@@ -279,6 +284,8 @@ function say(text, ms = 4000, alert = false) {
   if (ms) sayTimer = setTimeout(() => b.classList.remove('show'), ms);
 }
 function statusLine() {
+  const u = (S.ai_usage || {}).lines || [];   // AI 사용량 (Claude Code · Codex)
+  if (u.length && Math.random() < .5) return '🧠 ' + pick(u);
   const p = S.pet, min = p.min_to_evo;
   const t = Math.ceil(min || 0), left = min == null ? '최종 진화 완료!' : `진화까지 ${t >= 60 ? Math.floor(t / 60) + '시간 ' : ''}${t % 60}분`;
   return `${p.name} Lv.${p.level} · ${left}`;
@@ -479,7 +486,12 @@ async function poll() {
     setTimeout(() => say(app ? `${app} 켰구나! ${p ? p.name : '나'}도 같이 할게 🎨` : '불렀어? 왔어!', 4500), 400);
   }
   document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ccc');
-  if (focusing() !== poll.focus) { poll.focus = focusing(); post({type: 'focus', on: poll.focus}); if (!poll.focus) $('#bubble').classList.remove('show'); }
+  const quiet = focusing() || !!(S.config && S.config.pet_still);   // 집중 모드 · 움직임 최소화: Swift가 제자리 근처에만 머물게 함
+  if (quiet !== poll.focus) { poll.focus = quiet; post({type: 'focus', on: quiet}); if (!focusing()) $('#bubble').classList.remove('show'); }
+  document.body.classList.toggle('air', !!(p && p.air));
+  const low = (S.ai_usage || {}).low, lowKey = low && low.replace(/\d/g, '');   // 한도 경고는 창마다 한 번만 (숫자가 바뀔 때마다 말하지 않게)
+  if (low && lowKey !== poll.low && !evolving) say('⚠️ ' + low, 7000);
+  poll.low = lowKey;
   if (m !== mode) {
     document.body.classList.remove('m-' + mode); document.body.classList.add('m-' + m);
     const alert = m === 'warning' || m === 'penalty';

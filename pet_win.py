@@ -306,6 +306,11 @@ class Pet:
             ps = self.live_size if time.time() < self.live_until else float(s["config"].get("pet_size", 1) or 1)
             if ps != self.size:
                 self.resize(ps)
+            low = (s.get("ai_usage") or {}).get("low")   # 한도 경고는 창마다 한 번만 (숫자가 바뀔 때마다 말하지 않게)
+            low_key = low and "".join(c for c in low if not c.isdigit())
+            if low and low_key != getattr(self, "low_key", None):
+                self.say("⚠️ " + low, 7)
+            self.low_key = low_key
             if s["live"].get("summon", 0) > self.last_summon:   # 작업 앱을 켜서 불려 나옴
                 self.last_summon = s["live"]["summon"]
                 self.summon(s["live"].get("summon_label", ""))
@@ -382,6 +387,9 @@ class Pet:
         return random.choice(LINES.get(m, LINES["neutral"]))
 
     def status_line(self):
+        u = (self.state.get("ai_usage") or {}).get("lines") or []   # AI 사용량 (Claude Code · Codex)
+        if u and random.random() < .5:
+            return "🧠 " + random.choice(u)
         p = self.state["pet"]
         mins = p.get("min_to_evo")
         left = "최종 진화 완료!" if mins is None else f"진화까지 {int(mins // 60)}시간 {int(mins % 60)}분"
@@ -473,6 +481,13 @@ class Pet:
     # ----- 말풍선 / 효과 -----
     def focus(self):   # 집중 모드: 화면을 가로지르지 않고 곁에서 가끔 자리만 조금 옮김
         return (getattr(self, "state", None) or {}).get("focus_until", 0) > time.time()
+
+    def still(self):   # 집중 모드 · 움직임 최소화 설정: 제자리 근처에만 머묾
+        return self.focus() or bool(((getattr(self, "state", None) or {}).get("config") or {}).get("pet_still"))
+
+    def lift(self, now):   # 비행·부유 포켓몬은 땅에서 떠서 둥실거림
+        p = (getattr(self, "state", None) or {}).get("pet") or {}
+        return (26 + (0 if self.calm else 5 * math.sin(now * 2.4))) * self.dpi if p.get("air") else 0
 
     def hush(self):   # 말풍선 끔 · 집중 모드
         st = self.state or {}
@@ -884,7 +899,7 @@ class Pet:
         if now - self.area_at > 3:
             self.area, self.area_at, self.calm = work_area(self.root), now, not animations_on()
         l, _, r, b = self.area
-        ground = b - self.H
+        ground = b - self.H - self.lift(now)
         mx = self.root.winfo_pointerx()
         if self.drag:
             pass
@@ -1010,11 +1025,11 @@ class Pet:
                 self.target, self.speed = cursor + (-80 if self.x < cursor else 80), 220.0
         elif not self.calm and self.target is None and now >= self.rest_until:
             watch = random.random() < (0.6 if m == "work" else 0.25)
-            t = self.x + random.uniform(-90, 90) if self.focus() \
+            t = self.x + random.uniform(-90, 90) if self.still() \
                 else cursor + random.uniform(-160, 160) if watch else random.uniform(left, right - self.W)
             if abs(t - self.x) < 40:
                 t = self.x + (60 if t > self.x else -60)
-            self.target, self.speed = t, (32.0 if m == "break" or self.focus() else 55.0)
+            self.target, self.speed = t, (32.0 if m == "break" or self.still() else 55.0)
             self.look_until = now + 0.6             # 출발 전에 갈 쪽을 먼저 봄
             self.facing = 1 if t > self.x else -1
         if self.target is not None and now >= self.look_until:
@@ -1040,7 +1055,7 @@ class Pet:
             self.x += self.vx * dt
             if abs(d) < 2 and abs(self.vx) < 12:
                 self.target, self.vx = None, 0.0
-                lo, hi = (40, 80) if self.focus() else (14, 30) if m == "break" else (10, 24) if m == "work" else (6, 16)
+                lo, hi = (40, 80) if self.still() else (14, 30) if m == "break" else (10, 24) if m == "work" else (6, 16)
                 self.rest_until = now + random.uniform(lo, hi)
                 self.speed, self.walking, self.running = 55.0, False, False
             else:

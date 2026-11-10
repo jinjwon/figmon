@@ -26,12 +26,12 @@ import sys
 import threading
 import time
 import webbrowser
-from datetime import date
+from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.27.2"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "말풍선을 꺼도 던질 때 말풍선이 남던 문제를 고쳤어요 🔧"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.28.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "펫이 Claude Code·Codex 사용량을 알려주고, 비행 포켓몬은 둥실 떠요 🕊 움직임 최소화 설정도 생겼어요"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -211,6 +211,7 @@ DEFAULT_CONFIG = {
     "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
     "pet_size": 1.0,             # 데스크톱 펫 크기 배율
     "auto_summon": True,
+    "pet_still": False,          # 움직임 최소화: 화면을 가로지르지 않고 제자리 근처에만 머묾 (입력할 때 가리지 않게)
     "pet_talk": True,            # 펫 말풍선 (꺼도 경고·페널티 알림은 나옴)         # 한동안 안 하다가 작업 앱을 켜면 펫이 걸어 나옴
     "auto_update": True,         # GitHub 새 버전 자동 설치
     # AI 절제 모드
@@ -340,6 +341,7 @@ OLD_STAGES = {"41": 2, "81": 2, "95": 1, "108": 1, "111": 2, "114": 1, "116": 2,
 LINES = {str(st[0][0]): {"gen": g, "type": t, "stages": [list(x) for x in st], "starter": True} for g, t, st in _RAW}
 LINES.update({k: {"gen": 1, "type": t, "stages": [list(x) for x in st], "starter": False} for k, t, st in _GEN1})
 MEGA = {}
+AIR = set()
 # 2~9세대: tools/build_pokedex.py가 PokeAPI 데이터로 만든 pokedex.json (스타팅처럼 이미 있는 계열은 그대로 둠)
 try:
     _DEX = json.loads((HERE / "pokedex.json").read_text(encoding="utf-8"))
@@ -353,6 +355,7 @@ try:
         _l["legendary"] = bool(_l["rarity"])
     _DEX_INFO = _DEX.get("info", {})
     MEGA = {int(k): v for k, v in _DEX.get("mega", {}).items()}   # 종 id → [[모습 id, 이름, 타입], ...]
+    AIR = set(_DEX.get("air", []))   # 비행 타입·부유 특성: 펫이 땅에 서지 않고 떠 있음
     EVO = _DEX.get("evo", {})   # 종 id → [방식, 최소 레벨]: 실제 게임의 진화 조건
 except Exception as _e:
     EVO = {}
@@ -1277,6 +1280,126 @@ def loop():
                 print("tick error:", e, file=sys.stderr)
 
 
+# ---------- AI 사용량 (Claude Code · Codex) ----------
+# 두 도구가 이 컴퓨터에 남기는 기록 파일만 읽음. 네트워크·로그인 정보는 쓰지 않음.
+AI_USAGE = {"lines": [], "low": None}   # lines: 펫·대시보드가 그대로 보여 줄 문장, low: 한도가 20% 아래일 때 경고
+
+
+def _midnight():
+    return time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+
+
+def _epoch(ts):   # "2026-11-10T02:22:19.642Z" → 초
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except (AttributeError, ValueError):
+        return 0.0
+
+
+def _today_events(root, needle):   # 오늘 고쳐진 기록 파일에서 needle이 든 줄만 (파일별로 묶어서)
+    since = _midnight()
+    for f in Path(root).rglob("*.jsonl"):
+        try:
+            if f.stat().st_mtime < since:
+                continue
+            rows = []
+            with open(f, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if needle in line:
+                        try:
+                            d = json.loads(line)
+                        except ValueError:
+                            continue
+                        if isinstance(d, dict) and _epoch(d.get("timestamp")) >= since:
+                            rows.append(d)
+            yield rows
+        except OSError:
+            continue
+
+
+def claude_usage(home=None, status=None):
+    """Claude Code: (오늘 쓴 토큰, [(한도 이름, 남은 %)]). 토큰은 캐시 재사용분을 뺀 입력+출력.
+    남은 한도는 Claude Code 상태 표시줄이 넘겨 주는 값이라, 상태 표시줄이 claude_status.json에 써 줘야 알 수 있음."""
+    home = Path(home or Path.home() / ".claude")
+    if not home.is_dir():
+        return None
+    tokens, seen = 0, set()
+    for rows in _today_events(home / "projects", '"usage"'):
+        for d in rows:
+            m = d.get("message") if isinstance(d.get("message"), dict) else {}
+            u = m.get("usage")
+            if not isinstance(u, dict) or (m.get("id") and m["id"] in seen):   # 한 응답이 여러 줄에 같은 usage로 반복됨
+                continue
+            seen.add(m.get("id"))
+            tokens += sum(int(u.get(k) or 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens"))
+    limits = []
+    try:
+        rl = json.loads(Path(status or DATA_DIR / "claude_status.json").read_text(encoding="utf-8")).get("rate_limits") or {}
+        for key, name in (("five_hour", "5시간"), ("seven_day", "주간")):
+            w = rl.get(key)
+            if isinstance(w, dict) and w.get("used_percentage") is not None:
+                reset = w.get("resets_at")
+                done = isinstance(reset, (int, float)) and reset < time.time()   # 창이 이미 초기화됨
+                limits.append((name, 100.0 if done else max(0.0, 100 - float(w["used_percentage"]))))
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+    return tokens, limits
+
+
+def codex_usage(home=None):
+    """Codex(GPT): 세션 기록의 token_count 이벤트에 토큰과 한도가 같이 들어 있음."""
+    home = Path(home or os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    if not (home / "sessions").is_dir():
+        return None
+    tokens, newest, rl = 0, 0.0, None
+    for rows in _today_events(home / "sessions", '"token_count"'):
+        prev = None
+        for d in rows:
+            p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
+            info = p.get("info") if isinstance(p.get("info"), dict) else {}
+            total = (info.get("total_token_usage") or {}).get("total_tokens")
+            u = info.get("last_token_usage") or {}
+            if u and total != prev:   # 같은 이벤트가 되풀이 기록되기도 함
+                tokens += max(0, int(u.get("input_tokens") or 0) - int(u.get("cached_input_tokens") or 0)) + int(u.get("output_tokens") or 0)
+            prev = total
+            t = _epoch(d.get("timestamp"))
+            if isinstance(p.get("rate_limits"), dict) and t >= newest:   # 같은 초면 뒤에 적힌 쪽이 최신
+                newest, rl = t, p["rate_limits"]
+    limits = []
+    for key in ("primary", "secondary"):
+        w = (rl or {}).get(key)
+        if isinstance(w, dict) and w.get("used_percent") is not None:
+            done = isinstance(w.get("resets_at"), (int, float)) and w["resets_at"] < time.time()
+            limits.append(("5시간" if (w.get("window_minutes") or 0) <= 300 else "주간",
+                           100.0 if done else max(0.0, 100 - float(w["used_percent"]))))
+    return tokens, limits
+
+
+def _tok(n):
+    return f"{n / 1e8:.1f}억" if n >= 1e8 else f"{n / 1e4:.1f}만" if n >= 1e4 else str(n)
+
+
+def ai_usage(found):   # found: [(이름, (토큰, 한도) 또는 None)]
+    lines, low = [], None
+    for name, u in found:
+        if not u or not (u[0] or u[1]):
+            continue
+        lines.append(f"{name} 오늘 {_tok(u[0])} 토큰" + "".join(f" · {w} 한도 {left:.0f}% 남음" for w, left in u[1]))
+        for w, left in u[1]:
+            if left <= 20 and not low:
+                low = f"{name} {w} 한도가 {left:.0f}%밖에 안 남았어! 🪫"
+    return {"lines": lines, "low": low}
+
+
+def ai_usage_loop():
+    while True:
+        try:
+            AI_USAGE.update(ai_usage([("Claude", claude_usage()), ("Codex", codex_usage())]))
+        except Exception as e:
+            print("ai usage error:", e, file=sys.stderr)
+        time.sleep(60)
+
+
 # ---------- API ----------
 def view():
     s, cfg = STATE, STATE["config"]
@@ -1287,7 +1410,7 @@ def view():
            "focus_until": s.get("focus_until", 0) if s.get("focus_until", 0) > time.time() else 0,
            "total_work_sec": s["total_work_sec"], "dex": s["dex"],
            "events": s["events"][-25:][::-1], "live": live, "speed": SPEED, "pet": None, "version": VERSION,
-           "update": LIVE["update"],
+           "update": LIVE["update"], "ai_usage": AI_USAGE,
            "news": LIVE["news"] if LIVE.get("news") and time.time() - LIVE["news"]["t"] < 600 else None,
            "recent": LIVE["recent"],
            "unlock": {"graduated": len(s["dex"]), "by_gen": grad_stats()[0], "by_type": grad_stats()[1],
@@ -1305,6 +1428,7 @@ def view():
         aid, aname, atype, is_mega = appearance(pet, lv, line, st)
         out["pet"] = {**pet, "level": lv, "stage": st, "type": atype, "gen": line["gen"],
                       "stages": line["stages"], "species": [aid, aname],
+                      "air": st > 0 and (atype == "flying" or aid in AIR),
                       "name": pet.get("nickname") or aname,
                       "lv_progress": 1 if lv >= MAX_LV else (xp - xp_at(lv, g)) / max(xp_at(lv + 1, g) - xp_at(lv, g), 1e-9),
                       "evo_levels": lv_list, "final": st == len(line["stages"]),
@@ -1395,8 +1519,8 @@ class Handler(BaseHTTPRequestHandler):
                 v = view()
             if "lite=1" in self.path:   # 펫은 이것만 있으면 됨 (자주 물어보니 작게)
                 v = {"pet": v["pet"], "live": v["live"], "version": v["version"], "news": v["news"],
-                     "focus_until": v["focus_until"],
-                     "config": {"pet_size": v["config"].get("pet_size", 1), "pet_talk": v["config"].get("pet_talk", True)}}
+                     "focus_until": v["focus_until"], "ai_usage": v["ai_usage"],
+                     "config": {k: v["config"].get(k, DEFAULT_CONFIG[k]) for k in ("pet_size", "pet_talk", "pet_still")}}
             self._send(200, v)
         elif self.path == "/api/report":   # 기록 탭: 오늘 + 지난 날들
             with LOCK:
@@ -1714,6 +1838,7 @@ if __name__ == "__main__":
         sys.exit(0)
     announce_update()
     threading.Thread(target=loop, daemon=True).start()
+    threading.Thread(target=ai_usage_loop, daemon=True).start()
     print(f"Figmon 실행 중 → http://localhost:{PORT}  (속도 x{SPEED:g}, 종료: Ctrl+C)")
     if not quiet:
         open_window()

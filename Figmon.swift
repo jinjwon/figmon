@@ -32,6 +32,7 @@ func post(_ path: String, _ body: [String: Any]) {
 
 final class ServerManager {
     var proc: Process?
+    var stopping = false
 
     /// server.py가 있는 폴더 (앱 번들 Resources 또는 개발 폴더)
     func resourceDir() -> URL? {
@@ -67,6 +68,10 @@ final class ServerManager {
             e["PYTHONUNBUFFERED"] = "1"
             p.environment = e
             if let log = try? FileHandle(forWritingTo: logURL) { p.standardOutput = log; p.standardError = log }
+            // 서버가 도중에 죽으면(강제 종료·오류) 펫이 "서버가 꺼져 있어"에 머물지 않게 다시 띄움
+            p.terminationHandler = { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { if !self.stopping { self.start { _ in } } }
+            }
             do { try p.run() } catch { return ready(false) }
             self.proc = p
             self.wait(tries: 60, ready)
@@ -81,7 +86,7 @@ final class ServerManager {
         }
     }
 
-    func stop() { if proc?.isRunning == true { proc?.terminate() } }
+    func stop() { stopping = true; if proc?.isRunning == true { proc?.terminate() } }
 }
 
 // MARK: - 대시보드 창
