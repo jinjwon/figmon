@@ -167,6 +167,7 @@ button.b:disabled{opacity:.35;cursor:default}
 .tabs button{border:0;background:var(--card2);color:var(--mute);border-radius:10px;padding:7px 11px;font:14px Jua,sans-serif;cursor:pointer;flex:none}
 .tabs button.on{background:var(--text);color:var(--bg)}
 [data-pane][hidden]{display:none}
+#setTabs button{min-height:44px}
 .starters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow:auto;padding:2px}
 .starter .badge{display:inline-block;margin-top:3px;font-size:10px;padding:1px 6px;border-radius:99px;background:var(--c);color:#fff}
 .qslot{width:64px;height:64px;margin:0 auto;display:flex;align-items:center;justify-content:center;font:28px Jua,sans-serif;color:var(--mute);border:2px dashed var(--line);border-radius:14px}
@@ -504,10 +505,10 @@ label.f textarea{height:64px;resize:vertical}
   <h2>설정</h2>
   <div class="tabs" id="setTabs" role="tablist" aria-label="설정 종류">
     <button type="button" role="tab" data-go="work" class="on" aria-selected="true">🎨 작업</button>
-    <button type="button" role="tab" data-go="distract" aria-selected="false">📺 딴짓</button>
-    <button type="button" role="tab" data-go="pet" aria-selected="false">🐾 펫</button>
-    <button type="button" role="tab" data-go="ai" aria-selected="false">🧠 AI</button>
-    <button type="button" role="tab" data-go="rule" aria-selected="false">⚙︎ 기타</button>
+    <button type="button" role="tab" data-go="distract" aria-selected="false" tabindex="-1">📺 딴짓</button>
+    <button type="button" role="tab" data-go="pet" aria-selected="false" tabindex="-1">🐾 펫</button>
+    <button type="button" role="tab" data-go="ai" aria-selected="false" tabindex="-1">🧠 AI</button>
+    <button type="button" role="tab" data-go="rule" aria-selected="false" tabindex="-1">⚙︎ 기타</button>
   </div>
   <div class="card" data-pane="rule" style="background:var(--card2);margin-top:10px">
     <div class="card-head" style="margin-bottom:4px"><span class="jua">🔄 업데이트</span><span class="muted" id="setVersion"></span></div>
@@ -1942,11 +1943,17 @@ $('#gradBtn').onclick = async () => {
 
 /* ---------- 설정 ---------- */
 const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domains', 'ai_apps', 'ai_domains'];
-function showSetPane(p) {
+function showSetPane(p, focus) {
   document.querySelectorAll('#setModal [data-pane]').forEach(el => { el.hidden = el.dataset.pane !== p; });
-  document.querySelectorAll('#setTabs button').forEach(b => { const on = b.dataset.go === p; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('#setTabs button').forEach(b => { const on = b.dataset.go === p; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
 }
 $('#setTabs').onclick = e => { const b = e.target.closest('button'); if (b) showSetPane(b.dataset.go); };
+// ← → 로 설정 탭 이동
+$('#setTabs').onkeydown = e => {
+  const d = {ArrowRight: 1, ArrowLeft: -1}[e.key]; if (!d) return;
+  const order = [...document.querySelectorAll('#setTabs button')].map(b => b.dataset.go), i = order.indexOf($('#setTabs .on').dataset.go);
+  e.preventDefault(); showSetPane(order[(i + d + order.length) % order.length], true);
+};
 // 숨은 탭의 값이 잘못되면 브라우저가 저장을 조용히 막으므로 그 탭을 열어 줌
 $('#setForm').addEventListener('invalid', e => { const pane = e.target.closest('[data-pane]'); if (pane) showSetPane(pane.dataset.pane); }, true);
 $('#openSettings').onclick = () => {
