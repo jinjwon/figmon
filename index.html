@@ -166,6 +166,7 @@ button.b:disabled{opacity:.35;cursor:default}
 .tabs{display:flex;gap:4px;overflow-x:auto;margin:12px 0}
 .tabs button{border:0;background:var(--card2);color:var(--mute);border-radius:10px;padding:7px 11px;font:14px Jua,sans-serif;cursor:pointer;flex:none}
 .tabs button.on{background:var(--text);color:var(--bg)}
+[data-pane][hidden]{display:none}
 .starters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:52vh;overflow:auto;padding:2px}
 .starter .badge{display:inline-block;margin-top:3px;font-size:10px;padding:1px 6px;border-radius:99px;background:var(--c);color:#fff}
 .qslot{width:64px;height:64px;margin:0 auto;display:flex;align-items:center;justify-content:center;font:28px Jua,sans-serif;color:var(--mute);border:2px dashed var(--line);border-radius:14px}
@@ -501,7 +502,14 @@ label.f textarea{height:64px;resize:vertical}
 <!-- 설정 -->
 <div class="modal" id="setModal" role="dialog" aria-modal="true" aria-label="설정"><div class="sheet">
   <h2>설정</h2>
-  <div class="card" style="background:var(--card2);margin-top:10px">
+  <div class="tabs" id="setTabs" role="tablist" aria-label="설정 종류">
+    <button type="button" role="tab" data-go="work" class="on" aria-selected="true">🎨 작업</button>
+    <button type="button" role="tab" data-go="distract" aria-selected="false">📺 딴짓</button>
+    <button type="button" role="tab" data-go="pet" aria-selected="false">🐾 펫</button>
+    <button type="button" role="tab" data-go="ai" aria-selected="false">🧠 AI</button>
+    <button type="button" role="tab" data-go="rule" aria-selected="false">⚙︎ 기타</button>
+  </div>
+  <div class="card" data-pane="rule" style="background:var(--card2);margin-top:10px">
     <div class="card-head" style="margin-bottom:4px"><span class="jua">🔄 업데이트</span><span class="muted" id="setVersion"></span></div>
     <div class="muted" id="updStatus">새 버전이 나오면 1시간 안에 알아서 받아서 다시 켜져요.</div>
     <div class="btns" style="margin-top:8px">
@@ -512,7 +520,8 @@ label.f textarea{height:64px;resize:vertical}
       <input type="checkbox" name="auto_update" form="setForm" style="width:18px;height:18px"> 새 버전이 나오면 자동으로 업데이트
     </label>
   </div>
-  <div class="card" style="background:var(--card2);margin-top:12px">
+  <div data-pane="work">
+  <div class="card" style="background:var(--card2)">
     <div class="card-head" style="margin-bottom:4px"><span class="jua">⚡ 최근 쓴 앱·사이트에서 바로 분류</span></div>
     <div class="muted">방금 쓴 앱이나 사이트를 버튼 한 번으로 작업·딴짓·AI로 바꿔요. 바로 적용돼요.</div>
     <ul class="recent" id="recentList"></ul>
@@ -523,16 +532,21 @@ label.f textarea{height:64px;resize:vertical}
     <button type="button" class="b" data-p="dev">💻 개발자</button>
     <button type="button" class="b" data-p="all">둘 다</button>
   </div>
+  </div>
   <form id="setForm">
+    <div data-pane="work">
     <div class="taglist" data-key="work_apps" data-label="🎨 작업 앱" data-ph="예: Figma, Code"></div>
     <div class="taglist" data-key="work_domains" data-label="🎨 작업 사이트" data-ph="예: figma.com"></div>
+    </div>
+    <div data-pane="distract">
     <div class="taglist" data-key="distract_apps" data-label="📺 딴짓 앱 (게임 등)" data-ph="예: Instagram, Steam"></div>
     <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:8px;font-size:13px">
       <input type="checkbox" name="detect_games" style="width:18px;height:18px"> 🎮 게임은 목록에 없어도 딴짓으로 (게임으로 분류된 앱, Steam·Epic 게임)
     </label>
     <div class="muted" style="margin-top:4px">크롬·엣지로 만든 웹앱(예: 설치한 Instagram 앱)은 원래 사이트 주소로 알아봐요.</div>
     <div class="taglist" data-key="distract_domains" data-label="📺 딴짓 사이트" data-ph="예: youtube.com"></div>
-    <div class="card" style="background:var(--card2);margin-top:14px">
+    </div>
+    <div class="card" data-pane="pet" style="background:var(--card2)">
       <div class="jua">♿ 편의 · 접근성</div>
       <div class="size-ctl" style="margin-top:10px">
         <label for="sizeRange2" class="muted">🐾 펫 크기</label>
@@ -554,7 +568,7 @@ label.f textarea{height:64px;resize:vertical}
 
       <div class="muted" style="margin-top:6px" id="motionHint">움직임이 불편하면 시스템 설정 › 손쉬운 사용 › 디스플레이 › <b>동작 줄이기</b>를 켜 주세요. 펫이 스스로 돌아다니지 않고, 흔들림과 깜빡임이 꺼져요.</div>
     </div>
-    <div class="card" style="background:var(--card2);margin-top:14px">
+    <div class="card" data-pane="ai" style="background:var(--card2)">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer" class="jua">
         <input type="checkbox" name="ai_limit_enabled" style="width:18px;height:18px"> 🧠 AI 절제 모드
       </label>
@@ -563,7 +577,7 @@ label.f textarea{height:64px;resize:vertical}
       <div class="taglist" data-key="ai_apps" data-label="🧠 AI 앱" data-ph="예: ChatGPT"></div>
       <div class="taglist" data-key="ai_domains" data-label="🧠 AI 사이트" data-ph="예: claude.ai"></div>
     </div>
-    <div class="grid2" style="margin-top:0">
+    <div class="grid2" data-pane="rule" style="margin-top:0">
       <label class="f">작업 N분 = 휴식 1분<input name="break_earn_ratio" type="number" step="0.5" min="3" max="30"></label>
       <label class="f">페널티 (분당 -XP)<input name="penalty_xp_per_min" type="number" step="0.5" min="1" max="10"></label>
       <label class="f">경고 유예 (초)<input name="grace_sec" type="number" min="5" max="120"></label>
@@ -1928,8 +1942,15 @@ $('#gradBtn').onclick = async () => {
 
 /* ---------- 설정 ---------- */
 const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domains', 'ai_apps', 'ai_domains'];
+function showSetPane(p) {
+  document.querySelectorAll('#setModal [data-pane]').forEach(el => { el.hidden = el.dataset.pane !== p; });
+  document.querySelectorAll('#setTabs button').forEach(b => { const on = b.dataset.go === p; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+}
+$('#setTabs').onclick = e => { const b = e.target.closest('button'); if (b) showSetPane(b.dataset.go); };
+// 숨은 탭의 값이 잘못되면 브라우저가 저장을 조용히 막으므로 그 탭을 열어 줌
+$('#setForm').addEventListener('invalid', e => { const pane = e.target.closest('[data-pane]'); if (pane) showSetPane(pane.dataset.pane); }, true);
 $('#openSettings').onclick = () => {
-  renderTagLists(); renderRecent();
+  renderTagLists(); renderRecent(); showSetPane('work');
   const f = $('#setForm');
   for (const [k, v] of Object.entries(S.config)) { const el = f.elements[k]; if (!el) continue; if (el.type === 'checkbox') el.checked = v; else if (el.tagName === 'SELECT') el.value = [...el.options].reduce((a, o) => Math.abs(+o.value - v) < Math.abs(+a.value - v) ? o : a).value; else el.value = Array.isArray(v) ? v.join(', ') : v; }
   $('#setModal').classList.add('open');
