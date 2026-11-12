@@ -98,7 +98,8 @@ cd figmon
 ./build_app.sh && open dist/Figmon.app
 
 # Windows: Python 3.9+ starts the server and pet together (python.org installer recommended, includes tkinter)
-python server.py
+# pyw runs without a console window (confirmed working even when Smart App Control blocks the app)
+pyw server.py
 ```
 
 </details>
@@ -117,7 +118,7 @@ python server.py
 | "unidentified developer" / "cannot verify it is free of malware" | macOS security (Gatekeeper) | **Open Anyway** in [First run (macOS)](#first-run-macos) |
 | "is damaged and can't be opened" | Quarantine flag on downloaded files (it isn't really damaged) | Move the app to Applications, then run the command below |
 | App opens but no pet / developer tools installer appears | Python (Xcode Command Line Tools) missing | Click **Install**, then reopen Figmon |
-| 🪟 "Smart App Control blocked an app that may be unsafe" (publisher can't be verified) | Windows 11 **Smart App Control** blocks apps without a code signature and offers no "Run anyway". Figmon is a non-commercial personal project with no paid code-signing certificate | ① **Run from source**: install Python from [python.org](https://www.python.org/downloads/) and run `python server.py` (see [Run from source](#-install)) ② Or turn it **Off** in **Windows Security › App & browser control › Smart App Control settings**. On some Windows versions it can only be turned back on by resetting Windows, so decide carefully |
+| 🪟 "Smart App Control blocked an app that may be unsafe" (publisher can't be verified) | Windows 11 **Smart App Control** blocks apps without a code signature and offers no "Run anyway". Figmon is a non-commercial personal project with no paid code-signing certificate | ① **Run from source**: install Python from [python.org](https://www.python.org/downloads/) and run `pyw server.py` (see [Run from source](#-install)) ② Or turn it **Off** in **Windows Security › App & browser control › Smart App Control settings**. On some Windows versions it can only be turned back on by resetting Windows, so decide carefully |
 | 🪟 The exe disappears or is blocked | Antivirus false positive (e.g. Windows Defender) | Allow it in **Windows Security › Virus & threat protection › Protection history** |
 | 🍎 Auto-update doesn't work | Running from Downloads or similar | When Figmon asks **"Move to Applications?"**, choose **Move and relaunch** |
 | 🪟 Auto-update doesn't work | Folder isn't writable (e.g. Program Files) | Move `Figmon.exe` to the Desktop or Documents |
