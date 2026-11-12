@@ -44,7 +44,7 @@
 
 ## 🖼 Screenshots
 
-Taken from the real dashboard (`http://127.0.0.1:7777`) on v1.28.2. Records and Pokédex entries are sample data.
+Taken from the real dashboard (`http://127.0.0.1:7777`) on v1.29.0. Records and Pokédex entries are sample data.
 
 <table>
   <tr>
@@ -117,6 +117,7 @@ python server.py
 | "unidentified developer" / "cannot verify it is free of malware" | macOS security (Gatekeeper) | **Open Anyway** in [First run (macOS)](#first-run-macos) |
 | "is damaged and can't be opened" | Quarantine flag on downloaded files (it isn't really damaged) | Move the app to Applications, then run the command below |
 | App opens but no pet / developer tools installer appears | Python (Xcode Command Line Tools) missing | Click **Install**, then reopen Figmon |
+| 🪟 "Smart App Control blocked an app that may be unsafe" (publisher can't be verified) | Windows 11 **Smart App Control** blocks apps without a code signature and offers no "Run anyway". Figmon is a non-commercial personal project with no paid code-signing certificate | ① **Run from source**: install Python from [python.org](https://www.python.org/downloads/) and run `python server.py` (see [Run from source](#-install)) ② Or turn it **Off** in **Windows Security › App & browser control › Smart App Control settings**. On some Windows versions it can only be turned back on by resetting Windows, so decide carefully |
 | 🪟 The exe disappears or is blocked | Antivirus false positive (e.g. Windows Defender) | Allow it in **Windows Security › Virus & threat protection › Protection history** |
 | 🍎 Auto-update doesn't work | Running from Downloads or similar | When Figmon asks **"Move to Applications?"**, choose **Move and relaunch** |
 | 🪟 Auto-update doesn't work | Folder isn't writable (e.g. Program Files) | Move `Figmon.exe` to the Desktop or Documents |
@@ -456,17 +457,18 @@ For testing, you can fast-forward time: `FIGMON_SPEED=60 python3 server.py` (1 r
 
 | Version | Changes |
 |---|---|
-| **v1.28.2** | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
+| **v1.29.0** | 📕 **New Pokédex** — numbered slots, silhouettes until registered, color and a "registered" stamp on graduation · per-generation progress · **registration scene** when graduating |
+| v1.28.2 | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
 | v1.28.1 | 🔧 Fixed long toasts (e.g. update notices) staying stuck at the top of the dashboard |
 | **v1.28.0** | 🧠 **AI usage reports** (today's Claude Code · Codex tokens and remaining limits, in pet speech bubbles and on Home) · 🕊 **Flying/levitating Pokémon float** · 🧘 **Minimal pet movement** setting · 🔧 Fixed a thrown pet spinning forever, and the pet freezing when the server stopped (macOS, now restarts automatically) |
 | v1.27.2 | 🔧 Fixed a speech bubble appearing and never closing when throwing the pet with bubbles off or in focus mode (macOS · Windows) |
-| v1.27.1 | ⌨️ Pressing Enter now plays **a signature move per Pokémon** (by type/kind) instead of ↵ |
 
 <details>
 <summary>Older versions</summary>
 
 | Version | Changes |
 |---|---|
+| v1.27.1 | ⌨️ Pressing Enter now plays **a signature move per Pokémon** (by type/kind) instead of ↵ |
 | v1.27.0 | 🎯 **Focus mode** (locks settings and pause for 25 minutes; the pet stays quietly nearby with no bubbles) · 💬 **Hide pet speech bubbles** setting · ⌨️ More typing reactions. macOS · Windows |
 | v1.26 | ⌨️ The pet taps along on a keyboard as you type |
 | v1.25.1 | 🍎 **Fixed no distractions being detected on macOS 27.** macOS changed the output format for the frontmost app |
