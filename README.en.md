@@ -457,6 +457,7 @@ For testing, you can fast-forward time: `FIGMON_SPEED=60 python3 server.py` (1 r
 
 | Version | Changes |
 |---|---|
+| **v1.29.1** | 🖥️ Windows dual monitors: the pet no longer snaps back to the primary monitor after being moved |
 | **v1.29.0** | 📕 **New Pokédex** — numbered slots, silhouettes until registered, color and a "registered" stamp on graduation · per-generation progress · **registration scene** when graduating |
 | v1.28.2 | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
 | v1.28.1 | 🔧 Fixed long toasts (e.g. update notices) staying stuck at the top of the dashboard |

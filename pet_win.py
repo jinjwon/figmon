@@ -100,10 +100,19 @@ PARTICLE = {"work": ("✦", "#f5c518"), "break": ("♪", "#ff8a3d"), "penalty": 
 
 # ---------- 시스템 ----------
 def work_area(root):
-    """작업 표시줄을 뺀 화면 영역 (left, top, right, bottom)"""
+    """펫이 있는 모니터에서 작업 표시줄을 뺀 영역 (left, top, right, bottom)"""
     if IS_WIN:
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+        u = ctypes.windll.user32
+        hwnd = u.GetParent(root.winfo_id()) or root.winfo_id()
+        mi = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+        # SPI_GETWORKAREA는 주 모니터만 줘서 다른 모니터로 옮긴 펫이 되돌아왔음
+        if u.GetMonitorInfoW(u.MonitorFromWindow(wintypes.HWND(hwnd), 2), ctypes.byref(mi)):  # MONITOR_DEFAULTTONEAREST
+            r = mi.rcWork
+            return r.left, r.top, r.right, r.bottom
         r = wintypes.RECT()
-        ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0)  # SPI_GETWORKAREA
+        u.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0)  # SPI_GETWORKAREA
         return r.left, r.top, r.right, r.bottom
     return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight() - 80
 
@@ -760,6 +769,7 @@ class Pet:
                     self.hearts(3)
                 self.say(self.react_line(), 3)
         else:
+            self.area, self.area_at = work_area(self.root), time.time()   # 다른 모니터에 놓았으면 그 모니터 기준으로
             self.falling, self.vy, self.vx_air, self.thrown, self.bounced = True, 0.0, 0.0, False, False
             self.target, self.vx, self.rest_until = None, 0.0, time.time() + 2
             (t0, x0, y0), (t1, x1, y1) = self.samples[0], self.samples[-1]
