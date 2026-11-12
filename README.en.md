@@ -21,7 +21,7 @@
 
 > The app itself is in **Korean only**. This page is an English guide to it.
 
-**Contents** · [What is it?](#-what-is-it) · [Screenshots](#-screenshots) · [Recent changes](#-recent-changes) · [Install](#-install) · [Troubleshooting](#-troubleshooting) · [How to use](#-how-to-use) · [Growth & evolution](#-growth--evolution) · [Brag card](#-brag-card) · [Files](#-files) · [License](#license)
+**Contents** · [What is it?](#-what-is-it) · [Screenshots](#-screenshots) · [Install](#-install) · [Troubleshooting](#-troubleshooting) · [How to use](#-how-to-use) · [Growth & evolution](#-growth--evolution) · [Brag card](#-brag-card) · [Files](#-files) · [Recent changes](#-recent-changes) · [License](#license)
 
 ---
 
@@ -61,27 +61,6 @@ Taken from the real dashboard (`http://127.0.0.1:7777`) on v1.28.2. The records 
 
 ---
 
-## 🆕 Recent changes
-
-| Version | Changes |
-|---|---|
-| **v1.28.2** | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
-| v1.28.1 | 🔧 Fixed long toasts (e.g. update notices) staying stuck at the top of the dashboard |
-| **v1.28.0** | 🧠 **AI usage reports** (today's Claude Code · Codex tokens and remaining limits, in pet speech bubbles and on Home) · 🕊 **Flying/levitating Pokémon float** · 🧘 **Minimal pet movement** setting · 🔧 Fixed a thrown pet spinning forever, and the pet freezing when the server stopped (macOS, now restarts automatically) |
-| v1.27.2 | 🔧 Fixed a speech bubble appearing and never closing when throwing the pet with bubbles off or in focus mode (macOS · Windows) |
-| v1.27.1 | ⌨️ Pressing Enter now plays **a signature move per Pokémon** (by type/kind) instead of ↵ |
-| v1.27.0 | 🎯 **Focus mode** (locks settings and pause for 25 minutes; the pet stays quietly nearby with no bubbles) · 💬 **Hide pet speech bubbles** setting · ⌨️ More typing reactions. macOS · Windows |
-| v1.26 | ⌨️ The pet taps along on a keyboard as you type |
-| v1.25.1 | 🍎 **Fixed no distractions being detected on macOS 27.** macOS changed the output format for the frontmost app |
-| v1.25.0 | 🏆 Redesigned brag card: 6 stats, badges, tier designs. Added later-gen evolutions to Gen 1 lines → **Mega Steelix and Mega Scizor** are obtainable |
-| v1.24.0 | ✨ New evolution and Mega Evolution scenes. 🍎 **macOS 13+ and Intel Mac support** (v1.23.0 and earlier were built for macOS 26 only by mistake) |
-| v1.23.0 | 🧬 **Real game evolution levels** per Pokémon (stone/trade/friendship evolutions use a level at a similar point) |
-| v1.22.0 | 🐣 Growth about 3× faster + **real experience curves per growth group**. Mega Evolution Lv.60 → **Lv.45** |
-| v1.20.1 | 🪟 Fixed the Windows pet freezing when made smaller |
-
-Your Pokémon keeps **its level and form** across updates. Full history is in [Releases](https://github.com/jinjwon/figmon/releases).
-
----
 
 ## 🚀 Install
 
@@ -105,7 +84,9 @@ Figmon is a personal project, not from the App Store and not notarized by Apple,
 
 > On macOS 14 and earlier, **right-click → Open** also works. From macOS 15 Sequoia on, use **Open Anyway** above.
 
-### Run from source
+<details>
+<summary><b>Run from source</b></summary>
+
 
 ```bash
 git clone https://github.com/jinjwon/figmon.git
@@ -118,9 +99,15 @@ cd figmon
 python server.py
 ```
 
+</details>
+
 ---
 
 ## 🩹 Troubleshooting
+
+<details>
+<summary>Show details</summary>
+
 
 | Message | Cause | Fix |
 |---|---|---|
@@ -137,6 +124,8 @@ For "is damaged" (removes only Figmon's quarantine flag):
 ```bash
 xattr -dr com.apple.quarantine /Applications/Figmon.app
 ```
+
+</details>
 
 ---
 
@@ -175,15 +164,25 @@ In meetings or away, **⏸ Pause tracking** (30 min / 1 hour / 2 hours / rest of
 | Throw hard | Spins away, bounces off the edge, and lands dizzy 😵 |
 | Right-click / menu bar icon | Dashboard · call it over · **pet size (60–160%)** · hide · pause tracking · launch at login · check for updates · quit |
 
-#### 🎯 Focus mode · hide speech bubbles
+<details>
+<summary><b>🎯 Focus mode · hide speech bubbles</b></summary>
+
 - **🎯 25-min focus** on Home: settings and pause lock for 25 minutes; the pet stays nearby without bubbles and only shifts a little (never crosses the screen). Press again to end early.
 - Turn off **Show pet speech bubbles** in settings to hide everyday bubbles. Warnings and penalty notices still appear. Same on macOS and Windows.
 - Turn on **Minimal pet movement** to keep the pet near one spot. Drag it to a corner so it doesn't cover what you type.
 
-#### 🕊 Floating Pokémon
+</details>
+
+<details>
+<summary><b>🕊 Floating Pokémon</b></summary>
+
 Flying types and Pokémon with Levitate (Charizard, Dragonite, Gastly…) hover instead of standing. Eggs don't float.
 
-#### 🧠 AI usage reports
+</details>
+
+<details>
+<summary><b>🧠 AI usage reports</b></summary>
+
 The pet occasionally reports Claude Code and Codex usage in a bubble, and on the **Today** card on Home.
 - **Tokens used today**: read only from the logs both tools keep on this computer (`~/.claude/projects`, `~/.codex/sessions`). Input + output, excluding cache reuse. No network or login data is used.
 - **Remaining limits** (5-hour · weekly): Codex logs include them. Claude Code only passes limits to the status line, so add this line to `~/.claude/settings.json` (if you already use a status line, save its input to `~/.figmon/claude_status.json` in your script):
@@ -192,7 +191,11 @@ The pet occasionally reports Claude Code and Codex usage in a bubble, and on the
   ```
 - The pet tells you once when a limit drops below 20%.
 
-#### ⌨️ Moves with your typing
+</details>
+
+<details>
+<summary><b>⌨️ Moves with your typing</b></summary>
+
 While you type, the pet reacts with **gestures** instead of words.
 
 | Typing | Pet |
@@ -215,6 +218,8 @@ While you type, the pet reacts with **gestures** instead of words.
 - **Windows**: the pet walks along the taskbar. The dashboard opens as an Edge app window, and clicking the pet doesn't steal focus from your work window.
 - **Appears when you start working**: if enabled on first launch, Figmon starts quietly with your computer. After a break of 10+ minutes, opening a work app makes the pet walk in from the screen edge to say hi.
 
+</details>
+
 ### 5. Switch or graduate
 - **🔄 Switch Pokémon** anytime, but the new one starts **from Lv.0**.
 - **🎓 Graduate** a fully grown Pokémon to keep it in the 📕 Pokédex and progress toward Legendary/Mythical unlocks.
@@ -233,24 +238,36 @@ While you type, the pet reacts with **gestures** instead of words.
 - **🧠 AI moderation mode**: AI time beyond the free daily allowance (30 minutes by default) counts as distraction
 - **Auto-update**: checks 10 seconds after launch and every hour, then swaps itself in. You can turn it off or check now in settings.
 
-### 🔎 How distractions are detected
+<details>
+<summary><b>🔎 How distractions are detected</b></summary>
+
 - **Browsers**: by the open tab's URL (on Windows by window title, e.g. "… - YouTube - Chrome").
 - **Installed web apps**: web apps installed from Chrome, Brave or Edge are judged by their site URL.
 - **Apps**: Instagram, YouTube, Netflix, TVING, wavve and more are included by default.
 - **🎮 Automatic game detection**: apps categorized as games and Steam/Epic/Riot games count as distraction even if not listed (can be turned off).
 - (macOS) If asked *"wants to control Chrome (or Safari)"*, click **Allow**. It's only used to tell whether the current tab is YouTube or GitHub.
 
-### ♿ Accessibility
+</details>
+
+<details>
+<summary><b>♿ Accessibility</b></summary>
+
 - **VoiceOver**: the pet and menu bar icon read like "Mudkip level 12, working".
 - **Keyboard**: Tab through every dashboard button and dialog, Esc to close, Enter to start.
 - **Reduce motion**: with macOS Accessibility › *Reduce motion* or Windows Accessibility › *Animation effects* off, the pet stops roaming and shakes, particles and **evolution scenes** are turned off (evolution happens instantly).
 - **Sharing**: the brag card uses the standard macOS share menu (AirDrop, Messages…) and save dialog.
 
+</details>
+
 ---
 
 ## 🐣 Growth & evolution
 
-### Growth speed: different XP curves per Pokémon
+1 minute of work = +3 XP. Growth follows the real games' XP curves and evolution levels; most Pokémon reach full growth after **8–13 hours** of work. Expand the sections below for the tables.
+
+<details>
+<summary><b>Growth speed: different XP curves per Pokémon</b></summary>
+
 Figmon uses the real games' **experience curves per growth group** (cubic formulas by level). **Low levels go fast; each level takes longer as you climb.**
 
 | Growth group | To full growth (Lv.36) | Examples |
@@ -264,7 +281,11 @@ Figmon uses the real games' **experience curves per growth group** (cubic formul
 | ✨ Legendary · 🌟 Mythical | ~10–15 hours | Mewtwo, Lugia, Mew |
 | 👑 Arceus | ~18 hours | Arceus |
 
-### Evolution levels: straight from the games
+</details>
+
+<details>
+<summary><b>Evolution levels: straight from the games</b></summary>
+
 Pokémon that evolve by non-level conditions (stones, trade, friendship) use a level at a similar point.
 
 | Condition in the games | In Figmon | Examples |
@@ -288,7 +309,11 @@ Pokémon that evolve by non-level conditions (stones, trade, friendship) use a l
 
 Pokémon that don't evolve (Snorlax, Mew…) keep their form but grow bigger as they level up.
 
-### Special evolutions
+</details>
+
+<details>
+<summary><b>Special evolutions</b></summary>
+
 
 | Kind | Who | Decided by |
 |---|---|---|
@@ -319,12 +344,20 @@ Pokémon that don't evolve (Snorlax, Mew…) keep their form but grow bigger as 
 - With **X/Y** forms (Charizard, Mewtwo, Raichu), habits decide: long work (🔥) gives **X**, less distraction (🎯) gives **Y**
 - After Mega Evolving you can switch **original ↔ Mega**. If penalties drop you below Lv.45, it reverts.
 
-### ✨ Evolution scenes
+</details>
+
+<details>
+<summary><b>✨ Evolution scenes</b></summary>
+
 - **Regular**: light gathers into a white silhouette, old ↔ new forms flicker faster, then pop!
 - **💎 Mega**: the Key Stone glows, rainbow beams spread, and a rainbow shell wraps the Pokémon and cracks open.
 - Plays on the dashboard and desktop pet (macOS · Windows). With reduced motion it changes instantly.
 
-### 🔒 Legendary & Mythical Pokémon
+</details>
+
+<details>
+<summary><b>🔒 Legendary & Mythical Pokémon</b></summary>
+
 Locked at first. **Raise regular Pokémon to full growth and graduate them** to unlock them one by one.
 
 | Tier | Who | Unlock |
@@ -354,9 +387,15 @@ Locked cards show progress like "🔒 Gen 1 2/3 · Psychic 1/1". Once unlocked, 
 
 After that, every **3 hours** of work together unlocks a new type (Plate), opening **18 forms** one by one (51 hours for all).
 
+</details>
+
 ---
 
 ## 🏆 Brag card
+
+<details>
+<summary>Show details</summary>
+
 
 At full growth or Mega Evolution, an **Instagram-story-sized (1080×1920)** card appears. Reopen it from "🏆 Brag card" on Home to save it or copy its text.
 
@@ -376,9 +415,15 @@ At full growth or Mega Evolution, an **Instagram-story-sized (1080×1920)** card
 | ✧ Mythical | Aurora border (pink · purple · sky), floating light bubbles |
 | 👑 Arceus | Golden halo + **18-type ring** (unlocked types glow) |
 
+</details>
+
 ---
 
 ## 🗂 Files
+
+<details>
+<summary>Show details</summary>
+
 
 | File | Platform | Role |
 |---|---|---|
@@ -400,6 +445,38 @@ At full growth or Mega Evolution, an **Instagram-story-sized (1080×1920)** card
 | `NOTICE.md` · `LICENSE` | Both | Non-commercial fan project notice · MIT license for the code |
 
 For testing, you can fast-forward time: `FIGMON_SPEED=60 python3 server.py` (1 real second = 1 minute)
+
+</details>
+
+---
+
+## 🆕 Recent changes
+
+| Version | Changes |
+|---|---|
+| **v1.28.2** | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
+| v1.28.1 | 🔧 Fixed long toasts (e.g. update notices) staying stuck at the top of the dashboard |
+| **v1.28.0** | 🧠 **AI usage reports** (today's Claude Code · Codex tokens and remaining limits, in pet speech bubbles and on Home) · 🕊 **Flying/levitating Pokémon float** · 🧘 **Minimal pet movement** setting · 🔧 Fixed a thrown pet spinning forever, and the pet freezing when the server stopped (macOS, now restarts automatically) |
+| v1.27.2 | 🔧 Fixed a speech bubble appearing and never closing when throwing the pet with bubbles off or in focus mode (macOS · Windows) |
+| v1.27.1 | ⌨️ Pressing Enter now plays **a signature move per Pokémon** (by type/kind) instead of ↵ |
+
+<details>
+<summary>Older versions</summary>
+
+| Version | Changes |
+|---|---|
+| v1.27.0 | 🎯 **Focus mode** (locks settings and pause for 25 minutes; the pet stays quietly nearby with no bubbles) · 💬 **Hide pet speech bubbles** setting · ⌨️ More typing reactions. macOS · Windows |
+| v1.26 | ⌨️ The pet taps along on a keyboard as you type |
+| v1.25.1 | 🍎 **Fixed no distractions being detected on macOS 27.** macOS changed the output format for the frontmost app |
+| v1.25.0 | 🏆 Redesigned brag card: 6 stats, badges, tier designs. Added later-gen evolutions to Gen 1 lines → **Mega Steelix and Mega Scizor** are obtainable |
+| v1.24.0 | ✨ New evolution and Mega Evolution scenes. 🍎 **macOS 13+ and Intel Mac support** (v1.23.0 and earlier were built for macOS 26 only by mistake) |
+| v1.23.0 | 🧬 **Real game evolution levels** per Pokémon (stone/trade/friendship evolutions use a level at a similar point) |
+| v1.22.0 | 🐣 Growth about 3× faster + **real experience curves per growth group**. Mega Evolution Lv.60 → **Lv.45** |
+| v1.20.1 | 🪟 Fixed the Windows pet freezing when made smaller |
+
+</details>
+
+Your Pokémon keeps **its level and form** across updates. Full history is in [Releases](https://github.com/jinjwon/figmon/releases).
 
 ---
 
