@@ -44,18 +44,20 @@
 
 ## 🖼 Screenshots
 
-Taken from the real dashboard (`http://127.0.0.1:7777`) on v1.28.2. The records are sample data.
+Taken from the real dashboard (`http://127.0.0.1:7777`) on v1.28.2. Records and Pokédex entries are sample data.
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/home.png" width="260" alt="Home tab: Mega Dragonite on the Kanto backdrop with level, evolution stages and Mega Evolution card"></td>
-    <td align="center"><img src="docs/screenshots/report.png" width="260" alt="Records tab: last 7 days of work, distraction and AI time, focus ratio, daily bars, top work apps"></td>
-    <td align="center" valign="top"><img src="docs/screenshots/dex.png" width="260" alt="Pokédex tab: three graduated Pokémon and total work time"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/picker.png" width="200" alt="First launch: pick a partner by generation and type"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/home.png" width="200" alt="Home tab: Dragonair Lv.37 on the Kanto backdrop with time to next evolution and stages"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/report.png" width="200" alt="Records tab: last 7 days of work, distraction and AI time, focus ratio, daily bars, top work apps"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/dex.png" width="200" alt="Pokédex tab: numbered grid, graduated Pokémon in color with a stamp, the rest as silhouettes"></td>
   </tr>
   <tr>
-    <td align="center">🏠 Home — your Pokémon · evolution stages</td>
-    <td align="center">📊 Records — work · distraction · AI time</td>
-    <td align="center">📕 Pokédex — graduated Pokémon</td>
+    <td align="center">① Pick a Pokémon</td>
+    <td align="center">② Home — grow together</td>
+    <td align="center">③ Records — work · distraction · AI</td>
+    <td align="center">④ Pokédex — register by graduating</td>
   </tr>
 </table>
 
@@ -222,7 +224,7 @@ While you type, the pet reacts with **gestures** instead of words.
 
 ### 5. Switch or graduate
 - **🔄 Switch Pokémon** anytime, but the new one starts **from Lv.0**.
-- **🎓 Graduate** a fully grown Pokémon to keep it in the 📕 Pokédex and progress toward Legendary/Mythical unlocks.
+- **🎓 Graduate** a fully grown Pokémon to **register it in the 📕 Pokédex**: its silhouette slot fills with color and gets a "registered" stamp. The Pokédex is a numbered grid with per-generation progress (e.g. Gen 1 8/79). Graduating also counts toward Legendary/Mythical unlocks.
 
 ### 6. Records (📊 tab)
 - Period: today / yesterday / last 7 days / last 30 days (kept for 60 days)

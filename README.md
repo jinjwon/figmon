@@ -42,18 +42,20 @@
 
 ## 🖼 실제 화면
 
-대시보드(`http://127.0.0.1:7777`)를 v1.28.2에서 그대로 찍었어요. 기록은 예시 데이터예요.
+대시보드(`http://127.0.0.1:7777`)를 v1.28.2에서 그대로 찍었어요. 기록·도감은 예시 데이터예요.
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/home.png" width="260" alt="홈 탭: 관동 지방 배경 위의 메가 망나뇽, 레벨·진화 단계·메가진화 카드"></td>
-    <td align="center"><img src="docs/screenshots/report.png" width="260" alt="기록 탭: 최근 7일 작업·딴짓·AI 시간, 집중 비율, 요일별 막대, 작업한 곳 순위"></td>
-    <td align="center" valign="top"><img src="docs/screenshots/dex.png" width="260" alt="도감 탭: 졸업한 포켓몬 3마리와 누적 작업 시간"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/picker.png" width="200" alt="처음 실행: 세대·타입별로 함께 자랄 포켓몬 고르기"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/home.png" width="200" alt="홈 탭: 관동 지방 배경 위의 신뇽 Lv.37, 다음 진화까지 남은 시간과 진화 단계"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/report.png" width="200" alt="기록 탭: 최근 7일 작업·딴짓·AI 시간, 집중 비율, 요일별 막대, 작업한 곳 순위"></td>
+    <td align="center" valign="top"><img src="docs/screenshots/dex.png" width="200" alt="도감 탭: 번호 칸 격자, 졸업한 포켓몬은 색과 등록 도장, 나머지는 실루엣"></td>
   </tr>
   <tr>
-    <td align="center">🏠 홈 — 키우는 포켓몬 · 진화 단계</td>
-    <td align="center">📊 기록 — 작업 · 딴짓 · AI 시간</td>
-    <td align="center">📕 도감 — 졸업한 포켓몬</td>
+    <td align="center">① 포켓몬 고르기</td>
+    <td align="center">② 홈 — 같이 성장</td>
+    <td align="center">③ 기록 — 작업·딴짓·AI 시간</td>
+    <td align="center">④ 도감 — 졸업하면 등록</td>
   </tr>
 </table>
 
@@ -222,7 +224,7 @@ Figma나 VS Code 같은 작업 앱을 앞에 띄워 두고 일하면 돼요.
 
 ### 5. 포켓몬 바꾸기 · 졸업
 - **🔄 포켓몬 바꾸기**로 언제든 바꿀 수 있지만, 새 포켓몬은 **Lv.0부터 다시** 시작해요.
-- 완전 성장한 포켓몬은 **🎓 졸업**시키면 📕 도감에 남고, 전설·환상을 여는 조건이 채워져요.
+- 완전 성장한 포켓몬은 **🎓 졸업**시키면 📕 **도감에 등록**돼요. 실루엣이던 칸에 색이 들어오고 '등록' 도장이 찍혀요. 도감은 번호 순 격자로, 세대별 등록 수(예: 1세대 8/79)를 보여 줘요. 졸업하면 전설·환상을 여는 조건도 채워져요.
 
 ### 6. 기록 보기 (📊 기록 탭)
 - 기간: 오늘 / 어제 / 최근 7일 / 최근 30일 (60일까지 보관)

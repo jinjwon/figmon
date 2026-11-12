@@ -150,8 +150,34 @@ header h1 span{color:var(--type)}
 button.b{flex:1;border:0;border-radius:12px;padding:11px 10px;font:15px Jua,sans-serif;cursor:pointer;background:var(--card2);color:var(--text)}
 button.b.primary{background:var(--type);color:#fff}
 button.b:disabled{opacity:.35;cursor:default}
-.dex{display:flex;gap:6px;flex-wrap:wrap}
-.dex img{width:52px;height:52px;image-rendering:pixelated;background:var(--card2);border-radius:10px}
+/* 도감: 기기 느낌의 빨간 상단 + 번호 칸 격자. 미등록은 실루엣, 등록하면 색과 도장이 찍힘 */
+.pokedex{padding-top:0;overflow:hidden}
+.pdx-top{display:flex;align-items:center;gap:8px;margin:0 -16px 12px;padding:12px 16px;background:linear-gradient(#e8404f,#c62f3d);border-bottom:3px solid #8e1f2a}
+.pdx-top .lens{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#bfe9ff,#3aa0e8 55%,#1d5f99);border:3px solid #fff;box-shadow:0 0 0 2px #8e1f2a}
+.pdx-top .led{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.3)}
+.pdx-top .r{background:#ff8a8a}.pdx-top .y{background:#ffe066}.pdx-top .g{background:#7be08f}
+.pdx-top b{margin-left:auto;color:#fff;font:17px Jua,sans-serif;letter-spacing:1px}
+.pdx-bar{height:8px;background:var(--card2);border-radius:99px;overflow:hidden;margin:4px 0 2px}
+.pdx-bar div{height:100%;background:linear-gradient(90deg,#e8404f,#ffc04d);border-radius:99px}
+.pdx-gens button{min-height:44px}
+.pdx-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px}
+.pdx-grid li{position:relative;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:4px 2px 6px;text-align:center;min-height:44px}
+.pdx-grid .no{display:block;text-align:left;padding-left:6px;font-size:10px;color:var(--mute);font-variant-numeric:tabular-nums}
+.pdx-grid img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}
+.pdx-grid img.sil{filter:brightness(0);opacity:.22}
+.pdx-grid .nm{display:block;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdx-grid li.on{background:linear-gradient(#2a2f45,var(--card2));border-color:#e8404f88}
+.pdx-grid li.on .nm{color:var(--text)}
+.pdx-grid .stamp{position:absolute;top:3px;right:3px;font-size:9px;color:#ff6b78;border:1.5px solid #ff6b78;border-radius:4px;padding:0 3px;transform:rotate(12deg)}
+.pdx-grid .x{position:absolute;top:3px;left:4px;font-size:10px;color:var(--warn)}
+.pdx-grid li.new{animation:pdxNew 1.6s ease 2}
+@keyframes pdxNew{0%,100%{box-shadow:none}40%{box-shadow:0 0 0 3px #ffc04d,0 0 18px #ffc04d}}
+.pdx-reg{text-align:center}
+.pdx-reg img{width:120px;height:120px;image-rendering:pixelated;animation:pdxPop .6s ease}
+.pdx-reg .no{color:var(--mute);font-size:13px}
+.pdx-reg .stampbig{display:inline-block;margin-top:8px;color:#ff6b78;border:2.5px solid #ff6b78;border-radius:8px;padding:2px 10px;font:18px Jua,sans-serif;transform:rotate(-8deg);animation:pdxStamp .5s .5s ease both}
+@keyframes pdxPop{0%{filter:brightness(0);transform:scale(.6)}60%{filter:brightness(0)}100%{filter:none;transform:none}}
+@keyframes pdxStamp{0%{opacity:0;transform:rotate(-8deg) scale(2.2)}100%{opacity:1;transform:rotate(-8deg) scale(1)}}
 
 /* ---------- modals ---------- */
 .modal{position:fixed;inset:0;background:rgba(5,6,12,.78);display:none;z-index:20;overflow:auto;padding:20px 12px}
@@ -461,9 +487,12 @@ label.f textarea{height:64px;resize:vertical}
   </section>
 
   <section id="tab-dex" role="tabpanel" aria-labelledby="tabbtn-dex" hidden>
-    <div class="card" id="dexCard">
-      <div class="card-head"><span class="muted">📕 졸업한 포켓몬</span><span class="muted" id="dexCount"></span></div>
-      <div class="dex" id="dex"></div>
+    <div class="card pokedex" id="dexCard">
+      <div class="pdx-top" aria-hidden="true"><i class="lens"></i><i class="led r"></i><i class="led y"></i><i class="led g"></i><b>FIGMON 도감</b></div>
+      <div class="card-head"><span class="muted">📕 졸업하면 도감에 등록돼요</span><span class="muted" id="dexCount"></span></div>
+      <div class="pdx-bar"><div id="dexBar"></div></div>
+      <div class="tabs pdx-gens" id="dexGens" role="tablist" aria-label="도감 세대"></div>
+      <ul class="pdx-grid" id="dex" aria-label="도감 목록"></ul>
     </div>
     <div class="card">
       <div class="card-head"><span class="muted">📈 누적</span></div>
@@ -1530,7 +1559,8 @@ function render() {
   } else {
     $('#name').textContent = '파트너 없음'; $('#lv').textContent = ''; $('#species').textContent = '';
     $('#xpBar').style.width = '0'; $('#evoInfo').textContent = ''; setHTML('#track', ''); $('#eeveeBox').innerHTML = '';
-    if (!$('#pickModal').classList.contains('open') && !$('#title').classList.contains('open')) openPicker();
+    // 졸업 직후 도감을 구경하는 동안은 선택 창을 띄우지 않음 (다른 탭으로 가면 다시 뜸)
+    if (curTab !== 'dex' && !$('#pickModal').classList.contains('open') && !$('#title').classList.contains('open')) openPicker();
   }
 
   $('#bank').textContent = clock(S.bank_sec);
@@ -1562,9 +1592,7 @@ function render() {
   $('#masterCard').hidden = !(p && p.mastered);
 
   setHTML('#events', S.events.map(e => `<li><span>${ICON[e.kind] || '•'}</span><span>${e.msg}</span><time>${hhmm(e.t)}</time></li>`).join('') || '<li class="muted">아직 기록이 없어요</li>');
-  $('#dexCount').textContent = S.dex.length ? `${S.dex.length}마리` : '';
-  setHTML('#dex', S.dex.map(d => `<span title="${d.nickname || d.species[1]} Lv.${d.level}">${pixTag(d.species[0])}</span>`).join('')
-    || `<div class="empty">아직 졸업한 포켓몬이 없어요. Lv.${(p && p.master_lv) || 36}에 완전 성장하면 홈에서 졸업시킬 수 있어요.</div>`);
+  renderDex();
 
   prev = p ? {line:p.line, stage:p.stage, level:p.level, xp:p.xp, species:p.species, branch_pending:p.branch_pending} : null;
 }
@@ -1939,7 +1967,48 @@ $('#name').onclick = async () => {
 $('#gradBtn').onclick = async () => {
   if (!await ask('졸업시킬까요?', `${S.pet.name}을(를) 도감에 등록하고 새 파트너를 키워요`, {yes: '졸업!'})) return;
   S = await api('/api/graduate', {}); prev = null; shownId = null; render();
+  showDexRegistered(S.dex[S.dex.length - 1]);
 };
+
+/* ---------- 도감 ---------- */
+// 계열 하나 = 도감 한 칸 (번호는 첫 모습의 전국도감 번호). 졸업한 계열만 색이 들어가요.
+let dexGen = null;
+const dexNo = n => 'No.' + String(n).padStart(3, '0');
+// 옛 저장용 숨은 계열(예: 133-water)은 기본 계열(133) 칸에 함께 등록
+const dexKey = k => META.lines[k]?.hidden ? k.split('-')[0] : k;
+function renderDex() {
+  if (!META || !S) return;
+  const reg = {}; for (const d of S.dex) (reg[dexKey(d.line)] = reg[dexKey(d.line)] || []).push(d);
+  const all = Object.entries(META.lines).filter(([, l]) => !l.hidden).sort((a, b) => a[1].stages[0][0] - b[1].stages[0][0]);
+  const done = all.filter(([k]) => reg[k]).length;
+  if (dexGen === null) dexGen = S.dex.length ? META.lines[S.dex[S.dex.length - 1].line]?.gen || 1 : (S.pet ? S.pet.gen : 1);
+  $('#dexCount').textContent = `등록 ${done} / ${all.length}`;
+  $('#dexBar').style.width = `${done / all.length * 100}%`;
+  setHTML('#dexGens', [1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => {
+    const gl = all.filter(([, l]) => l.gen === g);
+    return `<button type="button" role="tab" data-g="${g}" class="${g === dexGen ? 'on' : ''}" aria-selected="${g === dexGen}">${g}세대 ${gl.filter(([k]) => reg[k]).length}/${gl.length}</button>`;
+  }).join(''));
+  setHTML('#dex', all.filter(([, l]) => l.gen === dexGen).map(([k, l]) => {
+    const no = dexNo(l.stages[0][0]), got = reg[k];
+    if (!got) return `<li aria-label="${no} 미등록"><span class="no">${no}</span><img class="sil" src="${PIX(l.stages[l.stages.length - 1][0])}" loading="lazy" alt=""><span class="nm">???</span></li>`;
+    const d = got[got.length - 1], nm = d.nickname || d.species[1];
+    const tip = `${no} ${nm} · Lv.${d.level} · ${new Date(d.finished * 1000).toLocaleDateString('ko')} 등록${got.length > 1 ? ` · ${got.length}번 졸업` : ''}`;
+    return `<li class="on" data-line="${k}" title="${esc(tip)}" aria-label="${esc(tip)}"><span class="no">${no}</span>${pixTag(d.species[0])}<span class="nm">${esc(nm)}</span>${got.length > 1 ? `<span class="x">×${got.length}</span>` : ''}<span class="stamp" aria-hidden="true">등록</span></li>`;
+  }).join(''));
+}
+$('#dexGens').onclick = e => { const g = e.target.closest('[data-g]'); if (g) { dexGen = +g.dataset.g; renderDex(); } };
+$('#dexGens').onkeydown = e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  dexGen = (dexGen + (e.key === 'ArrowRight' ? 0 : 7)) % 9 + 1; renderDex(); $(`#dexGens [data-g="${dexGen}"]`).focus();
+};
+// 졸업 직후: 실루엣 → 색이 들어오며 '도감 등록' 도장 → 도감 탭에서 그 칸이 반짝
+async function showDexRegistered(d) {
+  const l = META.lines[d.line], no = dexNo(l.stages[0][0]);
+  const go = await ask('도감 등록 완료!', `<div class="pdx-reg">${pixTag(d.species[0])}<div class="no">${no}</div><b>${esc(d.nickname || d.species[1])}</b> · Lv.${d.level}<br><span class="stampbig">도감 등록</span></div>`, {yes: '도감 보기', no: '닫기'});
+  if (!go) return;
+  dexGen = l.gen; $('#pickModal').classList.remove('open'); $('[data-tab="dex"]').click(); renderDex();
+  const li = $(`#dex [data-line="${dexKey(d.line)}"]`); if (li) { li.classList.add('new'); li.scrollIntoView({block: 'center', behavior: calm() ? 'auto' : 'smooth'}); }
+}
 
 /* ---------- 설정 ---------- */
 const LIST_KEYS = ['work_apps', 'work_domains', 'distract_apps', 'distract_domains', 'ai_apps', 'ai_domains'];
