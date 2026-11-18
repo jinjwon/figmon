@@ -51,6 +51,25 @@ class UsageTests(unittest.TestCase):
                                                          {"timestamp": stamp(), "payload": {"type": "token_count", "info": None, "rate_limits": None}}])
         self.assertEqual(server.codex_usage(self.tmp / "codex"), (100, [("5시간", 86.0), ("주간", 82.0)]))
 
+    def test_models_in_period(self):
+        use = {"input_tokens": 10, "output_tokens": 5}
+        self.write("claude/projects/p/s.jsonl", [
+            {"timestamp": stamp(), "message": {"id": "a", "model": "claude-opus-5-5", "usage": use}},
+            {"timestamp": stamp(), "message": {"id": "a", "model": "claude-opus-5-5", "usage": use}},   # repeated reply
+            {"timestamp": stamp(), "message": {"id": "b", "model": "claude-haiku-5-5", "usage": use}},
+            {"timestamp": stamp(), "message": {"id": "s", "model": "<synthetic>", "usage": use}},
+            {"timestamp": stamp(-10 * 86400), "message": {"id": "c", "model": "claude-opus-5-5", "usage": use}}])   # outside
+        tok = {"timestamp": stamp(), "payload": {"type": "token_count", "info": {
+            "total_token_usage": {"total_tokens": 1}, "last_token_usage": {"input_tokens": 30, "cached_input_tokens": 10, "output_tokens": 5}}}}
+        self.write("codex/sessions/2026/11/10/r.jsonl", [
+            {"timestamp": stamp(), "type": "session_meta", "payload": {"model_provider": "openai"}},
+            {"timestamp": stamp(), "type": "turn_context", "payload": {"model": "gpt-6-astra"}}, tok])
+        got = server.ai_models(time.time() - 86400, time.time() + 60, self.tmp / "claude", self.tmp / "codex")
+        self.assertEqual(got, [{"tool": "Codex", "model": "gpt-6-astra", "tokens": 25},
+                               {"tool": "Claude", "model": "claude-opus-5-5", "tokens": 15},
+                               {"tool": "Claude", "model": "claude-haiku-5-5", "tokens": 15}])
+        self.assertEqual(server.ai_models(0, 1, self.tmp / "nope", self.tmp / "nope"), [])
+
     def test_missing_tools_and_lines(self):
         self.assertIsNone(server.claude_usage(self.tmp / "nope"))
         self.assertIsNone(server.codex_usage(self.tmp / "nope"))

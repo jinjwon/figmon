@@ -120,6 +120,7 @@ pyw server.py
 | App opens but no pet / developer tools installer appears | Python (Xcode Command Line Tools) missing | Click **Install**, then reopen Figmon |
 | 🪟 "Smart App Control blocked an app that may be unsafe" (publisher can't be verified) | Windows 11 **Smart App Control** blocks apps without a code signature and offers no "Run anyway". Figmon is a non-commercial personal project with no paid code-signing certificate | ① **Run from source**: install Python from [python.org](https://www.python.org/downloads/) and run `pyw server.py` (see [Run from source](#-install)) ② Or turn it **Off** in **Windows Security › App & browser control › Smart App Control settings**. On some Windows versions it can only be turned back on by resetting Windows, so decide carefully |
 | 🪟 The exe disappears or is blocked | Antivirus false positive (e.g. Windows Defender) | Allow it in **Windows Security › Virus & threat protection › Protection history** |
+| 🍎 Pet disappeared after a macOS update | The pet view wasn't redrawn after the update | Menu bar icon › **Quit**, then open Figmon again |
 | 🍎 Auto-update doesn't work | Running from Downloads or similar | When Figmon asks **"Move to Applications?"**, choose **Move and relaunch** |
 | 🪟 Auto-update doesn't work | Folder isn't writable (e.g. Program Files) | Move `Figmon.exe` to the Desktop or Documents |
 
@@ -202,17 +203,8 @@ The pet occasionally reports Claude Code and Codex usage in a bubble, and on the
 
 While you type, the pet reacts with **gestures** instead of words.
 
-| Typing | Pet |
-|---|---|
-| Each keystroke | Taps its front paws as if typing, with a little keycap under it |
-| Enter | A short signature move for that Pokémon (Fire pops, Electric zaps, Ghost fades…) |
-| Fast bursts | Glows in its type color with sparks on both sides |
-| Very fast | Stamps its feet in place |
-| 30+ seconds in the zone | An aura ring spreads underfoot |
-| Every 300 keys | Jumps with a sparkle |
-| Brief typing, then stop | Looks up: "Hm?" |
-| Long typing, then stop | A big stretch |
-| While typing | Stops walking and stays by you |
+- With every key it taps along on a keyboard; Enter triggers a signature move that differs by Pokémon.
+- Fast bursts make it glow in its type color, long focus spreads an aura at its feet, and when you stop it looks up or stretches.
 
 > 🔒 **Figmon never knows which keys you press.** macOS only gives the system's "key press count"; on Windows it only checks "input happened while the mouse stayed still". The one exception is **whether Enter was pressed**. Nothing is saved or sent. No extra permissions needed.
 
@@ -226,16 +218,19 @@ While you type, the pet reacts with **gestures** instead of words.
 
 ### 5. Switch or graduate
 - **🔄 Switch Pokémon** anytime, but the new one starts **from Lv.0**.
-- **🎓 Graduate** a fully grown Pokémon to **register it in the 📕 Pokédex**: its silhouette slot fills with color and gets a "registered" stamp. The Pokédex is a numbered grid with per-generation progress (e.g. Gen 1 8/79). Graduating also counts toward Legendary/Mythical unlocks.
+- **🎓 Graduate** a fully grown Pokémon to **register it in the 📕 Pokédex**: its silhouette slot fills with color and gets a "registered" stamp. Graduating also counts toward Legendary/Mythical unlocks.
+- The Pokédex counts **species** (e.g. 2 / 552 registered). Graduating the same Pokémon again adds **×2** to its slot, and the header shows the total (e.g. **3 graduations**). Click a registered slot to see **when, at what level and in what order** each one graduated.
 
 ### 6. Records (📊 tab)
-- Period: today / yesterday / last 7 days / last 30 days (kept for 60 days)
+- Period: today / yesterday / last 7 days / last 30 days / **📅 pick dates** (start–end, kept for 60 days)
 - Work, distraction and AI time, XP lost, focus ratio, daily bars
 - **💢 Penalty history**: when, where (e.g. youtube.com), how long, and how much XP was lost
+- **🤖 Most-used AI models**: tokens and share per model in Claude Code · Codex for the chosen period (reads only the local log files)
 - Records are stored only on your computer (`~/.figmon/state.json`) and never sent anywhere.
 
 ### 7. Settings (⚙︎)
 - Split into tabs: **🎨 Work / 📺 Distraction / 🐾 Pet / 🧠 AI / ⚙︎ Other** (rules · updates) · move with **← →**
+- **🎨 Theme**: in the 🐾 Pet tab — Auto (follows the system) / ☀️ Light / 🌙 Dark
 - **⚡ Classify recent apps/sites**: one click on **[Work] [Distraction] [AI] [Clear]** next to a recently used app/site
 - **Edit lists**: remove a tag with **×**, type in the field and press **Enter** to add
 - Break ratio, penalty strength, grace period and away detection can only change **within set ranges**. XP per work minute can't be changed (anti-cheat).
@@ -370,13 +365,7 @@ Locked at first. **Raise regular Pokémon to full growth and graduate them** to 
 | 🌟 Mythical | Mew, Celebi, Darkrai… | One more than the Legendary requirement |
 | 👑 Arceus | Arceus only | All 4 parts of the **Trial of the Gods** |
 
-| Example | Unlock |
-|---|---|
-| Articuno | Graduate 1 Gen 1 (incl. 1 Ice) |
-| Mewtwo | Graduate 3 Gen 1 (incl. 1 Psychic) |
-| Lugia | Graduate 3 Gen 2 (incl. 1 Psychic) |
-| Rayquaza | Graduate 3 Gen 3 (incl. 1 Dragon) |
-| Dialga | Graduate 3 Gen 4 (incl. 1 Steel) |
+For example, Articuno opens after graduating 1 Gen 1 Pokémon (incl. 1 Ice), Mewtwo after 3 Gen 1 (incl. 1 Psychic).
 
 Locked cards show progress like "🔒 Gen 1 2/3 · Psychic 1/1". Once unlocked, each lives in its own **sacred place backdrop**.
 
@@ -397,60 +386,13 @@ After that, every **3 hours** of work together unlocks a new type (Plate), openi
 
 ## 🏆 Brag card
 
-<details>
-<summary>Show details</summary>
-
-
-At full growth or Mega Evolution, an **Instagram-story-sized (1080×1920)** card appears. Reopen it from "🏆 Brag card" on Home to save it or copy its text.
-
-**What's on it**
-- The place you raised it (region · sacred place) and your Pokémon
-- **6 stats**: work time · level · days together · focus rate · daily average · graduation number
-- **Badges** (up to 4): 💎 Mega Evolution, ✦ Legendary / ✧ Mythical unlocked, 🎯 Focus master (90%+), 😇 Zero penalties, 💪 4+ hours a day, ☀️ Day / 🌙 Night worker, 🍿 Smart breaks
-- **Evolution path**: each form and its level (Mega form last if Mega Evolved)
-
-**Design by tier**
-
-| Tier | Design |
-|---|---|
-| ★ Final evolution · full growth | Type-colored border and glow |
-| 💎 Mega Evolution | Rainbow border · prism rays · rainbow ring |
-| ✦ Legendary | Double gold border with corner ornaments and a golden halo. The accent is **that Legendary's sacred-place color**, so each one differs (the place name appears too) |
-| ✧ Mythical | Aurora border (pink · purple · sky), floating light bubbles |
-| 👑 Arceus | Golden halo + **18-type ring** (unlocked types glow) |
-
-</details>
+On full growth or Mega Evolution you get an **Instagram-story-sized (1080×1920)** card with your stats, badges and evolution path. Each tier (final form · 💎 Mega · ✦ Legendary · ✧ Mythical · 👑 Arceus) has its own design. Reopen it from "🏆 Brag card" on Home.
 
 ---
 
-## 🗂 Files
+## 🗂 Development
 
-<details>
-<summary>Show details</summary>
-
-
-| File | Platform | Role |
-|---|---|---|
-| `server.py` | Both | Core. Version (`VERSION`), Gen 1 data, growth curves and evolution levels, app/tab detection (macOS: lsappinfo · AppleScript / Windows: Win32 API · window titles), XP · break bank · penalties, notifications, HTTP API, Windows auto-update. Python standard library only |
-| `pokedex.json` | Both | Gen 2–9 evolution lines and Korean names, growth groups and stats, **real evolution conditions**, Mega list (generated from PokeAPI public data) |
-| `tools/build_pokedex.py` | Both | Rebuilds `pokedex.json` (`--evo` for evolution conditions only) |
-| `index.html` | Both | Dashboard: title, Pokémon picker, region/sacred-place backdrops, evolution scenes, records, Pokédex, settings, brag card |
-| `pet.html` | macOS | Desktop pet view: sprite, speech bubbles, reactions, evolution scenes |
-| `Figmon.swift` | macOS | App: runs the server, transparent pet window, menu bar, auto-update, move to Applications, save · share |
-| `build_app.sh` | macOS | Builds `dist/Figmon.app` (universal for macOS 13+, icon, Info.plist, signing, zip) |
-| `start.command` | macOS | Double-click to build if needed and launch |
-| `pet_win.py` | Windows | Pet window (tkinter): transparent, always on top, reactions, evolution scenes, right-click menu, launch at login |
-| `.github/workflows/windows.yml` | Windows | GitHub Actions checks and builds `Figmon.exe` (PyInstaller) and uploads it to releases |
-| `tools/win_smoketest.py` | Windows | Smoke test: detection, classification, notifications, saving, pet view, auto-update |
-| `tests/` | Both | Regression tests for pet movement and new evolution stages (`python3 -m unittest discover -s tests`) |
-| `tools/make_icon.swift` · `assets/` · `docs/banner.svg` | Both | App icon and README banner (original illustrations) |
-| `docs/screenshots/` | Both | README screenshots |
-| `AGENTS.md` | Both | Structure, build and release guide for AI coding tools (Codex, Claude Code…) |
-| `NOTICE.md` · `LICENSE` | Both | Non-commercial fan project notice · MIT license for the code |
-
-For testing, you can fast-forward time: `FIGMON_SPEED=60 python3 server.py` (1 real second = 1 minute)
-
-</details>
+File layout, build and release steps are in [AGENTS.md](AGENTS.md). Tests: `python3 -m unittest discover -s tests`
 
 ---
 
@@ -458,29 +400,9 @@ For testing, you can fast-forward time: `FIGMON_SPEED=60 python3 server.py` (1 r
 
 | Version | Changes |
 |---|---|
-| **v1.29.1** | 🖥️ Windows dual monitors: the pet no longer snaps back to the primary monitor after being moved |
-| **v1.29.0** | 📕 **New Pokédex** — numbered slots, silhouettes until registered, color and a "registered" stamp on graduation · per-generation progress · **registration scene** when graduating |
-| v1.28.2 | 🗂 **Settings split into tabs** (Work / Distraction / Pet / AI / Other), no more long scrolling · ← → keys move between tabs |
-| v1.28.1 | 🔧 Fixed long toasts (e.g. update notices) staying stuck at the top of the dashboard |
-| **v1.28.0** | 🧠 **AI usage reports** (today's Claude Code · Codex tokens and remaining limits, in pet speech bubbles and on Home) · 🕊 **Flying/levitating Pokémon float** · 🧘 **Minimal pet movement** setting · 🔧 Fixed a thrown pet spinning forever, and the pet freezing when the server stopped (macOS, now restarts automatically) |
-| v1.27.2 | 🔧 Fixed a speech bubble appearing and never closing when throwing the pet with bubbles off or in focus mode (macOS · Windows) |
-
-<details>
-<summary>Older versions</summary>
-
-| Version | Changes |
-|---|---|
-| v1.27.1 | ⌨️ Pressing Enter now plays **a signature move per Pokémon** (by type/kind) instead of ↵ |
-| v1.27.0 | 🎯 **Focus mode** (locks settings and pause for 25 minutes; the pet stays quietly nearby with no bubbles) · 💬 **Hide pet speech bubbles** setting · ⌨️ More typing reactions. macOS · Windows |
-| v1.26 | ⌨️ The pet taps along on a keyboard as you type |
-| v1.25.1 | 🍎 **Fixed no distractions being detected on macOS 27.** macOS changed the output format for the frontmost app |
-| v1.25.0 | 🏆 Redesigned brag card: 6 stats, badges, tier designs. Added later-gen evolutions to Gen 1 lines → **Mega Steelix and Mega Scizor** are obtainable |
-| v1.24.0 | ✨ New evolution and Mega Evolution scenes. 🍎 **macOS 13+ and Intel Mac support** (v1.23.0 and earlier were built for macOS 26 only by mistake) |
-| v1.23.0 | 🧬 **Real game evolution levels** per Pokémon (stone/trade/friendship evolutions use a level at a similar point) |
-| v1.22.0 | 🐣 Growth about 3× faster + **real experience curves per growth group**. Mega Evolution Lv.60 → **Lv.45** |
-| v1.20.1 | 🪟 Fixed the Windows pet freezing when made smaller |
-
-</details>
+| **v1.30.0** | 📕 **Pokédex graduation history** (click a slot: when and at what level, plus total graduations) · 📅 **Records by date range** · 🤖 **Most-used AI models** (tokens per model) · 🎨 **Light/Dark theme** · 🔧 Save files edited in Notepad load again, and an unreadable save is kept aside instead of being overwritten |
+| v1.29.1 | 🖥️ Windows dual monitors: the pet no longer jumps back to the main monitor |
+| v1.29.0 | 📕 New Pokédex — numbered slots, silhouettes until registered, a "registered" stamp on graduation |
 
 Your Pokémon keeps **its level and form** across updates. Full history is in [Releases](https://github.com/jinjwon/figmon/releases).
 

@@ -30,8 +30,8 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.29.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "긴 알림이 화면 위에 걸려 남던 문제를 고쳤어요 🔧"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.30.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "도감 졸업 이력 · 기록 날짜 고르기 · AI 모델별 사용량 · 라이트/다크 테마 🎨"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -210,6 +210,7 @@ DEFAULT_CONFIG = {
     # 사용성 / 접근성
     "alert_dialog": True,        # 잔고 없을 때 "작업으로 돌아갈게" 팝업 (끄면 알림만)
     "pet_size": 1.0,             # 데스크톱 펫 크기 배율
+    "theme": "auto",             # 대시보드 테마: auto(시스템 따라감) · light · dark
     "auto_summon": True,
     "pet_still": False,          # 움직임 최소화: 화면을 가로지르지 않고 제자리 근처에만 머묾 (입력할 때 가리지 않게)
     "pet_talk": True,            # 펫 말풍선 (꺼도 경고·페널티 알림은 나옴)         # 한동안 안 하다가 작업 앱을 켜면 펫이 걸어 나옴
@@ -750,7 +751,7 @@ def load_state():
     s = fresh_state()
     if STATE_FILE.exists():
         try:
-            saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            saved = json.loads(STATE_FILE.read_text(encoding="utf-8-sig"))   # 메모장이 붙이는 BOM도 읽음
             s.update(saved)
             s["xp_curve"] = saved.get("xp_curve", 0)   # 예전 저장엔 없음 → 아래에서 변환
             s["evo_v"] = saved.get("evo_v", 0)
@@ -761,7 +762,14 @@ def load_state():
             migrate_xp_curve(s)
             migrate_evo_levels(s)
         except Exception as e:
-            print("상태 파일을 읽지 못해 새로 시작합니다:", e)
+            # 새 상태로 덮어쓰기 전에 원본을 남김 (안 그러면 도감·펫 기록이 통째로 사라짐)
+            bak = STATE_FILE.with_name(f"state.broken-{time.strftime('%Y%m%d-%H%M%S')}.json")
+            try:
+                STATE_FILE.replace(bak)
+            except OSError:
+                pass
+            print("상태 파일을 읽지 못해 새로 시작합니다:", e, "→ 원본 보관:", bak.name)
+            return fresh_state()
     return s
 
 
@@ -1375,6 +1383,63 @@ def codex_usage(home=None):
     return tokens, limits
 
 
+_MODEL_RE = re.compile(r'"model"\s*:\s*"([^"<][^"]*)"')
+
+
+def ai_models(since, until, claude_home=None, codex_home=None):
+    """기록 탭: 기간 [since, until) 동안 모델별 토큰 (많이 쓴 순). 토큰 세는 법은 claude_usage·codex_usage와 같음."""
+    out = {}
+
+    def add(tool, model, n):
+        if n > 0 and model:
+            out[(tool, model)] = out.get((tool, model), 0) + n
+
+    def lines(root):   # 기간 안에 고쳐진 기록 파일의 줄들 (파일마다 새 목록)
+        for f in Path(root).rglob("*.jsonl") if Path(root).is_dir() else ():
+            try:
+                if f.stat().st_mtime < since:
+                    continue
+                with open(f, encoding="utf-8", errors="replace") as fh:
+                    yield list(fh)
+            except OSError:
+                continue
+
+    def row(line):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            return None
+        return d if isinstance(d, dict) and since <= _epoch(d.get("timestamp")) < until else None
+
+    seen = set()
+    for rows in lines(Path(claude_home or Path.home() / ".claude") / "projects"):
+        for line in rows:
+            if '"usage"' not in line or not (d := row(line)):
+                continue
+            m = d.get("message") if isinstance(d.get("message"), dict) else {}
+            u, model = m.get("usage"), m.get("model")
+            if not isinstance(u, dict) or (m.get("id") and m["id"] in seen) or not isinstance(model, str) or model.startswith("<"):
+                continue
+            seen.add(m.get("id"))
+            add("Claude", model, sum(int(u.get(k) or 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens")))
+    for rows in lines(Path(codex_home or os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "sessions"):
+        model, prev = None, None
+        for line in rows:
+            if '"token_count"' not in line:
+                if '"model"' in line and (mm := _MODEL_RE.search(line)):   # 세션 중간에 모델을 바꿀 수 있어 마지막 값을 따름
+                    model = mm.group(1)
+                continue
+            if not (d := row(line)):
+                continue
+            p = d.get("payload") if isinstance(d.get("payload"), dict) else {}
+            info = p.get("info") if isinstance(p.get("info"), dict) else {}
+            total, u = (info.get("total_token_usage") or {}).get("total_tokens"), info.get("last_token_usage") or {}
+            if u and total != prev:
+                add("Codex", model, max(0, int(u.get("input_tokens") or 0) - int(u.get("cached_input_tokens") or 0)) + int(u.get("output_tokens") or 0))
+            prev = total
+    return [{"tool": t, "model": m, "tokens": n} for (t, m), n in sorted(out.items(), key=lambda kv: -kv[1])]
+
+
 def _tok(n):
     return f"{n / 1e8:.1f}억" if n >= 1e8 else f"{n / 1e4:.1f}만" if n >= 1e4 else str(n)
 
@@ -1488,7 +1553,10 @@ def apply_config(body):
             except (TypeError, ValueError):
                 pass
             continue
-        if isinstance(DEFAULT_CONFIG[k], bool):
+        if k == "theme":
+            if v in ("auto", "light", "dark"):
+                cfg[k] = v
+        elif isinstance(DEFAULT_CONFIG[k], bool):
             cfg[k] = bool(v)
         elif isinstance(DEFAULT_CONFIG[k], list):
             cfg[k] = [str(x).strip() for x in v if str(x).strip()]
@@ -1526,6 +1594,13 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 self._send(200, {"today": STATE["today"], "history": STATE.get("history", [])[-HISTORY_DAYS:],
                                  "now": time.time()})
+        elif self.path.startswith("/api/ai_models"):   # 기록 탭: ?from=YYYY-MM-DD&to=YYYY-MM-DD (둘 다 포함)
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            try:
+                a, b = (datetime.strptime(q[k][0], "%Y-%m-%d") for k in ("from", "to"))
+            except (KeyError, ValueError):
+                return self._send(400, {"error": "from·to 날짜가 필요해요"})
+            self._send(200, {"models": ai_models(a.timestamp(), b.timestamp() + 86400)})
         elif self.path == "/api/meta":
             self._send(200, {"lines": LINES, "master_lv": MASTER_LV, "rarity": RARITY,
                              "xp_table": XP_TABLE, "presets": PRESETS, "limits": LIMITS, "growth": {k: n for k, (_, n) in GROWTH.items()},

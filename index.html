@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="auto">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -11,6 +11,12 @@
   --bg:#12141c; --card:#1c1f2c; --card2:#242838; --line:#2f3448; --text:#eef0f7; --mute:#9399b2;
   --good:#5ee08a; --warn:#ffc04d; --bad:#ff5d6c; --accent:#ff6b6b;
   --grass:#78C850; --fire:#F08030; --water:#6890F0; --type:#ff6b6b;
+  color-scheme:dark;
+}
+/* 라이트 테마: 설정에서 고르거나(자동이면) 시스템이 라이트일 때. 강조색은 그대로, 바탕·글자만 바꿈 */
+:root[data-theme="light"]{--bg:#f3f4f9; --card:#ffffff; --card2:#eceef5; --line:#d6d9e6; --text:#1c1f2c; --mute:#5b6178; --good:#1f9d55; --warn:#b7791f; --bad:#d64555; color-scheme:light}
+@media (prefers-color-scheme: light){
+  :root[data-theme="auto"]{--bg:#f3f4f9; --card:#ffffff; --card2:#eceef5; --line:#d6d9e6; --text:#1c1f2c; --mute:#5b6178; --good:#1f9d55; --warn:#b7791f; --bad:#d64555; color-scheme:light}
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;-webkit-font-smoothing:antialiased}
@@ -166,12 +172,17 @@ button.b:disabled{opacity:.35;cursor:default}
 .pdx-grid img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}
 .pdx-grid img.sil{filter:brightness(0);opacity:.22}
 .pdx-grid .nm{display:block;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pdx-grid li.on{background:linear-gradient(#2a2f45,var(--card2));border-color:#e8404f88}
+.pdx-grid li.on{background:linear-gradient(var(--card),var(--card2));border-color:#e8404f88}
 .pdx-grid li.on .nm{color:var(--text)}
 .pdx-grid .stamp{position:absolute;top:3px;right:3px;font-size:9px;color:#ff6b78;border:1.5px solid #ff6b78;border-radius:4px;padding:0 3px;transform:rotate(12deg)}
 .pdx-grid .x{position:absolute;top:3px;left:4px;font-size:10px;color:var(--warn)}
 .pdx-grid li.new{animation:pdxNew 1.6s ease 2}
 @keyframes pdxNew{0%,100%{box-shadow:none}40%{box-shadow:0 0 0 3px #ffc04d,0 0 18px #ffc04d}}
+.pdx-grid li.on{cursor:pointer}
+.pdx-grid li.on:hover,.pdx-grid li.on:focus-visible{border-color:#e8404f;outline:none}
+.pdx-hist{max-height:50vh;overflow:auto;text-align:left}
+.pdx-hist .nm{display:flex;align-items:center;gap:6px}
+.pdx-hist img{width:40px;height:40px;image-rendering:pixelated}
 .pdx-reg{text-align:center}
 .pdx-reg img{width:120px;height:120px;image-rendering:pixelated;animation:pdxPop .6s ease}
 .pdx-reg .no{color:var(--mute);font-size:13px}
@@ -322,6 +333,9 @@ label.f textarea{height:64px;resize:vertical}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .chips button{border:1px solid var(--line);background:var(--card);color:var(--mute);border-radius:99px;padding:7px 14px;font:14px Jua,sans-serif;cursor:pointer}
 .chips button[aria-checked="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.range[hidden]{display:none}
+.range{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px;font-size:13px;color:var(--mute)}
+.range input{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;min-height:40px;font:14px -apple-system,sans-serif}
 .sum4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sum4 .card{margin:0}
 .sum4 .big{font-size:24px}
@@ -478,6 +492,10 @@ label.f textarea{height:64px;resize:vertical}
       <button role="radio" aria-checked="false" data-p="yesterday">어제</button>
       <button role="radio" aria-checked="false" data-p="7">최근 7일</button>
       <button role="radio" aria-checked="false" data-p="30">최근 30일</button>
+      <button role="radio" aria-checked="false" data-p="custom">📅 날짜 고르기</button>
+    </div>
+    <div class="range" id="rangeBox" hidden>
+      <label>시작 <input type="date" id="rFrom"></label><span aria-hidden="true">~</span><label>끝 <input type="date" id="rTo"></label>
     </div>
     <div id="report"></div>
     <div class="card">
@@ -582,6 +600,12 @@ label.f textarea{height:64px;resize:vertical}
         <label for="sizeRange2" class="muted">🐾 펫 크기</label>
         <input type="range" class="size-range" id="sizeRange2" min="0.6" max="1.6" step="0.05" aria-describedby="sizeVal2">
         <output class="size-val" id="sizeVal2">100%</output>
+      </div>
+      <div class="size-ctl" style="margin-top:10px">
+        <span class="muted" id="themeLbl">🎨 화면 테마</span>
+        <div class="chips" role="radiogroup" aria-labelledby="themeLbl" id="themeChips" style="margin:0">
+          <button type="button" role="radio" data-t="auto">자동</button><button type="button" role="radio" data-t="light">☀️ 라이트</button><button type="button" role="radio" data-t="dark">🌙 다크</button>
+        </div>
       </div>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:10px">
         <input type="checkbox" name="alert_dialog" style="width:18px;height:18px"> 휴식 잔고가 없을 때 경고 팝업 띄우기 (끄면 알림만)
@@ -724,7 +748,7 @@ function ask(title, html, {input = null, yes = '확인', no = '취소'} = {}) {
   return new Promise(done => {
     const m = $('#askModal'), inp = $('#askInput');
     $('#askTitle').textContent = title; $('#askMsg').innerHTML = html;
-    $('#askYes').textContent = yes; $('#askNo').textContent = no;
+    $('#askYes').textContent = yes; $('#askNo').textContent = no ?? ''; $('#askNo').hidden = no === null;
     inp.style.display = input === null ? 'none' : ''; inp.value = input ?? '';
     m.classList.add('open'); (input === null ? $('#askYes') : inp).focus();
     const close = v => { m.classList.remove('open'); $('#askYes').onclick = $('#askNo').onclick = inp.onkeydown = null; done(v); };
@@ -1504,7 +1528,7 @@ const EGG_SVG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://w
 function render() {
   const p = S.pet, live = S.live, cfg = S.config;
   if (S.news && !render.news) { render.news = true; toast(`✨ v${S.news.v} 업데이트 · ${S.news.text}`); }
-  document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b');
+  document.documentElement.style.setProperty('--type', p ? TYPE[p.type] : '#ff6b6b'); applyTheme();
   const dp = daypart();
   setScene(p ? p.gen : pickGen, p);
   $('#scene').className = `scene ${live.mode} t-${dp}${sceneInfo.sanct ? (sceneInfo.sanct.myth ? ' myth' : ' legend') : ''}`;
@@ -1632,11 +1656,25 @@ $('#periodChips').onclick = e => {
   const b = e.target.closest('[role=radio]'); if (!b) return;
   period = b.dataset.p;
   document.querySelectorAll('#periodChips [role=radio]').forEach(x => x.setAttribute('aria-checked', x === b));
+  $('#rangeBox').hidden = period !== 'custom';
+  if (period === 'custom') {   // 처음엔 최근 7일
+    if (!$('#rTo').value) { const d = new Date(); $('#rTo').value = ymd(d); d.setDate(d.getDate() - 6); $('#rFrom').value = ymd(d); }
+    $('#rFrom').focus();
+  }
+  renderReport();
+};
+$('#rFrom').onchange = $('#rTo').onchange = e => {   // 시작이 끝보다 늦으면 다른 쪽을 같은 날로 맞춤
+  if ($('#rFrom').value > $('#rTo').value) (e.target.id === 'rFrom' ? $('#rTo') : $('#rFrom')).value = e.target.value;
   renderReport();
 };
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function daysFor(p) {   // 기간에 들어가는 날들 (오늘 포함)
   const all = [...(REPORT.history || []), REPORT.today], byDate = Object.fromEntries(all.map(d => [d.date, d]));
+  if (p === 'custom') {   // 끝 날짜부터 거꾸로 (다른 기간과 같은 순서)
+    const out = [], a = $('#rFrom').value, d = new Date(($('#rTo').value || ymd(new Date())) + 'T00:00');
+    for (let i = 0; i < 400 && ymd(d) >= a; i++, d.setDate(d.getDate() - 1)) out.push(byDate[ymd(d)] || {date: ymd(d)});
+    return out;
+  }
   const n = p === 'today' ? 1 : p === 'yesterday' ? 1 : +p, start = p === 'yesterday' ? 1 : 0, out = [];
   for (let i = start; i < start + n; i++) { const d = new Date(); d.setDate(d.getDate() - i); out.push(byDate[ymd(d)] || {date: ymd(d)}); }
   return out;
@@ -1667,9 +1705,14 @@ function appList(m, kind, color, detail) {
 }
 function renderReport() {
   if (!REPORT) return;
+  const first = REPORT.history?.[0]?.date || REPORT.today.date;   // 고를 수 있는 날: 남은 기록 첫날~오늘
+  for (const el of [$('#rFrom'), $('#rTo')]) { el.min = first; el.max = REPORT.today.date; }
   const days = daysFor(period), m = merge(days), pen = m.distract - m.brk;
   const total = m.work + m.distract + m.ai || 1;
-  const label = {today: '오늘', yesterday: '어제', 7: '최근 7일', 30: '최근 30일'}[period];
+  const span = days.length ? [days[days.length - 1].date, days[0].date] : [REPORT.today.date, REPORT.today.date];
+  const md = t => +t.slice(5, 7) + '/' + +t.slice(8);
+  const label = {today: '오늘', yesterday: '어제', 7: '최근 7일', 30: '최근 30일'}[period] || (span[0] === span[1] ? md(span[0]) : `${md(span[0])}~${md(span[1])}`);
+  const models = aiModels(span);
   const W = '#5ee08a', B = '#ffc04d', P = '#ff5d6c', A = '#9fb0ff';
   // 최근 7일 막대 (오늘 기준)
   const week = daysFor('7').reverse(), wmax = Math.max(60, ...week.map(d => (d.work_sec || 0) + (d.distract_sec || 0)));
@@ -1712,8 +1755,26 @@ function renderReport() {
       ${appList(m, 'work', W) || '<div class="empty">작업 기록이 없어요.</div>'}</div>
     <div class="card"><div class="card-head"><span class="muted">📺 딴짓한 곳</span></div>
       ${appList(m, 'distract', B, v => `휴식 잔고로 ${dur(v.break_sec)} · 페널티 ${dur(v.penalty_sec)}`) || '<div class="empty">딴짓 기록이 없어요 👏</div>'}</div>
-    ${appList(m, 'ai', A) ? `<div class="card"><div class="card-head"><span class="muted">🧠 AI 쓴 곳</span></div>${appList(m, 'ai', A)}</div>` : ''}`;
+    ${appList(m, 'ai', A) ? `<div class="card"><div class="card-head"><span class="muted">🧠 AI 쓴 곳</span></div>${appList(m, 'ai', A)}</div>` : ''}
+    <div class="card"><div class="card-head"><span class="muted">🤖 자주 쓴 AI 모델</span><span class="muted">${models?.length ? `${tokFmt(models.reduce((a, x) => a + x.tokens, 0))} 토큰` : ''}</span></div>
+      ${!models ? '<div class="empty">불러오는 중…</div>' : !models.length ? '<div class="empty">이 기간에 Claude Code·Codex 기록이 없어요.</div>'
+        : `<ul class="rows">${models.slice(0, 8).map(x => `<li style="--c:${A}"><span class="nm">${esc(modelName(x.model))} <span class="muted">${x.tool === 'Codex' ? 'Codex' : 'Claude Code'}</span></span>
+          <span class="tm">${tokFmt(x.tokens)}</span><div class="bar"><div style="width:${x.tokens / models[0].tokens * 100}%"></div></div>
+          <span class="detail">${(q => q < 1 ? '1% 미만' : Math.round(q) + '%')(x.tokens / models.reduce((a, y) => a + y.tokens, 0) * 100)} · 입력+출력 토큰 (캐시 재사용 제외)</span></li>`).join('')}</ul>`}</div>`;
 }
+// 모델별 토큰은 이 컴퓨터의 Claude Code·Codex 기록 파일에서 읽음 (기간마다 1분 캐시)
+let AIM = {};
+function aiModels([a, b]) {
+  const k = a + '_' + b, c = AIM[k];
+  if (!c || (Date.now() - c.t > 60000 && !c.busy)) {
+    AIM[k] = {t: Date.now(), busy: true, models: c?.models};
+    api(`/api/ai_models?from=${a}&to=${b}`).then(r => { AIM[k] = {t: Date.now(), models: r.models}; if (curTab === 'report') renderReport(); })
+      .catch(() => { AIM[k] = {t: Date.now(), models: c?.models || []}; });
+  }
+  return AIM[k].models;
+}
+const tokFmt = n => n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : n >= 1e4 ? `${(n / 1e4).toFixed(1)}만` : String(n);
+const modelName = m => m.replace(/^claude-([a-z]+)-(\d+)-(\d+)(-\d{8})?$/, (_, n, a, b) => `Claude ${n[0].toUpperCase() + n.slice(1)} ${a}.${b}`);
 
 /* ---------- 이브이: 시간대 게이지와 진화형 고르기 ---------- */
 // 갈래 진화 예측: 조건별 점수와 지금 기우는 쪽
@@ -1982,7 +2043,7 @@ function renderDex() {
   const all = Object.entries(META.lines).filter(([, l]) => !l.hidden).sort((a, b) => a[1].stages[0][0] - b[1].stages[0][0]);
   const done = all.filter(([k]) => reg[k]).length;
   if (dexGen === null) dexGen = S.dex.length ? META.lines[S.dex[S.dex.length - 1].line]?.gen || 1 : (S.pet ? S.pet.gen : 1);
-  $('#dexCount').textContent = `등록 ${done} / ${all.length}`;
+  $('#dexCount').textContent = `등록 ${done} / ${all.length}${S.dex.length > done ? ` · 졸업 ${S.dex.length}번` : ''}`;
   $('#dexBar').style.width = `${done / all.length * 100}%`;
   setHTML('#dexGens', [1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => {
     const gl = all.filter(([, l]) => l.gen === g);
@@ -1993,9 +2054,19 @@ function renderDex() {
     if (!got) return `<li aria-label="${no} 미등록"><span class="no">${no}</span><img class="sil" src="${PIX(l.stages[l.stages.length - 1][0])}" loading="lazy" alt=""><span class="nm">???</span></li>`;
     const d = got[got.length - 1], nm = d.nickname || d.species[1];
     const tip = `${no} ${nm} · Lv.${d.level} · ${new Date(d.finished * 1000).toLocaleDateString('ko')} 등록${got.length > 1 ? ` · ${got.length}번 졸업` : ''}`;
-    return `<li class="on" data-line="${k}" title="${esc(tip)}" aria-label="${esc(tip)}"><span class="no">${no}</span>${pixTag(d.species[0])}<span class="nm">${esc(nm)}</span>${got.length > 1 ? `<span class="x">×${got.length}</span>` : ''}<span class="stamp" aria-hidden="true">등록</span></li>`;
+    return `<li class="on" data-line="${k}" role="button" tabindex="0" title="${esc(tip)}" aria-label="${esc(tip)} · 눌러서 졸업 기록 보기"><span class="no">${no}</span>${pixTag(d.species[0])}<span class="nm">${esc(nm)}</span>${got.length > 1 ? `<span class="x">×${got.length}</span>` : ''}<span class="stamp" aria-hidden="true">등록</span></li>`;
   }).join(''));
 }
+// 등록된 칸: 그 계열을 언제, 몇 번, 어떤 모습으로 졸업시켰는지
+function showDexHistory(k) {
+  const got = S.dex.filter(d => dexKey(d.line) === k), l = META.lines[k];
+  if (!got.length || !l) return;
+  ask(`${dexNo(l.stages[0][0])} ${l.stages[l.stages.length - 1][1]} · ${got.length}번 졸업`, `<ul class="rows pdx-hist">${got.map((d, i) => `<li>
+    <span class="nm">${pixTag(d.species[0])}${i + 1}번째 · ${esc(d.nickname || d.species[1])}</span><span class="tm">Lv.${d.level}</span>
+    <span class="detail">${new Date(d.finished * 1000).toLocaleDateString('ko')} 졸업 · 함께 작업 ${dur(d.work_sec || 0)}</span></li>`).reverse().join('')}</ul>`, {yes: '닫기', no: null}).then(() => $(`#dex [data-line="${k}"]`)?.focus());
+}
+$('#dex').onclick = e => { const li = e.target.closest('li[data-line]'); if (li) showDexHistory(li.dataset.line); };
+$('#dex').onkeydown = e => { const li = e.target.closest('li[data-line]'); if (li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showDexHistory(li.dataset.line); } };
 $('#dexGens').onclick = e => { const g = e.target.closest('[data-g]'); if (g) { dexGen = +g.dataset.g; renderDex(); } };
 $('#dexGens').onkeydown = e => {
   if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -2137,6 +2208,17 @@ function renderUpdate() {
   } else banner.hidden = true;
 }
 $('#setCancel').onclick = () => $('#setModal').classList.remove('open');
+// 테마는 고르는 즉시 바뀌고 저장됨 (설정 저장 버튼과 상관없이)
+function applyTheme() {
+  const t = S?.config?.theme || 'auto';
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('#themeChips [data-t]').forEach(b => b.setAttribute('aria-checked', b.dataset.t === t));
+}
+$('#themeChips').onclick = async e => {
+  const b = e.target.closest('[data-t]'); if (!b) return;
+  S.config.theme = b.dataset.t; applyTheme();
+  try { await api('/api/config', {theme: b.dataset.t}); } catch { toast('테마를 저장하지 못했어요'); }
+};
 $('#setForm').onsubmit = async e => {
   e.preventDefault(); const f = e.target, body = {};
   for (const el of f.elements) if (el.name) body[el.name] = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? +el.value : LIST_KEYS.includes(el.name) ? el.value.split(',').map(s => s.trim()).filter(Boolean) : +el.value;
