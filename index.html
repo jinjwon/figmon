@@ -2035,14 +2035,32 @@ $('#gradBtn').onclick = async () => {
 // 계열 하나 = 도감 한 칸 (번호는 첫 모습의 전국도감 번호). 졸업한 계열만 색이 들어가요.
 let dexGen = null;
 const dexNo = n => 'No.' + String(n).padStart(3, '0');
-// 옛 저장용 숨은 계열(예: 133-water)은 기본 계열(133) 칸에 함께 등록
-const dexKey = k => META.lines[k]?.hidden ? k.split('-')[0] : k;
+// 갈래 진화(이브이·우파 등)는 포켓몬 GO처럼 진화형마다 따로 한 칸: 키는 '계열:최종 모습 번호'
+const GEN_END = [151, 251, 386, 493, 649, 721, 809, 905];
+const genOf = n => GEN_END.filter(e => n > e).length + 1;
+function dexCells() {
+  const out = [];
+  for (const [k, l] of Object.entries(META.lines)) {
+    if (l.hidden) continue;
+    const ends = l.branches ? l.branches.map(b => [b.id, b.name]) : l.fork ? l.fork.options.map(o => o.stages[o.stages.length - 1]) : null;
+    if (!ends) out.push({k, gen: l.gen, no: l.stages[0][0], last: l.stages[l.stages.length - 1]});
+    else for (const e of ends) out.push({k: `${k}:${e[0]}`, gen: genOf(e[0]), no: e[0], last: e});
+  }
+  return out.sort((a, b) => a.no - b.no);
+}
+// 옛 저장용 숨은 계열(예: 133-water)은 기본 계열(133)로 보고, 졸업 때 모습으로 칸을 찾음
+function dexKey(d) {
+  const k = META.lines[d.line]?.hidden ? d.line.split('-')[0] : d.line, l = META.lines[k];
+  if (!l?.branches && !l?.fork) return k;
+  const o = l.fork?.options[d.fork_choice];
+  return `${k}:${o ? o.final : d.branch || d.species[0]}`;
+}
 function renderDex() {
   if (!META || !S) return;
-  const reg = {}; for (const d of S.dex) (reg[dexKey(d.line)] = reg[dexKey(d.line)] || []).push(d);
-  const all = Object.entries(META.lines).filter(([, l]) => !l.hidden).sort((a, b) => a[1].stages[0][0] - b[1].stages[0][0]);
+  const reg = {}; for (const d of S.dex) (reg[dexKey(d)] = reg[dexKey(d)] || []).push(d);
+  const all = dexCells().map(c => [c.k, c]);
   const done = all.filter(([k]) => reg[k]).length;
-  if (dexGen === null) dexGen = S.dex.length ? META.lines[S.dex[S.dex.length - 1].line]?.gen || 1 : (S.pet ? S.pet.gen : 1);
+  if (dexGen === null) dexGen = S.dex.length ? all.find(([k]) => k === dexKey(S.dex[S.dex.length - 1]))?.[1].gen || 1 : (S.pet ? S.pet.gen : 1);
   $('#dexCount').textContent = `등록 ${done} / ${all.length}${S.dex.length > done ? ` · 졸업 ${S.dex.length}번` : ''}`;
   $('#dexBar').style.width = `${done / all.length * 100}%`;
   setHTML('#dexGens', [1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => {
@@ -2050,8 +2068,8 @@ function renderDex() {
     return `<button type="button" role="tab" data-g="${g}" class="${g === dexGen ? 'on' : ''}" aria-selected="${g === dexGen}">${g}세대 ${gl.filter(([k]) => reg[k]).length}/${gl.length}</button>`;
   }).join(''));
   setHTML('#dex', all.filter(([, l]) => l.gen === dexGen).map(([k, l]) => {
-    const no = dexNo(l.stages[0][0]), got = reg[k];
-    if (!got) return `<li aria-label="${no} 미등록"><span class="no">${no}</span><img class="sil" src="${PIX(l.stages[l.stages.length - 1][0])}" loading="lazy" alt=""><span class="nm">???</span></li>`;
+    const no = dexNo(l.no), got = reg[k];
+    if (!got) return `<li aria-label="${no} 미등록"><span class="no">${no}</span><img class="sil" src="${PIX(l.last[0])}" loading="lazy" alt=""><span class="nm">???</span></li>`;
     const d = got[got.length - 1], nm = d.nickname || d.species[1];
     const tip = `${no} ${nm} · Lv.${d.level} · ${new Date(d.finished * 1000).toLocaleDateString('ko')} 등록${got.length > 1 ? ` · ${got.length}번 졸업` : ''}`;
     return `<li class="on" data-line="${k}" role="button" tabindex="0" title="${esc(tip)}" aria-label="${esc(tip)} · 눌러서 졸업 기록 보기"><span class="no">${no}</span>${pixTag(d.species[0])}<span class="nm">${esc(nm)}</span>${got.length > 1 ? `<span class="x">×${got.length}</span>` : ''}<span class="stamp" aria-hidden="true">등록</span></li>`;
@@ -2059,9 +2077,9 @@ function renderDex() {
 }
 // 등록된 칸: 그 계열을 언제, 몇 번, 어떤 모습으로 졸업시켰는지
 function showDexHistory(k) {
-  const got = S.dex.filter(d => dexKey(d.line) === k), l = META.lines[k];
-  if (!got.length || !l) return;
-  ask(`${dexNo(l.stages[0][0])} ${l.stages[l.stages.length - 1][1]} · ${got.length}번 졸업`, `<ul class="rows pdx-hist">${got.map((d, i) => `<li>
+  const got = S.dex.filter(d => dexKey(d) === k), c = dexCells().find(c => c.k === k);
+  if (!got.length || !c) return;
+  ask(`${dexNo(c.no)} ${c.last[1]} · ${got.length}번 졸업`, `<ul class="rows pdx-hist">${got.map((d, i) => `<li>
     <span class="nm">${pixTag(d.species[0])}${i + 1}번째 · ${esc(d.nickname || d.species[1])}</span><span class="tm">Lv.${d.level}</span>
     <span class="detail">${new Date(d.finished * 1000).toLocaleDateString('ko')} 졸업 · 함께 작업 ${dur(d.work_sec || 0)}</span></li>`).reverse().join('')}</ul>`, {yes: '닫기', no: null}).then(() => $(`#dex [data-line="${k}"]`)?.focus());
 }
@@ -2074,11 +2092,11 @@ $('#dexGens').onkeydown = e => {
 };
 // 졸업 직후: 실루엣 → 색이 들어오며 '도감 등록' 도장 → 도감 탭에서 그 칸이 반짝
 async function showDexRegistered(d) {
-  const l = META.lines[d.line], no = dexNo(l.stages[0][0]);
+  const k = dexKey(d), l = dexCells().find(c => c.k === k) || {gen: 1, no: d.species[0]}, no = dexNo(l.no);
   const go = await ask('도감 등록 완료!', `<div class="pdx-reg">${pixTag(d.species[0])}<div class="no">${no}</div><b>${esc(d.nickname || d.species[1])}</b> · Lv.${d.level}<br><span class="stampbig">도감 등록</span></div>`, {yes: '도감 보기', no: '닫기'});
   if (!go) return;
   dexGen = l.gen; $('#pickModal').classList.remove('open'); $('[data-tab="dex"]').click(); renderDex();
-  const li = $(`#dex [data-line="${dexKey(d.line)}"]`); if (li) { li.classList.add('new'); li.scrollIntoView({block: 'center', behavior: calm() ? 'auto' : 'smooth'}); }
+  const li = $(`#dex [data-line="${k}"]`); if (li) { li.classList.add('new'); li.scrollIntoView({block: 'center', behavior: calm() ? 'auto' : 'smooth'}); }
 }
 
 /* ---------- 설정 ---------- */
