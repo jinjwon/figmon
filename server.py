@@ -30,7 +30,7 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.30.2"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+VERSION = "1.30.3"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
 WHATS_NEW = "도감 졸업 이력 · 기록 날짜 고르기 · AI 모델별 사용량 · 라이트/다크 테마 🎨"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]

@@ -476,7 +476,7 @@ class Pet:
         self.cv.create_text(cx, by - r, text="?", font=("Malgun Gothic", int(16 * self.dpi), "bold"), fill="#a9a39a", tags="ball")
 
     def animate(self):
-        if self.cur and not self.fx:
+        if self.cur and not self.fx and not self.hidden:
             seq = self.cur["R" if self.facing > 0 else "L"]
             self.frame_i = (self.frame_i + 1) % len(seq)
             self.cv.itemconfigure(self.img_item, image=seq[self.frame_i])
@@ -900,12 +900,18 @@ class Pet:
 
     # ----- 이동 (60fps) -----
     def place(self):
-        self.root.geometry(f"{self.W}x{self.H}+{int(self.x)}+{int(self.y)}")
+        g = f"{self.W}x{self.H}+{int(self.x)}+{int(self.y)}"
+        if g != getattr(self, "_geo", None):   # 가만히 있을 땐 창을 다시 놓지 않음 (CPU 아끼기)
+            self._geo = g
+            self.root.geometry(g)
 
     def tick(self):
         now = time.time()
         dt = min(now - self.last, 0.1)
         self.last = now
+        if self.hidden:   # 숨어 있을 땐 계산·그리기를 쉬고 가끔만 깨어남
+            self.root.after(250, self.tick)
+            return
         if now - self.area_at > 3:
             self.area, self.area_at, self.calm = work_area(self.root), now, not animations_on()
         l, _, r, b = self.area
@@ -1115,7 +1121,10 @@ class Pet:
                 dx = math.sin(t * 12) * 1.5
         if self.falling and self.thrown and now < self.spin_until and not self.calm:
             self.facing = 1 if int(t * 10) % 2 else -1
-        self.cv.coords(self.img_item, self.W / 2 + dx, self.H - 6 + dy)
+        xy = (self.W / 2 + dx, self.H - 6 + dy)
+        if xy != getattr(self, "_xy", None):   # 같은 자리면 캔버스를 다시 그리지 않음
+            self._xy = xy
+            self.cv.coords(self.img_item, *xy)
         if self.fx:
             self.run_fx(now)
         for item, born, delay in list(getattr(self, "ring_fx", [])):   # 펑 하고 퍼지는 링
