@@ -126,7 +126,11 @@ final class Dashboard: NSObject, NSWindowDelegate, WKScriptMessageHandler, WKUID
         web = v
     }
 
-    func windowWillClose(_ n: Notification) { NSApp.setActivationPolicy(.accessory) }
+    // 닫으면 웹뷰를 버려서 메모리·CPU를 돌려줌 (다시 열 때 새로 만듦). 닫는 중에 놓지 않도록 한 박자 뒤에
+    func windowWillClose(_ n: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        DispatchQueue.main.async { self.web?.removeFromSuperview(); self.web = nil; self.window = nil }
+    }
 
     // window.open(...) → 기본 브라우저
     func webView(_ w: WKWebView, createWebViewWith c: WKWebViewConfiguration, for a: WKNavigationAction,
@@ -467,7 +471,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             think(now: now, mouse: mouse, vf: vf, dt: dt)
             x = min(max(x, vf.minX - petRect.minX), vf.maxX - petRect.maxX)
         }
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
+        if panel.frame.origin != NSPoint(x: x, y: y) { panel.setFrameOrigin(NSPoint(x: x, y: y)) }   // 가만히 있을 땐 창 서버를 건드리지 않음
 
         // 펫 몸 위에서만 마우스를 받고, 나머지 투명한 부분은 클릭이 뒤로 통과
         let hit = NSRect(x: x + petRect.minX, y: y + petRect.minY, width: petRect.width, height: petRect.height)
