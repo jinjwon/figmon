@@ -6,6 +6,7 @@
 <title>Figmon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css" rel="stylesheet"><!-- 자랑 카드용 도트 글꼴 (OFL) -->
 <style>
 :root{
   --bg:#12141c; --card:#1c1f2c; --card2:#242838; --line:#2f3448; --text:#eef0f7; --mute:#9399b2;
@@ -39,7 +40,8 @@ header h1 span{color:var(--type)}
 .scene{position:relative;height:280px;border-radius:20px;overflow:hidden;--sky1:#8fd3ff;--sky2:#e3f6ff;--ground:#6cbf5a;
   background:linear-gradient(var(--sky1),var(--sky2) 72%)}
 .region{position:absolute;inset:0}
-.region svg{width:100%;height:100%;display:block}
+/* 배경은 스프라이트와 같은 2px 도트로 그린 캔버스 (sceneLoop) */
+.region canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
 /* 시간대: 아침·점심·저녁·새벽 (지방 배경 위, 펫 아래) */
 .daylayer{position:absolute;inset:0;pointer-events:none;transition:background 2s,opacity 2s}
 .daylayer svg{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 2s}
@@ -57,25 +59,6 @@ header h1 span{color:var(--type)}
 .scene.idle .tint{background:rgba(8,12,40,.62)}
 .scene.ai .tint{background:rgba(110,100,255,.22)}
 .scene.paused .tint{background:rgba(60,64,84,.45)}
-.region .wave{animation:bg-wave 6s linear infinite}
-.region .fall{animation:bg-fall var(--d,20s) linear infinite}
-.region .rise{animation:bg-rise var(--d,20s) linear infinite}
-.region .float{animation:bg-float var(--d,10s) ease-in-out infinite}
-.region .bob{animation:bg-bob var(--d,6s) ease-in-out infinite}
-.region .sway{animation:bg-sway var(--d,8s) ease-in-out infinite alternate}
-.region .spin,.region .tumble{transform-box:fill-box;transform-origin:center;animation:bg-spin var(--d,40s) linear infinite}
-.region .tumble{animation-duration:3s}
-.region .pulse{animation:bg-pulse 4s ease-in-out infinite}
-.region .flash{animation:bg-flash 6s linear infinite}
-@keyframes bg-wave{to{transform:translateX(40px)}}
-@keyframes bg-fall{from{transform:translate(calc(var(--dx) * -1),-300px)}to{transform:translate(var(--dx),300px)}}
-@keyframes bg-rise{0%{transform:translate(0,120px);opacity:0}20%,80%{opacity:1}100%{transform:translate(var(--dx),-120px);opacity:0}}
-@keyframes bg-float{50%{transform:translate(6px,-8px)}}
-@keyframes bg-bob{50%{transform:translateY(-5px)}}
-@keyframes bg-sway{to{transform:translateX(16px)}}
-@keyframes bg-spin{to{transform:rotate(360deg)}}
-@keyframes bg-pulse{50%{opacity:.45}}
-@keyframes bg-flash{0%,88%,93%,100%{opacity:0}89%,91%{opacity:.9}90%,92%{opacity:.25}}
 /* 전설은 금빛 테두리, 환상은 무지갯빛으로 도는 테두리 */
 .scene.legend{box-shadow:0 0 22px rgba(240,200,90,.35)}
 .scene.myth{box-shadow:0 0 22px rgba(255,150,230,.35)}
@@ -83,8 +66,6 @@ header h1 span{color:var(--type)}
 .scene.myth:after{box-shadow:inset 0 0 0 2px #ff9fe0,inset 0 0 34px rgba(255,160,230,.3);animation:bg-hue 8s linear infinite}
 @keyframes bg-hue{to{filter:hue-rotate(360deg)}}
 .region-tag{position:absolute;left:12px;bottom:10px;padding:4px 10px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;font:12px Jua,sans-serif;backdrop-filter:blur(4px)}
-.cloud{animation:drift 60s linear infinite}
-@keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
 .walker{position:absolute;left:50%;bottom:58px;transition:transform 3.4s cubic-bezier(.45,.05,.4,1);transform:translateX(-50%)}
 .mon-box{display:flex;align-items:flex-end;justify-content:center;height:170px;transform-origin:50% 100%;cursor:pointer}
 .mon{image-rendering:pixelated;transform:scale(2);transform-origin:50% 100%;max-height:85px}
@@ -302,8 +283,8 @@ label.f textarea{height:64px;resize:vertical}
   background:linear-gradient(to top,#fff,var(--c) 30%,transparent);filter:drop-shadow(0 0 6px var(--c));opacity:0;
   animation:beam 1.6s ease-out forwards;animation-delay:var(--d)}
 @keyframes beam{0%{opacity:0;transform:rotate(var(--r)) scaleY(0)}25%{opacity:1;transform:rotate(var(--r)) scaleY(1)}100%{opacity:0;transform:rotate(calc(var(--r) * .2)) scaleY(1.1)}}
-.star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;animation:twinkle var(--t) ease-in-out infinite alternate;opacity:.2}
-@keyframes twinkle{to{opacity:1;transform:scale(1.8)}}
+.star{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;animation:star-tw var(--t) ease-in-out infinite alternate;opacity:.2}
+@keyframes star-tw{to{opacity:1;transform:scale(1.8)}}
 .mega-orb{position:absolute;left:50%;top:50%;width:270px;height:270px;margin:-135px;border-radius:50%;opacity:0;transform:scale(.3);
   background:radial-gradient(circle,#fff 0 30%,#ffffffcc 42%,#e9ddff66 58%,transparent 70%);transition:opacity .5s,transform .7s cubic-bezier(.3,1.4,.5,1)}
 .mega-orb:before,.mega-orb:after{content:"";position:absolute;inset:6%;border-radius:50%;
@@ -320,6 +301,8 @@ label.f textarea{height:64px;resize:vertical}
 .evo-overlay p{font:22px Jua,sans-serif;margin-top:44px;text-shadow:0 2px 6px #000;text-align:center;padding:0 20px;min-height:1.4em;position:relative}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(calc(-100% - 20px));background:var(--text);color:var(--bg);padding:10px 16px;border-radius:99px;font:16px Jua,sans-serif;transition:transform .35s;z-index:40}
 .toast.show{transform:translateX(-50%) translateY(0)}
+.toast:not(.show) .toast-act{visibility:hidden}
+.toast-act{margin-left:8px;padding:4px 10px;border:0;border-radius:99px;background:var(--type,#ffd84d);color:#111;font:14px Jua,sans-serif;cursor:pointer}
 .update-banner{background:#3a2a14;color:#ffd38a;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
 .update-banner[hidden]{display:none}
 .update-banner .b{flex:none;padding:7px 10px;font-size:13px}
@@ -466,9 +449,9 @@ label.f textarea{height:64px;resize:vertical}
   </div>
 
   <div class="card" id="masterCard" hidden>
-    <div class="muted">🏆 완전 성장했어요!</div>
+    <div class="muted" id="masterMsg">📸 지금 모습을 인스타 스토리 카드로 만들어요</div>
     <div class="btns">
-      <button class="b primary" id="shareBtn">🏆 자랑 카드</button>
+      <button class="b primary" id="shareBtn">📸 스토리 카드</button>
       <button class="b" id="gradBtn">🎓 졸업시키기</button>
     </div>
   </div>
@@ -644,7 +627,7 @@ label.f textarea{height:64px;resize:vertical}
 
 <!-- 공유 -->
 <div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-label="자랑 카드"><div class="sheet">
-  <h2>완전 성장! 자랑해볼까?</h2>
+  <h2 id="shareTitle">완전 성장! 자랑해볼까?</h2>
   <img class="share-img" id="shareImg" alt="인스타 스토리 크기 자랑 카드">
   <p class="share-hint">인스타 스토리 크기(1080×1920)예요. 저장해서 스토리에 바로 올려보세요</p>
   <div class="btns">
@@ -719,9 +702,11 @@ const clock = s => { s = Math.floor(s); return `${Math.floor(s/60)}:${String(s%6
 const clockTo = t => new Date(t * 1000).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'});
 const hhmm = t => new Date(t*1000).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
 
-function toast(msg) {
+// act = [버튼 글자, 누르면 할 일] → 알림 옆에 버튼 (8초 동안)
+function toast(msg, act) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+  if (act) { const b = document.createElement('button'); b.className = 'toast-act'; b.textContent = act[0]; b.onclick = () => { t.classList.remove('show'); act[1](); }; t.append(' ', b); }
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), act ? 8000 : 2600);
 }
 
 /* ---------- 모달 공통: 열면 첫 버튼에 포커스, Esc로 닫기, 닫으면 원래 자리로 포커스 복귀 ---------- */
@@ -1021,7 +1006,7 @@ const SANCT_THEMES = {
     if (o.tower) S.add(S.flip(`<g transform="translate(380 0)"><path d="M-22 214 L-14 30 H14 L22 214Z" fill="#20263e"/>${[60, 100, 140, 180].map(y => `<rect x="-18" y="${y}" width="36" height="4" fill="${o.a}" opacity=".5"/>`).join('')}<path d="M-14 30 L0 6 L14 30Z" fill="#20263e"/><circle cy="20" r="18" fill="${S.glow(o.a, .7)}" class="pulse"/></g>`));
     S.add(cloud(60, 34, 1.8, '#2a3048'), cloud(220, 22, 2.2, '#323a58'), cloud(400, 40, 1.9, '#2a3048'));
     BGP.bolt(S, f0(S.rr(60, 160)), o.a); BGP.bolt(S, f0(S.rr(300, 420)), o.a);
-    if (o.wind) S.add(`<g stroke="${o.a}" stroke-width="2" fill="none" opacity=".55" stroke-linecap="round">${[60, 110, 150].map((y, i) => `<path class="wave" style="animation-duration:${4 + i}s" d="M-40 ${y} q40 -16 80 0 t80 0 q20 -20 0 -24 q-16 0 -8 12"/>`).join('')}</g>`);
+    if (o.wind) S.add(`<g stroke="${o.a}" stroke-width="2" fill="none" opacity=".55" stroke-linecap="round">${[60, 110, 150].map((y, i) => `<path class="sway" style="--d:${4 + i}s" d="M-40 ${y} q40 -16 80 0 t80 0 q20 -20 0 -24 q-16 0 -8 12"/>`).join('')}</g>`);
     BGP.ground(S, '#3a4a4a', '#1c2424', {y: 212, tuft: '#26302e'});
     if (o.grass) S.add(`<g fill="#2a3a30">${Array.from({length: 40}, () => { const x = f0(S.r() < .5 ? S.rr(-10, 150) : S.rr(310, 470)), h = f0(S.rr(30, 70)); return `<path class="sway" style="--d:${(3 + S.r() * 3).toFixed(1)}s" d="M${x} 280 Q${x - 4} ${280 - h / 2} ${x + 6} ${280 - h} Q${x + 2} ${280 - h / 2} ${x + 5} 280Z"/>`; }).join('')}</g>`);
     S.add(`<rect width="460" height="280" fill="${o.a}" opacity="0" class="flash"/>`);
@@ -1111,7 +1096,7 @@ const SANCT_THEMES = {
     if (o.night) { BGP.stars(S, 50, 130); BGP.moon(S, 380, 50, 16); } else BGP.sun(S, 380, 52, 14, '#fffbe6', '#fff0c0');
     S.add(cloud(100, 52, 1, o.night ? '#4a5a8a' : '#fff', .8), cloud(260, 34, .8, o.night ? '#4a5a8a' : '#fff', .8));
     BGP.water(S, 150, 70, o.w1 || '#2a8ac8', o.w2 || '#0e4a7a', '#cfefff');
-    if (o.whirl) S.add(`<g transform="translate(${f0(S.rr(100, 360))} 172) scale(1 .22)"><g class="spin" style="--d:16s" fill="none" stroke="#e0f6ff" stroke-width="3" opacity=".7">${[70, 54, 38, 22].map((r, i) => `<path d="M${r} 0 A${r} ${r} 0 1 1 ${-r * .8} ${-r * .6}" stroke-opacity="${.9 - i * .15}"/>`).join('')}</g></g>`);
+    if (o.whirl) S.add(`<g transform="translate(${f0(S.rr(100, 360))} 172) scale(1 .22)"><g class="spin" style="--d:16s" fill="none" stroke="#e0f6ff" stroke-width="3" opacity=".7"><circle r="70" stroke="none"/>${[70, 54, 38, 22].map((r, i) => `<path d="M${r} 0 A${r} ${r} 0 1 1 ${-r * .8} ${-r * .6}" stroke-opacity="${.9 - i * .15}"/>`).join('')}</g></g>`);
     if (o.isle) S.add(S.flip(`<g transform="translate(360 168)"><path d="M-70 4 Q-40 -30 0 -34 Q40 -30 70 4Z" fill="#3f8a4a"/><path d="M-70 4 H70" stroke="#e8d8a0" stroke-width="5"/>${tree(-30, -18, .8, '#2f7a3a')}${tree(10, -26, 1, '#3f8a45')}${tree(42, -14, .7, '#2f7a3a')}</g>`));
     if (o.rocks) S.add(S.flip(`<g fill="#3a4a5a"><path d="M330 172 L350 120 L372 132 L392 104 L420 172Z"/><path d="M60 170 L74 140 L90 150 L104 170Z"/></g>`));
     BGP.ground(S, o.g1 || '#d8c89a', o.g2 || '#a89a6a', {y: 216});
@@ -1346,6 +1331,18 @@ function sanctumOf(p) {
   for (const id of ids) if (SANCTA[id]) return {id, place: SANCTA[id][0], theme: SANCTA[id][1], o: SANCTA[id][2], myth: p.rarity === 'mythical'};
   return {id: ids[0] || 0, place: '전설의 성지', theme: TYPE_SANCT[p.type] || 'cosmos', o: {a: TYPE[p.type] || '#ffd84d'}, myth: p.rarity === 'mythical'};
 }
+// 장면 애니메이션은 SVG 안에 넣음: 모두 멈춘 채 --t초 시점의 모습을 그려서 캔버스로 옮김 (sceneLoop·공유 카드)
+const SCENE_CSS = `*{animation-play-state:paused!important;animation-delay:calc(var(--dl,0s) - var(--t,8s))!important}
+.wave{animation:wave 6s linear infinite}.fall{animation:fall var(--d,20s) linear infinite}.rise{animation:rise var(--d,20s) linear infinite}
+.float{animation:float var(--d,10s) ease-in-out infinite}.bob{animation:bob var(--d,6s) ease-in-out infinite}.sway{animation:sway var(--d,8s) ease-in-out infinite alternate}
+.spin,.tumble{transform-box:fill-box;transform-origin:center;animation:spin var(--d,40s) linear infinite}.tumble{animation-duration:3s}
+.pulse{animation:pulse 4s ease-in-out infinite}.flash{animation:flash 6s linear infinite}.twinkle{animation:twinkle 3s ease-in-out infinite}
+.cloud{animation:drift 60s ease-in-out infinite alternate}
+@keyframes wave{to{transform:translateX(40px)}}@keyframes fall{from{transform:translate(calc(var(--dx) * -1),-300px)}to{transform:translate(var(--dx),300px)}}
+@keyframes rise{0%{transform:translate(0,120px);opacity:0}20%,80%{opacity:1}100%{transform:translate(var(--dx),-120px);opacity:0}}
+@keyframes float{50%{transform:translate(6px,-8px)}}@keyframes bob{50%{transform:translateY(-5px)}}@keyframes sway{to{transform:translateX(16px)}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{opacity:.45}}@keyframes twinkle{50%{opacity:.3}}
+@keyframes flash{0%,88%,93%,100%{opacity:0}89%,91%{opacity:.9}90%,92%{opacity:.25}}@keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}`;
 // 장면 키: 'g3'(3세대 지방) 또는 'L249'(루기아 성지) → 완성된 SVG 문자열
 const sceneCache = {};
 function sceneSVG(key, sanct) {
@@ -1353,7 +1350,33 @@ function sceneSVG(key, sanct) {
   const S = sceneCanvas(sanct ? sanct.id : +key.slice(1) * 131, key);   // 그라디언트 id에 키를 붙여 다른 장면과 안 겹치게
   if (sanct) { SANCT_THEMES[sanct.theme](S, sanct.o); BGP.aura(S, sanct.o.a, sanct.myth); }
   else REGIONS[+key.slice(1)].draw(S);
-  return sceneCache[key] = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice"><defs>${S.defs}</defs>${S.out}</svg>`;
+  return sceneCache[key] = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 280" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges"><style>${SCENE_CSS}</style><defs>${S.defs}</defs>${S.out.replace(/animation-delay:/g, '--dl:')}</svg>`;
+}
+// 그 순간(t초)의 장면을 w×h 도트로: 그린 뒤 4×4 바이어 디더로 색 단계를 줄여 그라디언트도 도트 느낌으로
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+async function drawScene(g, svg, t, w, h) {
+  const url = URL.createObjectURL(new Blob([svg.replace('<svg ', `<svg width="${w}" height="${h}" style="--t:${t.toFixed(2)}s" `)], {type: 'image/svg+xml'}));
+  try {
+    const img = await loadImg(url);
+    g.clearRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  } finally { URL.revokeObjectURL(url); }
+  const im = g.getImageData(0, 0, w, h), d = im.data, q = 20;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4, b = (BAYER[(y & 3) * 4 + (x & 3)] / 16 - .47) * q * .6;   // 단색 면은 덜 자글거리게 0.6배
+    d[i] = Math.round((d[i] + b) / q) * q; d[i + 1] = Math.round((d[i + 1] + b) / q) * q; d[i + 2] = Math.round((d[i + 2] + b) / q) * q;
+  }
+  g.putImageData(im, 0, 0);
+}
+// 대시보드 배경: 스프라이트(2배 확대)와 같은 2px 도트, 초당 10장. 창이 가려졌거나 홈 탭이 아니면 쉼. 움직임 줄이기면 한 장만
+const SCENE_PX = 2;
+async function sceneLoop() {
+  const sc = $('#scene'), cv = $('#region canvas');
+  if (cv && sceneKey && !document.hidden && sc.offsetParent && (!calm() || cv.dataset.key !== sceneKey)) {
+    const w = Math.max(1, Math.round(sc.clientWidth / SCENE_PX)), h = Math.max(1, Math.round(sc.clientHeight / SCENE_PX));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    try { await drawScene(cv.getContext('2d', {willReadFrequently: true}), sceneSVG(sceneKey, sceneInfo.sanct), performance.now() / 1000, w, h); cv.dataset.key = sceneKey; } catch {}
+  }
+  setTimeout(sceneLoop, 100);
 }
 const DAYPARTS = {
   morning: {name: '아침', icon: '🌅', lines: ['좋은 아침! ☀️ 오늘도 같이 크자', '아침 공기 좋다~ 시작해볼까?']},
@@ -1373,7 +1396,7 @@ function setScene(gen, p) {
   if (key === sceneKey) return;
   sceneKey = key; sceneInfo = {gen, sanct};
   const sc = $('#scene');
-  $('#region').innerHTML = sceneSVG(key, sanct);
+  if (!$('#region canvas')) $('#region').innerHTML = '<canvas></canvas>';
   sc.classList.toggle('legend', !!sanct && !sanct.myth); sc.classList.toggle('myth', !!sanct && sanct.myth);
   updateTag();
   sc.setAttribute('aria-label', sanct ? `${sanct.place}에서 ${sanct.myth ? '환상' : '전설'}의 포켓몬이 노는 화면` : `${REGIONS[gen].name} 지방 배경에서 포켓몬이 노는 화면`);
@@ -1553,7 +1576,7 @@ function render() {
       const megaNow = p.mega_info && p.mega_info.active && !(prev.mega_info && prev.mega_info.active);
       if (megaNow) evolveFx(ART(prev.species[0]), p.species[0], `${prev.species[1]} → ${p.species[1]} 메가진화! 💎`, () => setTimeout(openShare, 600), true);   // 메가진화 → 메가 자랑 카드
       else { toast(`✨ ${p.species[1]}`); floatText('✨', '#ffe066'); }
-    } else if (p.level > prev.level) { toast(`⬆️ Lv.${p.level} 달성!`); floatText(`Lv.${p.level}!`, '#ffe066'); }
+    } else if (p.level > prev.level) { toast(`⬆️ Lv.${p.level} 달성!`, ['📸 스토리 카드', openShare]); floatText(`Lv.${p.level}!`, '#ffe066'); }
     if (prev.level < p.master_lv && p.mastered) setTimeout(openShare, 6500);   // 완전 성장 → 자랑 카드
     else if (p.level < prev.level) toast(`⬇️ Lv.${p.level}로 떨어졌어…`);
     if (prev.xp - p.xp > 0.05) floatText(`-${(prev.xp - p.xp).toFixed(1)} XP`, '#ff6b7a');
@@ -1613,7 +1636,9 @@ function render() {
     : `💢 페널티: ${pens[pens.length - 1].label} ${dur(pens[pens.length - 1].sec)} (-${pens[pens.length - 1].xp.toFixed(0)} XP)${pens.length > 1 ? ` 외 ${pens.length - 1}건` : ''}`;
   $('#tTotal').textContent = dur(S.total_work_sec);
   $('#tGrad').textContent = `${S.dex.length}마리`;
-  $('#masterCard').hidden = !(p && p.mastered);
+  $('#masterCard').hidden = !(p && p.species);
+  $('#gradBtn').hidden = !(p && p.mastered);
+  $('#masterMsg').textContent = p && p.mastered ? '🏆 완전 성장했어요! 자랑하고 졸업시켜 보세요' : '📸 지금 모습을 인스타 스토리 카드로 만들어요';
 
   setHTML('#events', S.events.map(e => `<li><span>${ICON[e.kind] || '•'}</span><span>${e.msg}</span><time>${hhmm(e.t)}</time></li>`).join('') || '<li class="muted">아직 기록이 없어요</li>');
   renderDex();
@@ -2246,18 +2271,17 @@ $('#setForm').onsubmit = async e => {
 /* ---------- 공유 카드 ---------- */
 let cardBlob, shareText;
 const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
-// 인스타 스토리 규격 1080×1920. 위·아래 250px쯤은 스토리 화면의 프로필·답장 칸에 가려서 중요한 글자는 그 사이에 둠
-// 등급마다 디자인이 다름: 최종 진화(타입 색) · 💎 메가진화(무지개 프리즘) · ✦ 전설(금테 + 그 전설만의 색) · ✧ 환상(오로라) · 👑 아르세우스(18타입 후광)
 const RAINBOW_C = ['#ff5d8f', '#ffb84d', '#ffe94d', '#5dff9c', '#4dd2ff', '#8a6bff'];
 function cardTier(p) {
   const sanct = sanctumOf(p), mega = !!(p.mega_info && p.mega_info.active);
-  const kind = p.line === '493' ? 'arceus' : mega ? 'mega' : p.rarity === 'mythical' ? 'myth' : p.rarity ? 'legend' : 'final';
+  const kind = mega ? 'mega' : !p.mastered ? 'level' : p.line === '493' ? 'arceus' : p.rarity === 'mythical' ? 'myth' : p.rarity ? 'legend' : 'final';
   const acc = sanct && sanct.o && sanct.o.a || TYPE[p.type] || '#ffd84d';   // 전설·환상은 성지의 색 (포켓몬마다 다름)
   return {kind, mega, sanct, acc,
-    badge: {arceus: '👑 창조의 신 · 신의 시련 달성', mega: '💎 메가진화 달성', myth: '✧ 환상의 포켓몬 완전 성장',
+    badge: {level: `⬆️ Lv.${p.level} 달성`, arceus: '👑 창조의 신 · 신의 시련 달성', mega: '💎 메가진화 달성', myth: '✧ 환상의 포켓몬 완전 성장',
             legend: '✦ 전설의 포켓몬 완전 성장', final: p.stages.length > 1 ? '★ 최종 진화 · 완전 성장' : '★ 완전 성장 달성'}[kind],
-    head: {arceus: '모든 타입의 신과 함께', mega: '한계를 넘은 모습!', myth: '꿈에서만 보던 포켓몬', legend: `${sanct ? sanct.place : '성지'}의 주인`, final: '완전 성장!'}[kind]};
+    head: {level: 'LEVEL UP!', arceus: 'ARCEUS!', mega: 'MEGA EVOLUTION!', myth: 'MYTHICAL!', legend: 'LEGENDARY!', final: 'COMPLETE!'}[kind]};
 }
+const josa = (w, a, b) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 ? a : b; };
 function cardFeats(p, t) {
   const st = p.stats || {}, w = st.work || 0, d = st.distract || 0, days = (st.days || []).length || 1;
   const focus = w + d > 0 ? w / (w + d) : 1, dayShare = w ? (st.day || 0) / w : .5, pen = st.pen || 0;
@@ -2272,123 +2296,127 @@ function cardFeats(p, t) {
   if ((st.brk || 0) > 0 && pen < 5) feats.push('🍿 휴식도 알뜰히');
   return {feats: feats.slice(0, 4), focus, avg: w / days, days, pen};
 }
+// 인스타 스토리 1080×1920. 게임 화면처럼: 위는 8px 도트 풍경 + 도트 포켓몬, 아래는 레트로 대화창에 기록.
+// 위·아래 250px쯤은 스토리의 프로필·답장 칸에 가리므로 중요한 글자는 그 사이에 둠. 글꼴은 도트 글꼴 갈무리(11의 배수 크기에서 또렷함)
 async function makeCard() {
-  const p = S.pet, t = cardTier(p), col = TYPE[p.type], W = 1080, H = 1920;
+  const p = S.pet, t = cardTier(p), col = TYPE[p.type] || '#ffd84d', W = 1080, H = 1920, CX = W / 2, U = 8;
+  const GOLD = '#f2c75c', INK = '#1b1828', PANEL = '#15131f', PX = 'Galmuri11, Jua, sans-serif';
+  const acc = {level: col, final: '#ffd84d', mega: '#c9a8ff', legend: t.acc, myth: '#ff9fe0', arceus: GOLD}[t.kind];
   await document.fonts.ready;
+  try { await Promise.all([document.fonts.load(`44px Galmuri11`), document.fonts.load(`bold 44px Galmuri11`)]); } catch {}
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
-  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
-  const rainbow = (x0, y0, x1, y1, a = 1) => { const gr = g.createLinearGradient(x0, y0, x1, y1);
+  g.imageSmoothingEnabled = false; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  const rainbow = (x0, x1, a = 1) => { const gr = g.createLinearGradient(x0, 0, x1, 0);
     RAINBOW_C.forEach((cc, i) => gr.addColorStop(i / (RAINBOW_C.length - 1), cc + (a < 1 ? Math.round(a * 255).toString(16).padStart(2, '0') : ''))); return gr; };
-  const GOLD = '#f2c75c', bottom = {mega: '#5a2a8a', myth: '#7a3a8a', arceus: '#6a5420'}[t.kind] || (t.kind === 'legend' ? t.acc : col);
-  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#12141c'); bg.addColorStop(.55, '#12141c'); bg.addColorStop(1, bottom);
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  try {   // 위쪽은 키운 곳(지방·성지) 풍경, 아래로 갈수록 어둡게
-    const svg = sceneSVG(t.sanct ? 'L' + t.sanct.id : 'g' + p.gen, t.sanct);
-    const scn = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
-    g.drawImage(scn, -518, 0, 2116, 1288);
+  // 모서리를 한 칸씩 깎은 도트 상자 (테두리 u)
+  const pbox = (x, y, w, h, fill, line, u = U) => {
+    if (line) { g.fillStyle = line; g.fillRect(x + u, y, w - 2 * u, h); g.fillRect(x, y + u, w, h - 2 * u); }
+    const k = line ? u : 0; g.fillStyle = fill; g.fillRect(x + u + k, y + k, w - 2 * u - 2 * k, h - 2 * k); g.fillRect(x + k, y + u + k, w - 2 * k, h - 2 * u - 2 * k);
+  };
+  // 그림자가 딱 떨어지는 도트 글자
+  const ptext = (s, x, y, size, fill, sh = INK, bold = false, max) => {
+    g.font = `${bold ? 'bold ' : ''}${size}px ${PX}`; const o = Math.max(4, Math.round(size / 11 / 2) * 2);
+    g.fillStyle = sh; g.fillText(s, x + o, y + o, max); g.fillStyle = fill; g.fillText(s, x, y, max);
+  };
+
+  // 1) 바탕 + 키운 곳 풍경 (135×144 도트를 8배로)
+  g.fillStyle = PANEL; g.fillRect(0, 0, W, H);
+  try {
+    const sc = document.createElement('canvas'); sc.width = 135; sc.height = 144;
+    await drawScene(sc.getContext('2d', {willReadFrequently: true}), sceneSVG(t.sanct ? 'L' + t.sanct.id : 'g' + p.gen, t.sanct), 9, 135, 144);
+    g.drawImage(sc, 0, 0, 135 * U, 144 * U);
   } catch {}
-  let f = g.createLinearGradient(0, 0, 0, H);
-  f.addColorStop(0, 'rgba(10,12,20,.7)'); f.addColorStop(.12, 'rgba(10,12,20,0)'); f.addColorStop(.45, 'rgba(10,12,20,0)');
-  f.addColorStop(.6, 'rgba(14,16,26,1)'); f.addColorStop(1, 'rgba(14,16,26,.6)');
-  g.fillStyle = f; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 20; i++) { g.fillStyle = `rgba(21,19,31,${Math.min(1, (i + 1) / 18)})`; g.fillRect(0, 880 + i * 16, W, 16); }   // 아래로 계단식으로 어두워짐
+  for (let i = 0; i < 12; i++) { g.fillStyle = `rgba(21,19,31,${.55 - i * .045})`; g.fillRect(0, i * 32, W, 32); }                     // 로고 읽히게 위쪽도 살짝
 
-  // 등급별 배경 효과 (주인공 뒤)
-  const CX = W / 2, CY = 690;
-  if (t.kind === 'mega') {   // 무지개 프리즘 빛살
-    g.save(); g.translate(CX, CY); g.globalAlpha = .22;
-    for (let i = 0; i < 24; i++) { g.rotate(Math.PI * 2 / 24); g.fillStyle = RAINBOW_C[i % 6]; g.beginPath(); g.moveTo(0, 0); g.lineTo(-40, -760); g.lineTo(40, -760); g.closePath(); g.fill(); }
-    g.restore();
-  } else if (t.kind === 'legend' || t.kind === 'arceus') {   // 금빛 후광 빛살
-    g.save(); g.translate(CX, CY); g.globalAlpha = .16; g.fillStyle = t.kind === 'arceus' ? GOLD : t.acc;
-    for (let i = 0; i < 16; i++) { g.rotate(Math.PI * 2 / 16); g.beginPath(); g.moveTo(0, 0); g.lineTo(-26, -700); g.lineTo(26, -700); g.closePath(); g.fill(); }
-    g.restore();
-  } else if (t.kind === 'myth') {   // 떠다니는 빛방울
-    for (let i = 0; i < 26; i++) { const x = 80 + ((i * 397) % 920), y = 360 + ((i * 211) % 640), r = 6 + (i % 5) * 5;
-      const gg = g.createRadialGradient(x, y, 0, x, y, r * 3); gg.addColorStop(0, i % 2 ? '#ffb3ecdd' : '#a8e6ffdd'); gg.addColorStop(1, '#ffffff00');
-      g.fillStyle = gg; g.beginPath(); g.arc(x, y, r * 3, 0, 7); g.fill(); }
-  }
-  const glowC = t.kind === 'mega' ? '#c9a8ff' : t.kind === 'arceus' ? GOLD : t.kind === 'final' ? col : t.acc;
-  const glow = g.createRadialGradient(CX, CY, 40, CX, CY, 400); glow.addColorStop(0, glowC + 'aa'); glow.addColorStop(1, glowC + '00');
-  g.fillStyle = glow; g.fillRect(0, 280, W, 860);
-  if (t.kind === 'arceus') {   // 아르세우스: 18타입 후광 고리 (연 타입만 빛남)
+  // 2) 등급별 빛 (주인공 뒤)
+  const CY = 640;
+  g.save(); g.translate(CX, CY);
+  if (t.kind === 'mega') { g.globalAlpha = .2; for (let i = 0; i < 24; i++) { g.rotate(Math.PI / 12); g.fillStyle = RAINBOW_C[i % 6]; g.fillRect(-24, -760, 48, 760); } }
+  else if (t.kind !== 'myth') { g.globalAlpha = t.kind === 'level' ? .12 : .17; g.fillStyle = acc; for (let i = 0; i < 16; i++) { g.rotate(Math.PI / 8); g.fillRect(-16, -720, 32, 720); } }
+  g.restore();
+  if (t.kind === 'myth') for (let i = 0; i < 26; i++) { const x = 80 + ((i * 397) % 920), y = 300 + ((i * 211) % 560), s = U * (1 + i % 3); g.fillStyle = i % 2 ? '#ffb3ecaa' : '#a8e6ffaa'; g.fillRect(x - s / 2, y - s / 2, s, s); }
+  if (t.kind === 'arceus') {   // 18타입 후광 고리 (연 타입만 빛남)
     const forms = (p.arceus && p.arceus.forms) || [];
-    g.lineWidth = 10; g.strokeStyle = GOLD + 'cc'; g.beginPath(); g.arc(CX, CY, 360, 0, 7); g.stroke();
-    forms.forEach((fm, i) => { const a = -Math.PI / 2 + i / forms.length * Math.PI * 2, x = CX + Math.cos(a) * 360, y = CY + Math.sin(a) * 360;
-      g.fillStyle = fm.open ? (TYPE[fm.type] || '#ccc') : 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(x, y, 20, 0, 7); g.fill();
-      g.lineWidth = 4; g.strokeStyle = fm.open ? '#fff' : 'rgba(255,255,255,.25)'; g.stroke(); });
+    forms.forEach((fm, i) => { const a = -Math.PI / 2 + i / forms.length * Math.PI * 2, x = Math.round(CX + Math.cos(a) * 330), y = Math.round(CY + Math.sin(a) * 330);
+      pbox(x - 20, y - 20, 40, 40, fm.open ? (TYPE[fm.type] || '#ccc') : 'rgba(255,255,255,.15)', fm.open ? '#fff' : null, 4); });
   }
-  if (t.kind === 'mega') { g.lineWidth = 8; g.strokeStyle = rainbow(CX - 350, 0, CX + 350, 0, .85); g.beginPath(); g.arc(CX, CY, 350, 0, 7); g.stroke(); }
-  g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(CX, 1000, 220, 30, 0, 0, 7); g.fill();
-  try { const art = await loadImg(ART(p.species[0])); g.drawImage(art, CX - 330, CY - 330, 660, 660); } catch {}
+  // 발밑 도트 그림자 + 포켓몬 (원래 도트 스프라이트를 6배, 없으면 공식 그림)
+  g.fillStyle = 'rgba(0,0,0,.35)'; [[200, 0], [168, -U], [168, U], [112, -2 * U]].forEach(([w, dy]) => g.fillRect(CX - w, 884 + dy, w * 2, U));
+  try { const s = await loadImg(PIX(p.species[0])); g.drawImage(s, CX - 288, 900 - 576 + 6 * 8, 576, 576); }
+  catch { try { const a = await loadImg(ART(p.species[0])); g.imageSmoothingEnabled = true; g.drawImage(a, CX - 260, 380, 520, 520); g.imageSmoothingEnabled = false; } catch {} }
 
-  // 테두리: 등급마다 다름
-  g.lineWidth = 10;
-  g.strokeStyle = t.kind === 'mega' ? rainbow(0, 0, W, H) : t.kind === 'myth' ? (() => { const a = g.createLinearGradient(0, 0, W, H); a.addColorStop(0, '#ff9ee8'); a.addColorStop(.5, '#a98bff'); a.addColorStop(1, '#7fe3ff'); return a; })()
-    : t.kind === 'final' ? col + 'cc' : GOLD;
-  rr(28, 28, W - 56, H - 56, 48); g.stroke();
-  if (t.kind === 'legend' || t.kind === 'arceus') {   // 금테 안쪽 한 줄 더 + 모서리 장식
-    g.lineWidth = 3; g.strokeStyle = (t.kind === 'legend' ? t.acc : GOLD) + 'aa'; rr(48, 48, W - 96, H - 96, 34); g.stroke();
-    g.fillStyle = GOLD; [[60, 60], [W - 60, 60], [60, H - 60], [W - 60, H - 60]].forEach(([x, y]) => { g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.fillRect(-12, -12, 24, 24); g.restore(); });
-  }
+  // 3) 위: 로고 + 등급 배지
+  g.font = `bold 55px ${PX}`; const lw = g.measureText('FIGMON').width, mw = g.measureText('MON').width;
+  g.textAlign = 'left'; ptext('FIG', CX - lw / 2, 300, 55, '#fff', INK, true); ptext('MON', CX + lw / 2 - mw, 300, 55, '#ffd84d', INK, true); g.textAlign = 'center';
+  g.font = `33px ${PX}`; const bw = Math.ceil((g.measureText(t.badge).width + 64) / U) * U;
+  pbox(CX - bw / 2, 330, bw, 64, t.kind === 'mega' ? '#efe6ff' : '#fffaf0', INK);
+  if (t.kind === 'mega') { g.fillStyle = rainbow(CX - bw / 2, CX + bw / 2, .55); g.fillRect(CX - bw / 2 + 16, 338, bw - 32, 48); }
+  g.fillStyle = INK; g.fillText(t.badge, CX, 374);
 
-  // 로고 + 배지
-  g.textBaseline = 'alphabetic';
-  g.font = '64px Jua'; const lw = g.measureText('FIGMON').width, mw = g.measureText('MON').width;
-  g.textAlign = 'left'; g.fillStyle = '#fff'; g.fillText('FIG', CX - lw / 2, 300); g.fillStyle = '#ffd84d'; g.fillText('MON', CX + lw / 2 - mw, 300);
-  g.textAlign = 'center';
-  g.font = '34px Jua'; const bw = g.measureText(t.badge).width + 64;
-  rr(CX - bw / 2, 324, bw, 62, 31);
-  g.fillStyle = t.kind === 'mega' ? rainbow(CX - bw / 2, 0, CX + bw / 2, 0) : t.kind === 'myth' ? 'rgba(255,160,235,.92)' : t.kind === 'final' ? 'rgba(255,255,255,.92)' : 'rgba(242,199,92,.95)';
-  g.fill(); g.fillStyle = '#1a1420'; g.fillText(t.badge, CX, 367);
+  // 4) 큰 제목 (테두리 + 딱 떨어지는 그림자)
+  const hs = t.head.length > 11 ? 88 : 121;
+  g.font = `bold ${hs}px ${PX}`; g.lineJoin = 'miter'; g.lineWidth = 16; g.strokeStyle = INK;
+  g.strokeText(t.head, CX, 1040, 980); g.fillStyle = INK; g.fillText(t.head, CX + 10, 1050, 980);
+  g.fillStyle = t.kind === 'mega' ? rainbow(CX - 440, CX + 440) : t.kind === 'level' ? '#fff' : acc; g.fillText(t.head, CX, 1040, 980);
+  ptext(`${p.name} · Lv.${p.level}`, CX, 1112, 44, t.kind === 'level' ? acc : '#fff', INK, false, 960);
 
-  // 이름
-  g.font = '36px Jua'; g.fillStyle = t.kind === 'mega' ? '#d9c8ff' : t.kind === 'final' ? '#ffd84d' : t.kind === 'myth' ? '#ffc2f0' : GOLD;
-  g.shadowColor = 'rgba(0,0,0,.75)'; g.shadowBlur = 14;   // 밝은 배경(메가 빛살 등) 위에서도 읽히게
-  g.fillText(t.head, CX, 1062);
-  g.font = '100px Jua'; g.fillStyle = '#fff'; g.fillText(p.name, CX, 1160, 900);
-  g.shadowBlur = 0; g.shadowColor = 'transparent';
-
-  // 달성 기록 6칸
-  const fe = cardFeats(p, t), lvTitle = p.mega_info && p.mega_info.active ? 'MEGA' : `Lv.${p.level}`;
-  rr(70, 1192, 940, 268, 40); g.fillStyle = 'rgba(255,255,255,.07)'; g.fill(); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2; g.stroke();
-  const stats = [[dur(p.work_sec), '작업한 시간'], [lvTitle === 'MEGA' ? `Lv.${p.level}` : lvTitle, '레벨'], [`${fe.days}일`, '함께 일한 날'],
-                 [`${Math.round(fe.focus * 100)}%`, '집중률'], [dur(fe.avg * 60), '하루 평균'], [`${(S.dex || []).length + 1}번째`, '졸업']];
-  stats.forEach(([v, l], i) => {
-    const col3 = i % 3, row = Math.floor(i / 3), x = 70 + 940 / 6 * (col3 * 2 + 1), y = 1272 + row * 128;
-    g.font = (v.length > 7 ? 42 : 52) + 'px Jua'; g.fillStyle = '#fff'; g.fillText(v, x, y);
-    g.font = '26px Jua'; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(l, x, y + 38);
-    if (col3) { g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(70 + 940 / 3 * col3 - 1, y - 52, 2, 98); }
+  // 5) 포켓몬 게임 같은 대화창: 한 줄 메시지 + 기록 3칸 + 경험치 막대
+  const fe = cardFeats(p, t), nm = p.name;
+  const msg = {level: `${nm}${josa(nm, '은', '는')} 레벨 ${p.level} 달성!`, final: `${nm}${josa(nm, '은', '는')} 완전히 성장했다!`,
+    mega: `${nm}${josa(nm, '은', '는')} 메가진화했다!`, legend: `${t.sanct ? t.sanct.place : '성지'}의 주인과 함께 해냈다!`,
+    myth: `꿈에서만 보던 ${nm}${josa(nm, '과', '와')} 함께!`, arceus: `창조의 신 ${nm}${josa(nm, '과', '와')} 함께!`}[t.kind];
+  const bx = 64, by = 1152, bW = 952, bH = 312;
+  pbox(bx, by, bW, bH, '#fffaf0', INK); g.fillStyle = acc; g.fillRect(bx + 16, by + 16, bW - 32, U);   // 위쪽 색 띠
+  g.font = `44px ${PX}`; g.fillStyle = INK; g.fillText(msg, CX, by + 92, bW - 80);
+  [[dur(p.work_sec), '작업 시간'], [`${Math.round(fe.focus * 100)}%`, '집중률'], [`${fe.days}일`, '함께한 날']].forEach(([v, l], i) => {
+    const x = bx + bW / 6 * (i * 2 + 1);
+    g.font = `bold ${v.length > 5 ? 44 : 55}px ${PX}`; g.fillStyle = INK; g.fillText(v, x, by + 178);
+    g.font = `22px ${PX}`; g.fillStyle = '#6b6680'; g.fillText(l, x, by + 210);
+    if (i) { g.fillStyle = '#e2dccd'; g.fillRect(bx + bW / 3 * i - 2, by + 128, 4, 92); }
   });
-  g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(110, 1326, 860, 2);
-  // 달성 뱃지
-  g.font = '28px Jua'; const pad = 28, gapC = 14, ws = fe.feats.map(x => g.measureText(x).width + pad * 2);
-  let x = CX - (ws.reduce((a, b) => a + b, 0) + gapC * (ws.length - 1)) / 2;
-  fe.feats.forEach((txt, i) => { rr(x, 1480, ws[i], 54, 27);
-    g.fillStyle = txt.startsWith('💎') ? rainbow(x, 0, x + ws[i], 0, .9) : txt.startsWith('✦') || txt.startsWith('🌈') ? 'rgba(242,199,92,.9)' : 'rgba(255,255,255,.14)'; g.fill();
-    g.fillStyle = txt.startsWith('💎') || txt.startsWith('✦') || txt.startsWith('🌈') ? '#1a1420' : '#fff'; g.fillText(txt, x + ws[i] / 2, 1517); x += ws[i] + gapC; });
+  const xpw = 600, xpx = CX - xpw / 2, xpy = by + 240, prog = p.mastered ? 1 : Math.max(0, Math.min(1, p.lv_progress || 0));
+  g.font = `bold 33px ${PX}`; g.textAlign = 'right'; g.fillStyle = INK; g.fillText('EXP', xpx - 16, xpy + 30); g.textAlign = 'left';
+  pbox(xpx, xpy, xpw, 40, '#3a3550', INK, 4);
+  g.fillStyle = t.kind === 'mega' ? rainbow(xpx, xpx + xpw) : acc; g.fillRect(xpx + 8, xpy + 8, Math.floor((xpw - 16) * prog / U) * U, 24);
+  g.font = `22px ${PX}`; g.fillStyle = '#6b6680'; g.fillText(p.mastered ? 'MAX' : `${Math.round(prog * 100)}%`, xpx + xpw + 16, xpy + 30); g.textAlign = 'center';
+  g.fillStyle = INK; g.beginPath(); g.moveTo(bx + bW - 64, by + bH - 48); g.lineTo(bx + bW - 32, by + bH - 48); g.lineTo(bx + bW - 48, by + bH - 30); g.fill();   // ▼ 다음 표시
 
-  // 진화 과정 (진화 레벨과 함께, 메가진화면 마지막에 메가 모습)
+  // 6) 달성 뱃지
+  g.font = `33px ${PX}`; const ws = fe.feats.map(x => Math.ceil((g.measureText(x).width + 48) / U) * U), gp = 16;
+  while (ws.reduce((a, b) => a + b + gp, -gp) > 952) { ws.pop(); fe.feats.pop(); }   // 한 줄에 들어가는 만큼만
+  let x = CX - (ws.reduce((a, b) => a + b, 0) + gp * (ws.length - 1)) / 2;
+  fe.feats.forEach((txt, i) => { const hi = /^(💎|✦|🌈|✧)/.test(txt);
+    pbox(x, 1496, ws[i], 64, hi ? (txt.startsWith('💎') ? '#d9c8ff' : '#f2c75c') : '#2a2640', hi ? INK : '#4a4566');
+    g.fillStyle = hi ? INK : '#fff'; g.fillText(txt, x + ws[i] / 2, 1540); x += ws[i] + gp; });
+
+  // 7) 진화 과정 (도트 스프라이트, 지금 모습은 테두리)
   const track = p.stages.map((s, i) => [s[0], `Lv.${(p.evo_levels || [])[i] ?? 0}`]);
   if (t.mega) track.push([p.species[0], `Lv.${p.mega_info.lv}`]);
-  const n = track.length, sw = n > 3 ? 100 : 116, gap = n > 3 ? 58 : 72, x0 = CX - (n * sw + (n - 1) * gap) / 2;
+  const n = track.length, sw = 96, gap = n > 3 ? 48 : 72, x0 = CX - (n * sw + (n - 1) * gap) / 2;
   for (let i = 0; i < n; i++) {
-    const xi = x0 + i * (sw + gap), last = i === n - 1;
-    if (last) { g.fillStyle = t.mega ? rainbow(xi, 0, xi + sw, 0, .35) : 'rgba(255,255,255,.1)'; g.beginPath(); g.arc(xi + sw / 2, 1612, sw / 2 + 8, 0, 7); g.fill(); }
-    try { const s = await loadImg(ART(track[i][0])); g.drawImage(s, xi, 1554, sw, sw); } catch {}
-    g.font = '24px Jua'; g.fillStyle = last ? '#fff' : 'rgba(255,255,255,.55)'; g.fillText(track[i][1], xi + sw / 2, 1694);
-    if (i < n - 1) { g.font = '44px Jua'; g.fillStyle = t.mega && i === n - 2 ? '#d9c8ff' : 'rgba(255,255,255,.45)'; g.fillText(t.mega && i === n - 2 ? '»' : '›', xi + sw + gap / 2, 1626); }
+    const xi = x0 + i * (sw + gap), now = track[i][0] === p.species[0];
+    if (now) pbox(xi - 8, 1588, sw + 16, sw + 16, 'rgba(255,255,255,.08)', acc, 4);
+    try { const s = await loadImg(PIX(track[i][0])); g.drawImage(s, xi, 1596, sw, sw); } catch {}
+    g.font = `22px ${PX}`; g.fillStyle = now ? '#fff' : 'rgba(255,255,255,.5)'; g.fillText(track[i][1], xi + sw / 2, 1736);
+    if (i < n - 1) { g.font = `bold 33px ${PX}`; g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText('▶', xi + sw + gap / 2, 1656); }
   }
-  g.font = '30px Jua'; g.fillStyle = 'rgba(255,255,255,.8)';
-  g.fillText(`${t.sanct ? t.sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬`, CX, 1752);
-  g.font = '26px Jua'; g.fillStyle = 'rgba(255,255,255,.5)';
-  g.fillText('작업한 만큼 자라는 포켓몬 · #Figmon', CX, 1796);
+  g.font = `22px ${PX}`; g.fillStyle = 'rgba(255,255,255,.6)';
+  g.fillText(`${t.sanct ? t.sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬 · 작업한 만큼 자라요 · #Figmon`, CX, 1800, 960);
+
+  // 8) 도트 테두리: 등급마다 색이 다름
+  const fr = t.kind === 'mega' ? rainbow(0, W) : t.kind === 'myth' ? (() => { const a = g.createLinearGradient(0, 0, W, 0); a.addColorStop(0, '#ff9ee8'); a.addColorStop(.5, '#a98bff'); a.addColorStop(1, '#7fe3ff'); return a; })() : t.kind === 'level' ? acc : GOLD;
+  g.fillStyle = fr;
+  [[24, 32, U * 2, H - 64], [W - 40, 32, U * 2, H - 64], [32, 24, W - 64, U * 2], [32, H - 40, W - 64, U * 2]].forEach(r => g.fillRect(...r));
+  if (t.kind === 'legend' || t.kind === 'arceus' || t.kind === 'final') [[40, 40], [W - 56, 40], [40, H - 56], [W - 56, H - 56]].forEach(([x, y]) => { g.fillStyle = INK; g.fillRect(x, y, 16, 16); g.fillStyle = GOLD; g.fillRect(x + 4, y + 4, 8, 8); });
   return c;
 }
 async function openShare() {
-  if (!S.pet || !S.pet.mastered) return;
+  if (!S.pet || !S.pet.species) return;
   const c = await makeCard();
   const tt = cardTier(S.pet), fe = cardFeats(S.pet, tt);
-  shareText = `${dur(S.pet.work_sec)} 작업으로 ${S.pet.species[1]} ${tt.mega ? '메가진화' : '완전 성장'} (Lv.${S.pet.level}, 집중률 ${Math.round(fe.focus * 100)}%)! ${tt.badge.split(' ')[0]} ${fe.feats.join(' ')} #Figmon`;
+  shareText = `${dur(S.pet.work_sec)} 작업으로 ${S.pet.species[1]} ${tt.kind === 'level' ? `Lv.${S.pet.level} 달성` : tt.mega ? '메가진화' : '완전 성장'} (집중률 ${Math.round(fe.focus * 100)}%)! ${fe.feats.join(' ')} #Figmon`;
+  $('#shareTitle').textContent = tt.kind === 'level' ? `Lv.${S.pet.level} 달성! 스토리에 자랑해볼까?` : '완전 성장! 자랑해볼까?';
   $('#shareImg').src = c.toDataURL('image/png');
   cardBlob = await new Promise(r => c.toBlob(r, 'image/png'));
   $('#shareModal').classList.add('open');
@@ -2419,6 +2447,7 @@ $('#doShare').onclick = async () => {
   await poll();
   // 창이 보일 땐 1.5초, 가려져 있으면 5초마다 (배터리·CPU 아끼기)
   (function tick() { setTimeout(async () => { await poll(); tick(); }, document.hidden ? 5000 : 1500); })();
+  sceneLoop();
   setInterval(particle, 700);
   setInterval(wander, 5000);
   setInterval(() => speak(false), 7000);

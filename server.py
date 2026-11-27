@@ -30,8 +30,8 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.30.3"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "도감 졸업 이력 · 기록 날짜 고르기 · AI 모델별 사용량 · 라이트/다크 테마 🎨"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.31.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "도트 배경 · 레벨업마다 인스타 스토리 카드 📸 · 배경 깨짐 수정"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -1255,6 +1255,9 @@ def step(app, url, idle, dt, title=""):
                 pass
             elif after > before:
                 log("lvup", f"Lv.{after} 달성!")
+                if time.time() - LIVE.get("lvup_note", 0) > 600:   # 초반엔 레벨이 금방 올라서 10분에 한 번만 알림
+                    LIVE["lvup_note"] = time.time()
+                    notify(f"⬆️ Lv.{after} 달성!", "Figmon 대시보드에서 📸 스토리 카드로 자랑해보세요")
             else:
                 log("lvdown", f"Lv.{after}로 떨어졌어요…")
         line_now = pet_line(pet)
