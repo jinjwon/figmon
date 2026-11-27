@@ -30,8 +30,8 @@ from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.31.0"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
-WHATS_NEW = "도트 배경 · 레벨업마다 인스타 스토리 카드 📸 · 배경 깨짐 수정"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
+VERSION = "1.31.1"   # build_app.sh·Windows 빌드가 이 값을 버전으로 씀
+WHATS_NEW = "최종 진화하면 스토리 카드 꾸미기 🎨 · 더 가벼운 배경 · 업데이트 안정화"   # 업데이트 직후 알림에 나오는 한 줄 (배포할 때마다 바꿈)
 if os.environ.get("FIGMON_VERSION_OVERRIDE") and "--updated" not in sys.argv:   # 업데이트 점검(CI)용
     VERSION = os.environ["FIGMON_VERSION_OVERRIDE"]
 REPO = "jinjwon/figmon"
@@ -1736,6 +1736,7 @@ def win_update(manual=False):
         set_update("dev", "소스로 실행 중이면 git pull로 업데이트해 주세요")
         return False
     set_update("checking", "새 버전을 확인하는 중…")
+    tag = ""
     try:
         test = "--updated" not in sys.argv and os.environ.get("FIGMON_UPDATE_TAG")   # CI 점검용
         tag = test or latest_tag()
@@ -1766,6 +1767,10 @@ def win_update(manual=False):
                          creationflags=0x00000008 | 0x00000200, close_fds=True)  # DETACHED | NEW_PROCESS_GROUP
         os._exit(0)
     except Exception as e:
+        if getattr(e, "code", None) == 404 and tag:   # 릴리스는 떴는데 Windows zip은 Actions가 1~2분 뒤에 붙임 → 그 사이면 곧 다시 확인
+            print("update zip not uploaded yet:", tag, flush=True)
+            set_update("latest", f"v{tag.lstrip('v')} 준비 중이에요. 몇 분 뒤 다시 확인할게요", tag)
+            return "soon"
         print("update check failed:", repr(e), flush=True)
         set_update("failed", "업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.")
         if manual:
@@ -1803,9 +1808,8 @@ def update_loop():
     time.sleep(float(os.environ.get("FIGMON_UPDATE_DELAY", 10)))
     clean_old_updates()
     while True:
-        if STATE["config"].get("auto_update", True):
-            win_update()
-        time.sleep(3600)   # 1시간마다
+        soon = STATE["config"].get("auto_update", True) and win_update() == "soon"
+        time.sleep(300 if soon else 3600)   # 1시간마다 (zip이 아직 안 올라왔으면 5분 뒤)
 
 
 def launch_pet():

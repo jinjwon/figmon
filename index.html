@@ -253,6 +253,15 @@ label.f input,label.f textarea{display:block;width:100%;margin-top:4px;backgroun
 label.f textarea{height:64px;resize:vertical}
 .share-img{display:block;height:min(62vh,640px);aspect-ratio:9/16;margin:10px auto 0;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 .share-hint{text-align:center;font-size:12px;color:var(--mute);margin-top:6px}
+.decor{margin-top:10px;background:var(--card2);border-radius:14px;padding:10px 12px}
+.decor summary{cursor:pointer;font:15px Jua,sans-serif;min-height:28px;display:flex;align-items:center}
+.decor[open] ~ .btns{margin-top:10px}
+.decor-row{margin-top:8px}
+.decor-row > span{display:block;font-size:12px;color:var(--mute);margin-bottom:4px}
+.decor-opts{display:flex;flex-wrap:wrap;gap:6px}
+.decor-opts button{border:2px solid transparent;background:var(--card);color:var(--text);border-radius:99px;padding:5px 11px;font:13px Jua,sans-serif;cursor:pointer;min-height:32px}
+.decor-opts button[aria-pressed=true]{border-color:var(--type,#ffd84d);background:color-mix(in srgb,var(--type,#ffd84d) 22%,var(--card))}
+.decor input{width:100%;background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px;font:13px -apple-system,sans-serif}
 
 /* 진화 연출: 일반 진화(빛이 모여 하얀 실루엣이 점점 빠르게 바뀌다 펑) · 메가진화(키스톤 → 무지개 빛줄기 → 빛의 알 → 깨지며 등장) */
 .evo-overlay{position:fixed;inset:0;background:radial-gradient(circle at 50% 45%,#1d2240 0%,#07080f 70%);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:30;color:#fff;overflow:hidden;opacity:0;transition:opacity .4s}
@@ -628,8 +637,9 @@ label.f textarea{height:64px;resize:vertical}
 <!-- 공유 -->
 <div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-label="자랑 카드"><div class="sheet">
   <h2 id="shareTitle">완전 성장! 자랑해볼까?</h2>
-  <img class="share-img" id="shareImg" alt="인스타 스토리 크기 자랑 카드">
+  <canvas class="share-img" id="shareImg" role="img" aria-label="인스타 스토리 크기 자랑 카드"></canvas>
   <p class="share-hint">인스타 스토리 크기(1080×1920)예요. 저장해서 스토리에 바로 올려보세요</p>
+  <details class="decor" id="decor"><summary>🎨 카드 꾸미기</summary><div id="decorBody"></div></details>
   <div class="btns">
     <button class="b primary" id="doShare">공유하기</button>
     <button class="b" id="doSave">이미지 저장</button>
@@ -1367,16 +1377,17 @@ async function drawScene(g, svg, t, w, h) {
   }
   g.putImageData(im, 0, 0);
 }
-// 대시보드 배경: 스프라이트(2배 확대)와 같은 2px 도트, 초당 10장. 창이 가려졌거나 홈 탭이 아니면 쉼. 움직임 줄이기면 한 장만
+// 대시보드 배경: 스프라이트(2배 확대)와 같은 2px 도트, 초당 10장 · 다른 앱에서 작업 중이면 4장.
+// 창이 가려졌거나, 홈 탭이 아니거나, 스크롤해서 안 보이면 쉼. 움직임 줄이기면 한 장만
 const SCENE_PX = 2;
 async function sceneLoop() {
-  const sc = $('#scene'), cv = $('#region canvas');
-  if (cv && sceneKey && !document.hidden && sc.offsetParent && (!calm() || cv.dataset.key !== sceneKey)) {
+  const sc = $('#scene'), cv = $('#region canvas'), r = sc.getBoundingClientRect();
+  if (cv && sceneKey && !document.hidden && sc.offsetParent && r.bottom > 0 && r.top < innerHeight && (!calm() || cv.dataset.key !== sceneKey)) {
     const w = Math.max(1, Math.round(sc.clientWidth / SCENE_PX)), h = Math.max(1, Math.round(sc.clientHeight / SCENE_PX));
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     try { await drawScene(cv.getContext('2d', {willReadFrequently: true}), sceneSVG(sceneKey, sceneInfo.sanct), performance.now() / 1000, w, h); cv.dataset.key = sceneKey; } catch {}
   }
-  setTimeout(sceneLoop, 100);
+  setTimeout(sceneLoop, document.hasFocus() ? 100 : 250);
 }
 const DAYPARTS = {
   morning: {name: '아침', icon: '🌅', lines: ['좋은 아침! ☀️ 오늘도 같이 크자', '아침 공기 좋다~ 시작해볼까?']},
@@ -2269,8 +2280,14 @@ $('#setForm').onsubmit = async e => {
 };
 
 /* ---------- 공유 카드 ---------- */
-let cardBlob, shareText;
-const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
+let shareText;
+const imgCache = new Map();   // 스프라이트는 한 번만 받음 (꾸미기를 바꿀 때마다 카드를 다시 그리므로)
+const loadImg = src => {
+  const load = () => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
+  if (!src.startsWith('http')) return load();
+  if (!imgCache.has(src)) imgCache.set(src, load().catch(e => { imgCache.delete(src); throw e; }));
+  return imgCache.get(src);
+};
 const RAINBOW_C = ['#ff5d8f', '#ffb84d', '#ffe94d', '#5dff9c', '#4dd2ff', '#8a6bff'];
 function cardTier(p) {
   const sanct = sanctumOf(p), mega = !!(p.mega_info && p.mega_info.active);
@@ -2299,7 +2316,7 @@ function cardFeats(p, t) {
 // 인스타 스토리 1080×1920. 게임 화면처럼: 위는 8px 도트 풍경 + 도트 포켓몬, 아래는 레트로 대화창에 기록.
 // 위·아래 250px쯤은 스토리의 프로필·답장 칸에 가리므로 중요한 글자는 그 사이에 둠. 글꼴은 도트 글꼴 갈무리(11의 배수 크기에서 또렷함)
 async function makeCard() {
-  const p = S.pet, t = cardTier(p), col = TYPE[p.type] || '#ffd84d', W = 1080, H = 1920, CX = W / 2, U = 8;
+  const p = S.pet, t = cardTier(p), o = decorOK(p) ? cardOpt : DECOR_DEF, place = o.scene ? REGIONS[o.scene].name + ' 지방' : t.sanct ? t.sanct.place : REGIONS[p.gen].name + ' 지방', col = TYPE[p.type] || '#ffd84d', W = 1080, H = 1920, CX = W / 2, U = 8;
   const GOLD = '#f2c75c', INK = '#1b1828', PANEL = '#15131f', PX = 'Galmuri11, Jua, sans-serif';
   const acc = {level: col, final: '#ffd84d', mega: '#c9a8ff', legend: t.acc, myth: '#ff9fe0', arceus: GOLD}[t.kind];
   await document.fonts.ready;
@@ -2323,7 +2340,11 @@ async function makeCard() {
   g.fillStyle = PANEL; g.fillRect(0, 0, W, H);
   try {
     const sc = document.createElement('canvas'); sc.width = 135; sc.height = 144;
-    await drawScene(sc.getContext('2d', {willReadFrequently: true}), sceneSVG(t.sanct ? 'L' + t.sanct.id : 'g' + p.gen, t.sanct), 9, 135, 144);
+    const sg = sc.getContext('2d', {willReadFrequently: true});
+    await drawScene(sg, o.scene ? sceneSVG('g' + o.scene) : sceneSVG(t.sanct ? 'L' + t.sanct.id : 'g' + p.gen, t.sanct), 9, 135, 144);
+    if (o.time === 'sunset') { const tg = sg.createLinearGradient(0, 0, 0, 144); tg.addColorStop(0, 'rgba(120,40,150,.45)'); tg.addColorStop(.6, 'rgba(255,110,50,.4)'); tg.addColorStop(1, 'rgba(90,30,40,.3)'); sg.fillStyle = tg; sg.fillRect(0, 0, 135, 144); }
+    if (o.time === 'night') { sg.fillStyle = 'rgba(8,12,44,.62)'; sg.fillRect(0, 0, 135, 144); sg.fillStyle = '#fff';
+      for (let i = 0; i < 40; i++) sg.fillRect((i * 53) % 135, (i * 29) % 70, 1, 1); }
     g.drawImage(sc, 0, 0, 135 * U, 144 * U);
   } catch {}
   for (let i = 0; i < 20; i++) { g.fillStyle = `rgba(21,19,31,${Math.min(1, (i + 1) / 18)})`; g.fillRect(0, 880 + i * 16, W, 16); }   // 아래로 계단식으로 어두워짐
@@ -2343,9 +2364,13 @@ async function makeCard() {
   }
   // 발밑 도트 그림자 + 포켓몬 (원래 도트 스프라이트를 6배, 없으면 공식 그림)
   g.fillStyle = 'rgba(0,0,0,.35)'; [[200, 0], [168, -U], [168, U], [112, -2 * U]].forEach(([w, dy]) => g.fillRect(CX - w, 884 + dy, w * 2, U));
-  try { const s = await loadImg(PIX(p.species[0])); g.drawImage(s, CX - 288, 900 - 576 + 6 * 8, 576, 576); }
+  try { const s = await loadImg(o.shiny ? SHINY(p.species[0]) : PIX(p.species[0])).catch(() => loadImg(PIX(p.species[0]))); g.drawImage(s, CX - 288, 900 - 576 + 6 * 8, 576, 576); }
   catch { try { const a = await loadImg(ART(p.species[0])); g.imageSmoothingEnabled = true; g.drawImage(a, CX - 260, 380, 520, 520); g.imageSmoothingEnabled = false; } catch {} }
 
+  // 도트 반짝이 (십자 모양)
+  [[CX - 330, 470, 3], [CX + 300, 420, 2], [CX + 350, 700, 3], [CX - 360, 760, 2], [CX + 220, 300 + 160, 1], [CX - 240, 380, 1]].forEach(([x, y, k], i) => {
+    g.fillStyle = i % 2 ? acc : '#fff'; const u = U * k / 2 + 4;
+    g.fillRect(x - u / 2, y - u * 2, u, u * 4.5); g.fillRect(x - u * 2, y - u / 2, u * 4.5, u); });
   // 3) 위: 로고 + 등급 배지
   g.font = `bold 55px ${PX}`; const lw = g.measureText('FIGMON').width, mw = g.measureText('MON').width;
   g.textAlign = 'left'; ptext('FIG', CX - lw / 2, 300, 55, '#fff', INK, true); ptext('MON', CX + lw / 2 - mw, 300, 55, '#ffd84d', INK, true); g.textAlign = 'center';
@@ -2355,6 +2380,7 @@ async function makeCard() {
   g.fillStyle = INK; g.fillText(t.badge, CX, 374);
 
   // 4) 큰 제목 (테두리 + 딱 떨어지는 그림자)
+  if (o.head) t.head = o.head;
   const hs = t.head.length > 11 ? 88 : 121;
   g.font = `bold ${hs}px ${PX}`; g.lineJoin = 'miter'; g.lineWidth = 16; g.strokeStyle = INK;
   g.strokeText(t.head, CX, 1040, 980); g.fillStyle = INK; g.fillText(t.head, CX + 10, 1050, 980);
@@ -2366,9 +2392,10 @@ async function makeCard() {
   const msg = {level: `${nm}${josa(nm, '은', '는')} 레벨 ${p.level} 달성!`, final: `${nm}${josa(nm, '은', '는')} 완전히 성장했다!`,
     mega: `${nm}${josa(nm, '은', '는')} 메가진화했다!`, legend: `${t.sanct ? t.sanct.place : '성지'}의 주인과 함께 해냈다!`,
     myth: `꿈에서만 보던 ${nm}${josa(nm, '과', '와')} 함께!`, arceus: `창조의 신 ${nm}${josa(nm, '과', '와')} 함께!`}[t.kind];
+  const line1 = o.msg.trim() || msg;
   const bx = 64, by = 1152, bW = 952, bH = 312;
   pbox(bx, by, bW, bH, '#fffaf0', INK); g.fillStyle = acc; g.fillRect(bx + 16, by + 16, bW - 32, U);   // 위쪽 색 띠
-  g.font = `44px ${PX}`; g.fillStyle = INK; g.fillText(msg, CX, by + 92, bW - 80);
+  g.font = `44px ${PX}`; g.fillStyle = INK; g.fillText(line1, CX, by + 92, bW - 80);
   [[dur(p.work_sec), '작업 시간'], [`${Math.round(fe.focus * 100)}%`, '집중률'], [`${fe.days}일`, '함께한 날']].forEach(([v, l], i) => {
     const x = bx + bW / 6 * (i * 2 + 1);
     g.font = `bold ${v.length > 5 ? 44 : 55}px ${PX}`; g.fillStyle = INK; g.fillText(v, x, by + 178);
@@ -2393,44 +2420,78 @@ async function makeCard() {
   // 7) 진화 과정 (도트 스프라이트, 지금 모습은 테두리)
   const track = p.stages.map((s, i) => [s[0], `Lv.${(p.evo_levels || [])[i] ?? 0}`]);
   if (t.mega) track.push([p.species[0], `Lv.${p.mega_info.lv}`]);
-  const n = track.length, sw = 96, gap = n > 3 ? 48 : 72, x0 = CX - (n * sw + (n - 1) * gap) / 2;
+  const n = track.length, sw = n > 3 ? 160 : 192, gap = n > 3 ? 40 : 56, x0 = CX - (n * sw + (n - 1) * gap) / 2;   // 스프라이트 96px의 2배 (4칸이면 조금 작게)
   for (let i = 0; i < n; i++) {
     const xi = x0 + i * (sw + gap), now = track[i][0] === p.species[0];
-    if (now) pbox(xi - 8, 1588, sw + 16, sw + 16, 'rgba(255,255,255,.08)', acc, 4);
-    try { const s = await loadImg(PIX(track[i][0])); g.drawImage(s, xi, 1596, sw, sw); } catch {}
-    g.font = `22px ${PX}`; g.fillStyle = now ? '#fff' : 'rgba(255,255,255,.5)'; g.fillText(track[i][1], xi + sw / 2, 1736);
-    if (i < n - 1) { g.font = `bold 33px ${PX}`; g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText('▶', xi + sw + gap / 2, 1656); }
+    if (now) pbox(xi, 1584, sw, sw, '#24213a', acc, 4);
+    try { const s = await loadImg(PIX(track[i][0])); g.drawImage(s, xi, 1584, sw, sw); } catch {}
+    g.font = `22px ${PX}`; g.fillStyle = now ? '#fff' : 'rgba(255,255,255,.5)'; g.fillText(track[i][1], xi + sw / 2, 1584 + sw + 30);
+    if (i < n - 1) { g.font = `bold 33px ${PX}`; g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText('▶', xi + sw + gap / 2, 1584 + sw / 2 + 12); }
   }
   g.font = `22px ${PX}`; g.fillStyle = 'rgba(255,255,255,.6)';
-  g.fillText(`${t.sanct ? t.sanct.place : REGIONS[p.gen].name + ' 지방'}에서 함께 자란 포켓몬 · 작업한 만큼 자라요 · #Figmon`, CX, 1800, 960);
+  const d = new Date(), day = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  g.fillText(`${day} · ${place}에서 함께 자란 포켓몬 · #Figmon`, CX, 1852, 960);
 
   // 8) 도트 테두리: 등급마다 색이 다름
-  const fr = t.kind === 'mega' ? rainbow(0, W) : t.kind === 'myth' ? (() => { const a = g.createLinearGradient(0, 0, W, 0); a.addColorStop(0, '#ff9ee8'); a.addColorStop(.5, '#a98bff'); a.addColorStop(1, '#7fe3ff'); return a; })() : t.kind === 'level' ? acc : GOLD;
+  const fr = o.frame === 'type' ? col : o.frame === 'gold' ? GOLD : o.frame === 'rainbow' ? rainbow(0, W) : o.frame === 'white' ? '#fff' : t.kind === 'mega' ? rainbow(0, W) : t.kind === 'myth' ? (() => { const a = g.createLinearGradient(0, 0, W, 0); a.addColorStop(0, '#ff9ee8'); a.addColorStop(.5, '#a98bff'); a.addColorStop(1, '#7fe3ff'); return a; })() : t.kind === 'level' ? acc : GOLD;
   g.fillStyle = fr;
   [[24, 32, U * 2, H - 64], [W - 40, 32, U * 2, H - 64], [32, 24, W - 64, U * 2], [32, H - 40, W - 64, U * 2]].forEach(r => g.fillRect(...r));
   if (t.kind === 'legend' || t.kind === 'arceus' || t.kind === 'final') [[40, 40], [W - 56, 40], [40, H - 56], [W - 56, H - 56]].forEach(([x, y]) => { g.fillStyle = INK; g.fillRect(x, y, 16, 16); g.fillStyle = GOLD; g.fillRect(x + 4, y + 4, 8, 8); });
   return c;
 }
+// 카드 꾸미기: 최종 진화를 마친 포켓몬만 (이브이·갈래 진화는 진화형이 정해진 뒤)
+const decorOK = p => !!(p && p.final && p.next_evo_lv == null);
+const SHINY = id => `${RAW}/shiny/${id}.png`;
+const DECOR_DEF = {scene: '', time: 'day', frame: 'auto', shiny: '', head: '', msg: ''};
+let cardOpt = {...DECOR_DEF};
+try { Object.assign(cardOpt, JSON.parse(localStorage.getItem('figmonCard') || '{}')); } catch {}
+const DECOR = [
+  ['scene', '배경', [['', '키운 곳'], ...Object.keys(REGIONS).map(i => [i, REGIONS[i].name])]],
+  ['time', '시간', [['day', '☀️ 낮'], ['sunset', '🌇 노을'], ['night', '🌙 밤']]],
+  ['frame', '테두리', [['auto', '자동'], ['type', '타입 색'], ['gold', '금색'], ['rainbow', '무지개'], ['white', '하양']]],
+  ['shiny', '포켓몬', [['', '기본'], ['1', '✨ 이로치']]],
+  ['head', '제목', [['', '자동'], ['FINAL EVOLUTION!', 'FINAL EVOLUTION!'], ['GOOD JOB!', 'GOOD JOB!'], ['I DID IT!', 'I DID IT!'], ['LEVEL UP!', 'LEVEL UP!']]],
+];
+function renderDecor() {
+  const box = $('#decorBody');
+  if (!decorOK(S.pet)) { box.innerHTML = '<p class="muted" style="margin:8px 0 0">🔒 최종 진화하면 배경·시간·테두리·이로치·문구를 바꿀 수 있어요</p>'; return; }
+  box.innerHTML = DECOR.map(([k, label, opts]) => `<div class="decor-row" role="group" aria-label="${label}"><span>${label}</span><div class="decor-opts">${
+    opts.map(([v, txt]) => `<button type="button" data-k="${k}" data-v="${v}" aria-pressed="${String(cardOpt[k]) === v}">${txt}</button>`).join('')}</div></div>`).join('')
+    + `<label class="decor-row"><span>대화창 한 줄 (비우면 자동)</span><input id="decorMsg" maxlength="20" value="${cardOpt.msg.replace(/"/g, '&quot;')}"></label>`;
+}
+let decorT;
+function setDecor(k, v) {
+  cardOpt[k] = v; try { localStorage.setItem('figmonCard', JSON.stringify(cardOpt)); } catch {}
+  clearTimeout(decorT); decorT = setTimeout(drawShare, k === 'msg' ? 350 : 0);
+}
+$('#decorBody').onclick = e => { const b = e.target.closest('button[data-k]'); if (!b) return;
+  b.parentNode.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); setDecor(b.dataset.k, b.dataset.v); };
+$('#decorBody').oninput = e => { if (e.target.id === 'decorMsg') setDecor('msg', e.target.value); };
+let cardCanvas, drawing = 0;
+async function drawShare() {   // 최신 요청만 화면에 (꾸미기를 빠르게 바꿔도 순서가 꼬이지 않게)
+  const my = ++drawing, c = await makeCard();
+  if (my !== drawing) return;
+  cardCanvas = c; const v = $('#shareImg'); v.width = c.width; v.height = c.height; v.getContext('2d').drawImage(c, 0, 0);
+}
+const cardURL = () => cardCanvas.toDataURL('image/png');
 async function openShare() {
   if (!S.pet || !S.pet.species) return;
-  const c = await makeCard();
+  renderDecor(); await drawShare();
   const tt = cardTier(S.pet), fe = cardFeats(S.pet, tt);
   shareText = `${dur(S.pet.work_sec)} 작업으로 ${S.pet.species[1]} ${tt.kind === 'level' ? `Lv.${S.pet.level} 달성` : tt.mega ? '메가진화' : '완전 성장'} (집중률 ${Math.round(fe.focus * 100)}%)! ${fe.feats.join(' ')} #Figmon`;
   $('#shareTitle').textContent = tt.kind === 'level' ? `Lv.${S.pet.level} 달성! 스토리에 자랑해볼까?` : '완전 성장! 자랑해볼까?';
-  $('#shareImg').src = c.toDataURL('image/png');
-  cardBlob = await new Promise(r => c.toBlob(r, 'image/png'));
   $('#shareModal').classList.add('open');
 }
 $('#shareBtn').onclick = openShare;
 $('#shareClose').onclick = () => $('#shareModal').classList.remove('open');
 const native = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.figmon;
 const callNative = m => native.postMessage(m);
-$('#doSave').onclick = () => { if (native) return callNative({type: 'saveImage', dataURL: $('#shareImg').src, name: `figmon-${S.pet.species[1]}.png`}); const a = document.createElement('a'); a.href = $('#shareImg').src; a.download = `figmon-${S.pet.species[1]}.png`; a.click(); };
+$('#doSave').onclick = () => { if (native) return callNative({type: 'saveImage', dataURL: cardURL(), name: `figmon-${S.pet.species[1]}.png`}); const a = document.createElement('a'); a.href = cardURL(); a.download = `figmon-${S.pet.species[1]}.png`; a.click(); };
 $('#doCopy').onclick = async () => { if (native) callNative({type: 'copy', text: shareText}); else await navigator.clipboard.writeText(shareText); toast('문구 복사됨!'); };
 $('#doX').onclick = () => native ? callNative({type: 'openURL', url: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText)}) : window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank');
 $('#doShare').onclick = async () => {
-  if (native) return callNative({type: 'shareImage', dataURL: $('#shareImg').src, text: shareText});
-  const file = new File([cardBlob], 'figmon.png', {type: 'image/png'});
+  if (native) return callNative({type: 'shareImage', dataURL: cardURL(), text: shareText});
+  const file = new File([await new Promise(r => cardCanvas.toBlob(r, 'image/png'))], 'figmon.png', {type: 'image/png'});
   if (navigator.canShare && navigator.canShare({files: [file]})) {
     try { await navigator.share({files: [file], text: shareText}); } catch {}
   } else { $('#doSave').click(); toast('이미지를 저장했어요. 인스타/카톡에 올려보세요!'); }
